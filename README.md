@@ -47,118 +47,40 @@ Pkg.add("Tachikoma")
 ```
 
 ```julia
-using Tachikoma, Match
+using Tachikoma
 
-@kwdef mutable struct PigGame <: Model
-    quit::Bool = false; tick::Int = 0
-    score::Int = 0; turn_total::Int = 0
-    rolls::Vector{Int} = Int[]; busted::Bool = false
-    turns::Vector{Int} = Int[]  # completed turn results (0 = bust)
+@kwdef mutable struct Life <: Model
+    quit::Bool = false
+    grid::Matrix{Bool} = rand(24, 80) .< 0.25
 end
 
-should_quit(m::PigGame) = m.quit
+Tachikoma.should_quit(m::Life) = m.quit
+function Tachikoma.update!(m::Life, e::KeyEvent)
+    e.key == :escape && (m.quit = true)
+end
 
-function update!(m::PigGame, evt::KeyEvent)
-    @match (evt.key, evt.char) begin
-        (:char, 'q') || (:escape, _) => (m.quit = true)
-        (:char, 'r') || (:enter, _)  => begin  # roll
-            m.busted = false
-            face = rand(1:6)
-            push!(m.rolls, face)
-            if face == 1
-                m.busted = true; push!(m.turns, 0); m.turn_total = 0
-            else
-                m.turn_total += face
-            end
-        end
-        (:char, 'b') || (:char, ' ') => begin  # bank
-            push!(m.turns, m.turn_total)
-            m.score += m.turn_total
-            m.turn_total = 0; empty!(m.rolls); m.busted = false
-        end
-        _ => nothing
+function Tachikoma.view(m::Life, f::Frame)
+    h, w = size(m.grid)
+    g = m.grid
+    nc = [sum(g[mod1(i+di,h), mod1(j+dj,w)]
+          for di in -1:1, dj in -1:1) - g[i,j]
+          for i in 1:h, j in 1:w]
+    g .= (nc .== 3) .| (g .& (nc .== 2))
+    a, buf = f.area, f.buffer
+    cs = [:primary, :accent, :success,
+          :warning, :error]
+    for i in 1:min(h, a.height),
+        j in 1:min(w, a.width)
+        g[i,j] || continue
+        set_char!(buf, a.x+j-1, a.y+i-1,
+            '█', tstyle(cs[clamp(nc[i,j],1,5)]))
     end
 end
 
-# Hand-drawn 7×5 die using box-drawing and ● dots
-const DIE_ART = Dict(
-    1 => ["┌─────┐","│     │","│  ●  │","│     │","└─────┘"],
-    2 => ["┌─────┐","│    ●│","│     │","│●    │","└─────┘"],
-    3 => ["┌─────┐","│    ●│","│  ●  │","│●    │","└─────┘"],
-    4 => ["┌─────┐","│●   ●│","│     │","│●   ●│","└─────┘"],
-    5 => ["┌─────┐","│●   ●│","│  ●  │","│●   ●│","└─────┘"],
-    6 => ["┌─────┐","│●   ●│","│●   ●│","│●   ●│","└─────┘"],
-)
-
-die_color(f) = f <= 2 ? tstyle(:accent) : f <= 4 ? tstyle(:primary, bold=true) :
-               tstyle(:success, bold=true)
-
-function view(m::PigGame, f::Frame)
-    m.tick += 1; buf = f.buffer
-    bs = m.busted ? tstyle(:error) : m.turn_total > 20 ? tstyle(:warning) : tstyle(:border)
-    inner = render(Block(title="Pig", border_style=bs), f.area, buf)
-    rows = split_layout(Layout(Vertical,
-        [Fixed(1), Fixed(1), Fixed(5), Fixed(1), Fill()]), inner)
-    length(rows) < 5 && return
-
-    # Score labels with conditional colors
-    total = m.score + m.turn_total
-    set_string!(buf, rows[1].x, rows[1].y, "Score: $(m.score)", tstyle(:primary, bold=true))
-    ts = m.busted ? tstyle(:error, bold=true) : m.turn_total > 15 ? tstyle(:warning) : tstyle(:accent)
-    set_string!(buf, rows[1].x + rows[1].width ÷ 2, rows[1].y,
-        m.busted ? "BUST!" : "Turn: $(m.turn_total)", ts)
-
-    # Progress gauge — color shifts as score climbs
-    gs = total >= 100 ? tstyle(:success) : total >= 60 ? tstyle(:warning) :
-         m.busted ? tstyle(:error) : tstyle(:primary)
-    render(Gauge(clamp(total/100, 0, 1); filled_style=gs,
-        empty_style=tstyle(:text_dim, dim=true)), rows[2], buf)
-
-    # Large die face for current roll
-    if !isempty(m.rolls)
-        face = m.rolls[end]; art = DIE_ART[face]
-        dx = rows[3].x + max(0, (rows[3].width - 7) ÷ 2)
-        ds = m.busted ? tstyle(:error, bold=true) : die_color(face)
-        for (row, line) in enumerate(art)
-            set_string!(buf, dx, rows[3].y + row - 1, line, ds)
-        end
-    end
-
-    # Roll history — small die faces for previous rolls
-    die_faces = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅']
-    if length(m.rolls) > 1
-        hist = @view m.rolls[1:end-1]
-        tw = length(hist) * 2 - 1
-        dx = rows[4].x + max(0, (rows[4].width - tw) ÷ 2)
-        for (i, r) in enumerate(hist)
-            set_char!(buf, dx + (i-1)*2, rows[4].y, die_faces[r], die_color(r))
-        end
-    end
-
-    # Turn history — banked amounts and busts
-    if !isempty(m.turns)
-        dx = rows[5].x
-        for (i, t) in enumerate(m.turns)
-            label = t == 0 ? "✗" : "+$t"
-            s = t == 0 ? tstyle(:error) : t >= 15 ? tstyle(:success, bold=true) : tstyle(:accent)
-            set_string!(buf, dx, rows[5].y, label, s)
-            dx += length(label) + 1
-            dx >= rows[5].x + rows[5].width && break
-        end
-    end
-
-    render(StatusBar(left=[Span("  [r]oll  ", tstyle(:accent)),
-                           Span("[b]ank  ", tstyle(:success))],
-        right=[Span("[q]uit ", tstyle(:text_dim))]),
-        Rect(f.area.x, bottom(f.area), f.area.width, 1), buf)
-end
-
-app(PigGame())
+app(Life())
 ```
 
-<p align="center">
-  <img src="https://kahliburke.github.io/Tachikoma.jl/assets/examples/pig_game.gif" alt="Pig dice game" width="480">
-</p>
+See the [Getting Started](https://kahliburke.github.io/Tachikoma.jl/dev/getting-started) guide for a more complete walkthrough with layouts, widgets, and input handling.
 
 ## Gallery
 
