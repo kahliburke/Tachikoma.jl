@@ -1,0 +1,46 @@
+Manifest.toml
+.mcprepl/
+.mcp.json
+.julia-startup.jl
+*.swp
+*.swo
+*~
+.DS_Store
+LocalPreferences.toml
+
+# Generated doc assets and build artifacts
+docs/build/
+docs/build.bak/
+docs/.render_cache.json
+docs/node_modules/
+docs/package-lock.json
+docs/src/assets/
+docs/src/.vitepress/cache/
+docs/src/.vitepress/dist/
+docs/src/.vitepress/public/assets/
+docs/src/public/assets/
+
+# Sample recording exports
+samples/
+
+# Ad-hoc recording exports
+tachikoma_*.svg
+tachikoma_*.gif
+tachikoma_*.tach
+
+# Plan files
+PLAN_*.md
+TODO.md
+
+# IDE
+.vscode/
+
+# Docs sub-environment
+docs/docs/
+
+# Coverage
+*.cov
+
+# Misc
+DISCOURSE_ANNOUNCEMENT.md
+demos/TachikomaDemos/logo_font_samples.txt

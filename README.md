@@ -1,0 +1,245 @@
+<p align="center">
+  <img src="https://kahliburke.github.io/Tachikoma.jl/assets/hero_demo.gif" alt="Tachikoma.jl demo" width="720">
+</p>
+
+<h1 align="center">Tachikoma.jl</h1>
+
+<p align="center">
+  <strong>A terminal UI framework for Julia</strong>
+</p>
+
+<p align="center">
+  <a href="https://github.com/kahliburke/Tachikoma.jl/actions/workflows/CI.yml"><img src="https://github.com/kahliburke/Tachikoma.jl/actions/workflows/CI.yml/badge.svg" alt="CI"></a>
+  <a href="https://kahliburke.github.io/Tachikoma.jl/dev/"><img src="https://img.shields.io/badge/docs-dev-blue.svg" alt="Dev Docs"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green.svg" alt="MIT License"></a>
+  <img src="https://img.shields.io/badge/julia-%E2%89%A5%201.12-9558B2?logo=julia&logoColor=white" alt="Julia 1.12+">
+</p>
+
+---
+
+Tachikoma is a pure-Julia framework for building rich, interactive terminal applications. It provides an Elm-inspired `Model`/`update!`/`view` architecture, a 60fps event loop with double-buffered rendering, 30+ composable widgets, constraint-based layouts, animation primitives, kitty/sixel pixel graphics, and built-in recording and export to SVG/GIF.
+
+## Features
+
+**Architecture** — Declarative Elm pattern with clean separation of state, logic, and rendering. 60fps event loop with automatic frame pacing and double-buffered output.
+
+**30+ Widgets** — Text inputs, text areas, code editor with syntax highlighting, data tables with column resize and sort, forms with validation and Tab navigation, tree views, charts, bar charts, sparklines, calendars, modals, dropdowns, radio groups, checkboxes, progress indicators, scrollable panes, markdown viewer, and more.
+
+**Constraint Layouts** — `Fixed`, `Fill`, `Percent`, `Min`, `Max`, and `Ratio` constraints. Draggable resizable pane borders with layout persistence via Preferences.jl.
+
+**Animation** — Tweens with 10 easing functions, physics-based springs, timelines for sequencing, and organic effects: `noise`, `fbm`, `pulse`, `breathe`, `shimmer`, `jitter`, `flicker`, `drift`, `glow`.
+
+**Graphics** — Three rendering backends: Braille dots (2x4), quadrant blocks (2x2), and pixel rendering (16x32 per cell, Kitty or sixel). Vector drawing API with lines, arcs, circles, and shapes.
+
+**11 Themes** — Cyberpunk, retro, and classic palettes (KOKAKU, ESPER, MOTOKO, KANEDA, NEUROMANCER, CATPPUCCIN, SOLARIZED, DRACULA, OUTRUN, ZENBURN, ICEBERG) with hot-swappable switching.
+
+**Recording & Export** — Live recording via `Ctrl+R`, headless `record_app()`/`record_widget()` for CI, native `.tach` format with Zstd compression, export to SVG and GIF.
+
+**Async Tasks** — Channel-based background work that preserves the single-threaded Elm architecture. Cancel tokens, timers, and repeat scheduling.
+
+**Testing** — `TestBackend` for headless widget rendering with `char_at()`, `style_at()`, `row_text()`, `find_text()` inspection APIs. Property-based testing with Supposition.jl.
+
+## Quick Start
+
+```julia
+using Pkg
+Pkg.add("Tachikoma")
+```
+
+```julia
+using Tachikoma, Match
+
+@kwdef mutable struct PigGame <: Model
+    quit::Bool = false; tick::Int = 0
+    score::Int = 0; turn_total::Int = 0
+    rolls::Vector{Int} = Int[]; busted::Bool = false
+    turns::Vector{Int} = Int[]  # completed turn results (0 = bust)
+end
+
+should_quit(m::PigGame) = m.quit
+
+function update!(m::PigGame, evt::KeyEvent)
+    @match (evt.key, evt.char) begin
+        (:char, 'q') || (:escape, _) => (m.quit = true)
+        (:char, 'r') || (:enter, _)  => begin  # roll
+            m.busted = false
+            face = rand(1:6)
+            push!(m.rolls, face)
+            if face == 1
+                m.busted = true; push!(m.turns, 0); m.turn_total = 0
+            else
+                m.turn_total += face
+            end
+        end
+        (:char, 'b') || (:char, ' ') => begin  # bank
+            push!(m.turns, m.turn_total)
+            m.score += m.turn_total
+            m.turn_total = 0; empty!(m.rolls); m.busted = false
+        end
+        _ => nothing
+    end
+end
+
+# Hand-drawn 7×5 die using box-drawing and ● dots
+const DIE_ART = Dict(
+    1 => ["┌─────┐","│     │","│  ●  │","│     │","└─────┘"],
+    2 => ["┌─────┐","│    ●│","│     │","│●    │","└─────┘"],
+    3 => ["┌─────┐","│    ●│","│  ●  │","│●    │","└─────┘"],
+    4 => ["┌─────┐","│●   ●│","│     │","│●   ●│","└─────┘"],
+    5 => ["┌─────┐","│●   ●│","│  ●  │","│●   ●│","└─────┘"],
+    6 => ["┌─────┐","│●   ●│","│●   ●│","│●   ●│","└─────┘"],
+)
+
+die_color(f) = f <= 2 ? tstyle(:accent) : f <= 4 ? tstyle(:primary, bold=true) :
+               tstyle(:success, bold=true)
+
+function view(m::PigGame, f::Frame)
+    m.tick += 1; buf = f.buffer
+    bs = m.busted ? tstyle(:error) : m.turn_total > 20 ? tstyle(:warning) : tstyle(:border)
+    inner = render(Block(title="Pig", border_style=bs), f.area, buf)
+    rows = split_layout(Layout(Vertical,
+        [Fixed(1), Fixed(1), Fixed(5), Fixed(1), Fill()]), inner)
+    length(rows) < 5 && return
+
+    # Score labels with conditional colors
+    total = m.score + m.turn_total
+    set_string!(buf, rows[1].x, rows[1].y, "Score: $(m.score)", tstyle(:primary, bold=true))
+    ts = m.busted ? tstyle(:error, bold=true) : m.turn_total > 15 ? tstyle(:warning) : tstyle(:accent)
+    set_string!(buf, rows[1].x + rows[1].width ÷ 2, rows[1].y,
+        m.busted ? "BUST!" : "Turn: $(m.turn_total)", ts)
+
+    # Progress gauge — color shifts as score climbs
+    gs = total >= 100 ? tstyle(:success) : total >= 60 ? tstyle(:warning) :
+         m.busted ? tstyle(:error) : tstyle(:primary)
+    render(Gauge(clamp(total/100, 0, 1); filled_style=gs,
+        empty_style=tstyle(:text_dim, dim=true)), rows[2], buf)
+
+    # Large die face for current roll
+    if !isempty(m.rolls)
+        face = m.rolls[end]; art = DIE_ART[face]
+        dx = rows[3].x + max(0, (rows[3].width - 7) ÷ 2)
+        ds = m.busted ? tstyle(:error, bold=true) : die_color(face)
+        for (row, line) in enumerate(art)
+            set_string!(buf, dx, rows[3].y + row - 1, line, ds)
+        end
+    end
+
+    # Roll history — small die faces for previous rolls
+    die_faces = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅']
+    if length(m.rolls) > 1
+        hist = @view m.rolls[1:end-1]
+        tw = length(hist) * 2 - 1
+        dx = rows[4].x + max(0, (rows[4].width - tw) ÷ 2)
+        for (i, r) in enumerate(hist)
+            set_char!(buf, dx + (i-1)*2, rows[4].y, die_faces[r], die_color(r))
+        end
+    end
+
+    # Turn history — banked amounts and busts
+    if !isempty(m.turns)
+        dx = rows[5].x
+        for (i, t) in enumerate(m.turns)
+            label = t == 0 ? "✗" : "+$t"
+            s = t == 0 ? tstyle(:error) : t >= 15 ? tstyle(:success, bold=true) : tstyle(:accent)
+            set_string!(buf, dx, rows[5].y, label, s)
+            dx += length(label) + 1
+            dx >= rows[5].x + rows[5].width && break
+        end
+    end
+
+    render(StatusBar(left=[Span("  [r]oll  ", tstyle(:accent)),
+                           Span("[b]ank  ", tstyle(:success))],
+        right=[Span("[q]uit ", tstyle(:text_dim))]),
+        Rect(f.area.x, bottom(f.area), f.area.width, 1), buf)
+end
+
+app(PigGame())
+```
+
+<p align="center">
+  <img src="https://kahliburke.github.io/Tachikoma.jl/assets/examples/pig_game.gif" alt="Pig dice game" width="480">
+</p>
+
+## Gallery
+
+<table>
+<tr>
+<td align="center"><strong>Dashboard</strong><br><img src="https://kahliburke.github.io/Tachikoma.jl/assets/examples/dashboard_app.gif" width="360"></td>
+<td align="center"><strong>Form with Validation</strong><br><img src="https://kahliburke.github.io/Tachikoma.jl/assets/examples/form_app.gif" width="360"></td>
+</tr>
+<tr>
+<td align="center"><strong>Animation Showcase</strong><br><img src="https://kahliburke.github.io/Tachikoma.jl/assets/examples/anim_showcase_app.gif" width="360"></td>
+<td align="center"><strong>Todo List</strong><br><img src="https://kahliburke.github.io/Tachikoma.jl/assets/examples/todo_app.gif" width="360"></td>
+</tr>
+<tr>
+<td align="center"><strong>GitHub PR Viewer</strong><br><img src="https://kahliburke.github.io/Tachikoma.jl/assets/examples/github_prs_app.gif" width="360"></td>
+<td align="center"><strong>Constraint Explorer</strong><br><img src="https://kahliburke.github.io/Tachikoma.jl/assets/examples/constraint_explorer_app.gif" width="360"></td>
+</tr>
+<tr>
+<td align="center"><strong>Dotwave Background</strong><br><img src="https://kahliburke.github.io/Tachikoma.jl/assets/examples/bg_dotwave.gif" width="360"></td>
+<td align="center"><strong>Phylogenetic Tree</strong><br><img src="https://kahliburke.github.io/Tachikoma.jl/assets/examples/bg_phylotree.gif" width="360"></td>
+</tr>
+</table>
+
+## Widget Catalog
+
+| Category | Widgets |
+|:---------|:--------|
+| **Text & Display** | `Block`, `Paragraph`, `BigText`, `StatusBar`, `Span`, `Separator`, `MarkdownPane` |
+| **Input** | `TextInput`, `TextArea`, `CodeEditor`, `Checkbox`, `RadioGroup`, `DropDown`, `Button` |
+| **Selection & Lists** | `SelectableList`, `TabBar`, `TreeView`, `Calendar` |
+| **Data** | `DataTable`, `Chart`, `BarChart`, `Sparkline`, `Gauge`, `ProgressList` |
+| **Layout** | `Container`, `ScrollPane`, `Scrollbar`, `Modal`, `Form` |
+| **Graphics** | `Canvas`, `BlockCanvas`, `PixelImage` |
+
+## Backgrounds
+
+Procedural animated backgrounds that composite behind your UI:
+
+| Preset | Description |
+|:-------|:------------|
+| **DotWave** | Undulating dot-matrix terrain with configurable wave layers |
+| **PhyloTree** | Animated phylogenetic branching structures |
+| **Cladogram** | Hierarchical cladogram tree visualizations |
+
+## Optional Extensions
+
+```julia
+# Markdown rendering
+using CommonMark
+# GIF export
+using FreeTypeAbstraction, ColorTypes
+# Tables.jl integration for DataTable
+using Tables
+```
+
+## Documentation
+
+Full documentation is available at **[kahliburke.github.io/Tachikoma.jl](https://kahliburke.github.io/Tachikoma.jl/dev/)**.
+
+| Section | Description |
+|:--------|:------------|
+| [Getting Started](https://kahliburke.github.io/Tachikoma.jl/dev/getting-started) | Build your first app in 30 lines |
+| [Architecture](https://kahliburke.github.io/Tachikoma.jl/dev/architecture) | The Elm architecture pattern in depth |
+| [Layout](https://kahliburke.github.io/Tachikoma.jl/dev/layout) | Constraint-based layout system |
+| [Widgets](https://kahliburke.github.io/Tachikoma.jl/dev/widgets) | Complete catalog of all widgets |
+| [Animation](https://kahliburke.github.io/Tachikoma.jl/dev/animation) | Tweens, springs, timelines, and organic effects |
+| [Graphics](https://kahliburke.github.io/Tachikoma.jl/dev/canvas) | Canvas, BlockCanvas, and pixel rendering |
+| [Themes](https://kahliburke.github.io/Tachikoma.jl/dev/styling) | 11 built-in themes with hot-swap switching |
+| [Recording](https://kahliburke.github.io/Tachikoma.jl/dev/recording) | Recording and export to SVG/GIF |
+| [Testing](https://kahliburke.github.io/Tachikoma.jl/dev/testing) | TestBackend for headless widget testing |
+| [API Reference](https://kahliburke.github.io/Tachikoma.jl/dev/api) | Auto-generated API documentation |
+
+## Requirements
+
+- Julia 1.12+
+- A terminal with ANSI color support (most modern terminals)
+- Kitty or sixel-capable terminal for pixel graphics (kitty, iTerm2, WezTerm, foot, etc.)
+
+## Contributing
+
+Contributions are welcome. Please open an issue to discuss proposed changes before submitting a pull request.
+
+## License
+
+MIT — see [LICENSE](LICENSE) for details.

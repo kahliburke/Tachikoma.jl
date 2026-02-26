@@ -1,0 +1,45 @@
+name = "Tachikoma"
+uuid = "468859d6-42d8-48b7-8ad9-1d312e0e3b0a"
+version = "1.0.0"
+
+[deps]
+Base64 = "2a0f44e3-6c83-55bd-87e4-b1978d98bd5f"
+CodecZlib = "944b1d66-785c-5afd-91f1-9de20f533193"
+CodecZstd = "6b39b394-51ab-5f42-8807-6242bab2b4c2"
+Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
+Preferences = "21216c6a-2e73-6563-6e65-726566657250"
+Supposition = "5a0628fe-1738-4658-9b6d-0b7605a9755b"
+
+[weakdeps]
+ColorTypes = "3da002f7-5984-5a60-b8a6-cbb66c0b333f"
+CommonMark = "a80b9123-70ca-4bc0-993e-6e3bcb318db6"
+FreeTypeAbstraction = "663a7486-cb36-511b-a19d-713bb74d65c9"
+Tables = "bd369af6-aec1-5ad0-b16a-f7cc5008161c"
+
+[extensions]
+TachikomaGifExt = ["FreeTypeAbstraction", "ColorTypes"]
+TachikomaMarkdownExt = "CommonMark"
+TachikomaTablesExt = "Tables"
+
+[compat]
+CodecZlib = "0.7.8"
+CodecZstd = "0.7, 0.8"
+ColorTypes = "0.11, 0.12"
+CommonMark = "0.8"
+Dates = "1"
+FreeTypeAbstraction = "0.10, 0.11"
+Preferences = "1.5.1"
+Supposition = "0.3.5"
+Tables = "1"
+julia = "1.12"
+
+[extras]
+ColorTypes = "3da002f7-5984-5a60-b8a6-cbb66c0b333f"
+CommonMark = "a80b9123-70ca-4bc0-993e-6e3bcb318db6"
+FreeTypeAbstraction = "663a7486-cb36-511b-a19d-713bb74d65c9"
+Supposition = "5a0628fe-1738-4658-9b6d-0b7605a9755b"
+Tables = "bd369af6-aec1-5ad0-b16a-f7cc5008161c"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test", "Supposition", "Tables", "ColorTypes", "FreeTypeAbstraction", "CommonMark"]

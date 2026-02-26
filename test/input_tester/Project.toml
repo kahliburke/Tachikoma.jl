@@ -1,0 +1,11 @@
+name = "InputTester"
+uuid = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+version = "0.1.0"
+
+[deps]
+MCPRepl = "b62cb57a-788d-40b5-9d64-84a1dfc37ce3"
+Tachikoma = "468859d6-42d8-48b7-8ad9-1d312e0e3b0a"
+
+[sources]
+MCPRepl = {path = "../../../../.julia/dev/MCPRepl"}
+Tachikoma = {path = "../.."}

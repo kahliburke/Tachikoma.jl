@@ -1,0 +1,279 @@
+/* JuliaMono font for code blocks — @import must be first */
+@import url('https://cdn.jsdelivr.net/gh/cormullion/juliamono/webfonts/JuliaMono-Regular.woff2');
+
+/* Julia brand colors */
+:root {
+  --julia-purple: #9558B2;
+  --julia-green: #389826;
+  --julia-red: #CB3C33;
+  --julia-blue: #4063D8;
+
+  /* VitePress brand color overrides */
+  --vp-c-brand-1: var(--julia-purple);
+  --vp-c-brand-2: #7B47A0;
+  --vp-c-brand-3: var(--julia-purple);
+  --vp-c-brand-soft: rgba(149, 88, 178, 0.14);
+
+  --vp-font-family-mono: 'JuliaMono', 'Menlo', 'Monaco', 'Consolas', 'Liberation Mono', monospace;
+}
+
+.dark {
+  --vp-c-brand-1: #B07FD0;
+  --vp-c-brand-2: var(--julia-purple);
+  --vp-c-brand-3: #B07FD0;
+  --vp-c-brand-soft: rgba(149, 88, 178, 0.16);
+}
+
+/* Docstring container styling */
+.docstring {
+  border-left: 3px solid var(--julia-purple);
+  padding-left: 1rem;
+  margin: 1rem 0;
+}
+
+.docstring h3 {
+  font-family: var(--vp-font-family-mono);
+  font-size: 0.95rem;
+}
+
+/* ── Hero: full-width animated logo banner ── */
+.hero-logo-banner {
+  width: 100%;
+  text-align: center;
+  padding: 2rem 1rem 0;
+}
+
+.hero-logo-animated {
+  display: inline-block;
+  max-width: 900px;
+  width: 100%;
+  height: auto;
+  border-radius: 6px;
+  image-rendering: pixelated;
+}
+
+/* ── Hero: terminal window image (right side) ── */
+.VPHero .image-container {
+  max-width: 520px;
+}
+
+/* Override VitePress default hero image styling when using slot */
+.VPHero .image {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Ensure the hero section shows the image even without frontmatter image */
+.VPHero:not(.has-image) .image {
+  display: flex;
+}
+
+/* Mobile: reduce logo padding */
+@media (max-width: 959px) {
+  .hero-logo-banner {
+    padding: 1rem 0.5rem 0;
+  }
+}
+
+/* ── Rendered TUI example images ── */
+.tachi-example-container {
+  margin: 1rem 0;
+  text-align: center;
+}
+
+.tachi-example-container img {
+  max-width: 100%;
+  border-radius: 4px;
+  image-rendering: pixelated;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.dark .tachi-example-container img {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+/* ── Auto-linked API references ── */
+a.tachi-api-link {
+  text-decoration: none;
+  border-bottom: 1px dashed var(--vp-c-brand-1);
+  transition: border-color 0.2s;
+}
+
+a.tachi-api-link:hover {
+  border-bottom-style: solid;
+}
+
+a.tachi-api-link code {
+  color: var(--vp-c-brand-1);
+}
+
+/* ── Side-by-side code + render ── */
+.side-by-side {
+  display: flex;
+  gap: 1.5rem;
+  align-items: flex-start;
+  margin: 1rem 0;
+}
+
+.side-by-side .code-side {
+  flex: 1;
+  min-width: 0;
+}
+
+.side-by-side .render-side {
+  flex-shrink: 0;
+  text-align: center;
+  align-self: center;
+}
+
+.side-by-side .render-side img {
+  max-width: 100%;
+  border-radius: 4px;
+  image-rendering: pixelated;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.dark .side-by-side .render-side img {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+@media (max-width: 768px) {
+  .side-by-side {
+    flex-direction: column;
+  }
+}
+
+/* ── Hero showcase: demo GIF (left) + bullet points (right) ── */
+.hero-showcase {
+  display: flex;
+  gap: 2.5rem;
+  align-items: flex-start;
+  max-width: 1152px;
+  margin: 2rem auto 3rem;
+  padding: 0 1.5rem;
+}
+
+.hero-showcase-demo {
+  flex: 1;
+  min-width: 0;
+}
+
+.hero-showcase-demo img {
+  width: 100%;
+  border-radius: 6px;
+  image-rendering: pixelated;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+}
+
+.dark .hero-showcase-demo img {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+}
+
+.hero-showcase-caption {
+  text-align: center;
+  margin-top: 0.5rem;
+  font-size: 0.85em;
+  color: var(--vp-c-text-2);
+}
+
+.hero-showcase-bullets {
+  flex: 0 0 320px;
+  padding-top: 0.5rem;
+}
+
+.hero-showcase-bullets h3 {
+  margin-top: 0;
+  margin-bottom: 1rem;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--vp-c-text-1);
+}
+
+.hero-showcase-bullets ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.hero-showcase-bullets li {
+  margin-bottom: 0.85rem;
+  line-height: 1.5;
+  font-size: 0.95rem;
+  color: var(--vp-c-text-2);
+}
+
+.hero-showcase-bullets li strong {
+  color: var(--vp-c-brand-1);
+}
+
+@media (max-width: 768px) {
+  .hero-showcase {
+    flex-direction: column;
+  }
+  .hero-showcase-bullets {
+    flex: none;
+    width: 100%;
+  }
+}
+
+/* ── Quick Start: code (left) + render (right) with vertical divider ── */
+.quickstart-layout {
+  display: flex;
+  gap: 0;
+  align-items: stretch;
+  margin: 1rem 0;
+}
+
+.quickstart-code {
+  flex: 1;
+  min-width: 0;
+  padding-right: 1.5rem;
+}
+
+/* Keep code blocks from overflowing */
+.quickstart-code div[class*='language-'] {
+  max-width: 100%;
+}
+
+.quickstart-divider {
+  width: 1px;
+  background: var(--vp-c-divider);
+  flex-shrink: 0;
+}
+
+.quickstart-render {
+  flex: 0 0 auto;
+  padding-left: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.quickstart-render img {
+  width: 500px;
+  max-width: 100%;
+  border-radius: 4px;
+  image-rendering: pixelated;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.dark .quickstart-render img {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+@media (max-width: 960px) {
+  .quickstart-layout {
+    flex-direction: column;
+  }
+  .quickstart-divider {
+    display: none;
+  }
+  .quickstart-code {
+    padding-right: 0;
+  }
+  .quickstart-render {
+    padding-left: 0;
+    margin-top: 1rem;
+  }
+}
