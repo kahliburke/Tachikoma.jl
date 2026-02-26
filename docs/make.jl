@@ -37,6 +37,7 @@ let build_dir = joinpath(@__DIR__, "build")
     end
 end
 
+# Step 1: Generate markdown only (skip VitePress build)
 makedocs(;
     sitename = "Tachikoma.jl",
     modules = [Tachikoma],
@@ -45,6 +46,7 @@ makedocs(;
         repo = "https://github.com/kahliburke/Tachikoma.jl",
         devurl = "dev",
         deploy_url = "kahliburke.github.io/Tachikoma.jl",
+        build_vitepress = false,
     ),
     pages = [
         "Home" => "index.md",
@@ -82,8 +84,8 @@ makedocs(;
     warnonly = [:missing_docs, :docs_block, :cross_references],
 )
 
-# Post-process: Documenter HTML-escapes & to &amp; in markdown headings,
-# but VitePress renders that literally.  Fix it in the generated .md files.
+# Step 2: Fix &amp; in markdown headings before VitePress builds.
+# Documenter HTML-escapes & to &amp; but VitePress renders that literally.
 let documenter_out = joinpath(@__DIR__, "build", ".documenter")
     for (root, dirs, files) in walkdir(documenter_out)
         for f in files
@@ -95,6 +97,9 @@ let documenter_out = joinpath(@__DIR__, "build", ".documenter")
         end
     end
 end
+
+# Step 3: Build VitePress and deploy
+DocumenterVitepress.build_docs(joinpath(@__DIR__, "build"))
 
 deploydocs(;
     repo = "github.com/kahliburke/Tachikoma.jl",
