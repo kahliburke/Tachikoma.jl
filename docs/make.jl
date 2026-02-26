@@ -17,7 +17,8 @@ let public_assets = joinpath(@__DIR__, "src", "public", "assets")
         for f in readdir(src_dir; join=false)
             src = joinpath(src_dir, f)
             isfile(src) || continue
-            endswith(f, ".tach") && continue  # skip .tach, only copy .svg and .gif
+            endswith(f, ".tach") && continue  # skip .tach, only copy .gif
+            endswith(f, ".svg") && continue
             cp(src, joinpath(dst_dir, f); force=true)
         end
     end

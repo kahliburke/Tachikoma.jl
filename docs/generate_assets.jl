@@ -26,7 +26,7 @@ import Tachikoma: set_char!, Style, Buffer, Rect, Frame, Model,
     color_lerp, brighten, bottom, right, in_bounds, set_string!,
     Block, Layout, Vertical, Horizontal, Fixed, Fill, Percent, Min, Max,
     split_layout, ColorRGB, KeyEvent, TestBackend, Cell,
-    record_widget, record_app, write_tach, load_tach, export_svg,
+    record_widget, record_app, write_tach, load_tach,
     enable_gif, export_gif_from_snapshots, discover_mono_fonts,
     should_quit, handle_key!, text, set_text!, set_value!,
     TabBar, BarChart, BarEntry, Gauge, Canvas, Calendar,
@@ -120,17 +120,13 @@ function _find_font()
 end
 
 # ═══════════════════════════════════════════════════════════════════════
-# Export: .tach → .svg + .gif
+# Export: .tach → .gif
 # ═══════════════════════════════════════════════════════════════════════
 
 function export_formats(tach_file::String; gif::Bool=true)
     w, h, cells, timestamps, sixels = load_tach(tach_file)
     base = replace(tach_file, r"\.tach$" => "")
     font_path = _find_font()
-
-    svg_file = base * ".svg"
-    export_svg(svg_file, w, h, cells, timestamps; font_path=font_path)
-    println("    → $(basename(svg_file))")
 
     if gif
         try
@@ -663,7 +659,7 @@ function validate_snippets()
                     color_lerp, brighten, bottom, right, in_bounds, set_string!,
                     Block, Layout, Vertical, Horizontal, Fixed, Fill, Percent, Min, Max,
                     split_layout, ColorRGB, KeyEvent, MouseEvent, TestBackend, Cell,
-                    record_widget, record_app, write_tach, load_tach, export_svg,
+                    record_widget, record_app, write_tach, load_tach,
                     should_quit, handle_key!, text, set_text!, set_value!,
                     TabBar, BarChart, BarEntry, Gauge, Canvas, Calendar,
                     Table, DataTable, DataColumn, Scrollbar, Sparkline, GraphicsRegion, PixelSnapshot,
