@@ -360,17 +360,17 @@
         @test occursin("2026l", output)  # SYNC_END
     end
 
-    @testset "check_resize! writes to t.io" begin
+    @testset "check_resize! detects size change" begin
         io_capture = IOBuffer()
         sz = T.terminal_size()
         # Make terminal size different from actual to force resize
         rect = T.Rect(1, 1, 10, 5)
         term = T.Terminal([T.Buffer(rect), T.Buffer(rect)], 1, rect, false, false, NTuple{4,Int}[], 0, 300, T.CastRecorder(), io_capture, false, T.gfx_none, nothing)
-        T.check_resize!(term)
-        output = String(take!(io_capture))
-        # If terminal size differs from 10x5, it should have written clear screen
+        resized = T.check_resize!(term)
+        # If terminal size differs from 10x5, check_resize! returns true and updates buffers
         if sz.cols != 10 || sz.rows != 5
-            @test occursin("[2J", output)  # CLEAR_SCREEN
+            @test resized
+            @test term.size == T.Rect(1, 1, sz.cols, sz.rows)
         end
     end
 
