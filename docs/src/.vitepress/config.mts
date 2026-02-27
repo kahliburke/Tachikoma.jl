@@ -3,8 +3,10 @@ import { tabsMarkdownPlugin } from 'vitepress-plugin-tabs'
 import { tachiExamplesPlugin } from './tachi-examples'
 import { tachiAutolinkPlugin } from './tachi-autolink'
 
+const BASE = '/Tachikoma.jl/'
+
 export default defineConfig({
-  base: '/Tachikoma.jl/',
+  base: BASE,
   title: 'Tachikoma.jl',
   description: 'Terminal UI framework for Julia',
   lastUpdated: true,
@@ -13,7 +15,7 @@ export default defineConfig({
   markdown: {
     config(md) {
       md.use(tabsMarkdownPlugin)
-      md.use(tachiExamplesPlugin)
+      md.use(tachiExamplesPlugin, BASE)
       md.use(tachiAutolinkPlugin)
     },
   },

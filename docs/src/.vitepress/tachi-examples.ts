@@ -65,10 +65,9 @@ function parseAnnotation(text: string): TachiAnnotation | null {
   }
 }
 
-function makeImageHtml(ann: TachiAnnotation): string {
+function makeImageHtml(ann: TachiAnnotation, base: string): string {
   const ext = 'gif'
-  // Path relative to VitePress base — $withBase() prepends the deploy subfolder at runtime
-  const relPath = `/assets/examples/${ann.id}.${ext}`
+  const path = `${base}assets/examples/${ann.id}.${ext}`
   const alt = `${ann.id} example`
   // Display at 1x CSS dimensions; the 2x retina GIF provides crisp rendering
   const cssWidth = ann.w * CELL_W
@@ -77,19 +76,19 @@ function makeImageHtml(ann: TachiAnnotation): string {
     return (
       `<div class="tachi-example-container">\n` +
       `<TerminalWindow title="${ann.id.replace(/_/g, ' ')}">\n` +
-      `<img :src="$withBase('${relPath}')" alt="${alt}" style="width: ${cssWidth}px; max-width: 100%;" />\n` +
+      `<img :src="'${path}'" alt="${alt}" style="width: ${cssWidth}px; max-width: 100%;" />\n` +
       `</TerminalWindow>\n` +
       `</div>\n`
     )
   }
   return (
     `<div class="tachi-example-container">\n` +
-    `<img :src="$withBase('${relPath}')" alt="${alt}" style="width: ${cssWidth}px; max-width: 100%;" />\n` +
+    `<img :src="'${path}'" alt="${alt}" style="width: ${cssWidth}px; max-width: 100%;" />\n` +
     `</div>\n`
   )
 }
 
-export function tachiExamplesPlugin(md: MarkdownIt): void {
+export function tachiExamplesPlugin(md: MarkdownIt, base: string = '/Tachikoma.jl/'): void {
   md.core.ruler.push('tachi_examples', (state) => {
     const src = state.tokens
     const out: typeof src = []
@@ -138,7 +137,7 @@ export function tachiExamplesPlugin(md: MarkdownIt): void {
       // --- After a fence, inject image if we have a pending annotation ---
       if (token.type === 'fence' && pendingAnnotation) {
         const imgToken = new state.Token('html_block', '', 0)
-        imgToken.content = makeImageHtml(pendingAnnotation)
+        imgToken.content = makeImageHtml(pendingAnnotation, base)
         out.push(imgToken)
         pendingAnnotation = null
       }

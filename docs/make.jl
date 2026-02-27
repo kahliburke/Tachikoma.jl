@@ -113,7 +113,7 @@ let config_path = joinpath(@__DIR__, "build", ".documenter", ".vitepress", "conf
     folder = deploy_decision.subfolder
     base = "/Tachikoma.jl/$(folder)$(isempty(folder) ? "" : "/")"
     config = read(config_path, String)
-    config = replace(config, r"base:\s*'[^']*'" => "base: '$(base)'")
+    config = replace(config, r"const BASE = '[^']*'" => "const BASE = '$(base)'")
     write(config_path, config)
 end
 
