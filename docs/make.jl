@@ -2,26 +2,20 @@ using Documenter
 using DocumenterVitepress
 using Tachikoma
 
-# Copy example assets into VitePress's source-level public/ directory BEFORE
-# makedocs so they're available when VitePress builds.  VitePress automatically
-# copies .vitepress/public/ to the output root, so /assets/examples/foo.gif
-# in public/ becomes accessible at /assets/examples/foo.gif in the built site.
+# Copy only homepage assets to VitePress public/ — the index page uses relative
+# paths inside @raw html blocks that can't use the __ASSET_BASE__ constant.
+# All other GIFs are served from the docs-assets GitHub release.
 let public_assets = joinpath(@__DIR__, "src", "public", "assets")
-    for (subdir, src_dir) in [
-        ("examples", joinpath(@__DIR__, "src", "assets", "examples")),
-        ("readme",   joinpath(@__DIR__, "src", "assets", "readme")),
-        ("",         joinpath(@__DIR__, "src", "assets")),
-    ]
-        isdir(src_dir) || continue
-        dst_dir = isempty(subdir) ? public_assets : joinpath(public_assets, subdir)
-        mkpath(dst_dir)
-        for f in readdir(src_dir; join=false)
-            src = joinpath(src_dir, f)
-            isfile(src) || continue
-            endswith(f, ".tach") && continue  # skip .tach, only copy .gif
-            endswith(f, ".svg") && continue
-            cp(src, joinpath(dst_dir, f); force=true)
-        end
+    src_dir = joinpath(@__DIR__, "src", "assets")
+    mkpath(public_assets)
+    mkpath(joinpath(public_assets, "examples"))
+    for f in ["code_reveal.gif", "hero_logo.gif", "hero_demo.gif"]
+        src = joinpath(src_dir, f)
+        isfile(src) && cp(src, joinpath(public_assets, f); force=true)
+    end
+    # quickstart_hello.gif lives in examples/
+    let src = joinpath(src_dir, "examples", "quickstart_hello.gif")
+        isfile(src) && cp(src, joinpath(public_assets, "examples", "quickstart_hello.gif"); force=true)
     end
 end
 

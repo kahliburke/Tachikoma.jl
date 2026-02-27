@@ -67,7 +67,7 @@ function parseAnnotation(text: string): TachiAnnotation | null {
 
 function makeImageHtml(ann: TachiAnnotation, base: string): string {
   const ext = 'gif'
-  const path = `${base}assets/examples/${ann.id}.${ext}`
+  const path = `${base}examples/${ann.id}.${ext}`
   const alt = `${ann.id} example`
   // Display at 1x CSS dimensions; the 2x retina GIF provides crisp rendering
   const cssWidth = ann.w * CELL_W
@@ -76,14 +76,14 @@ function makeImageHtml(ann: TachiAnnotation, base: string): string {
     return (
       `<div class="tachi-example-container">\n` +
       `<TerminalWindow title="${ann.id.replace(/_/g, ' ')}">\n` +
-      `<img :src="'${path}'" alt="${alt}" style="width: ${cssWidth}px; max-width: 100%;" />\n` +
+      `<img src="${path}" alt="${alt}" style="width: ${cssWidth}px; max-width: 100%;" />\n` +
       `</TerminalWindow>\n` +
       `</div>\n`
     )
   }
   return (
     `<div class="tachi-example-container">\n` +
-    `<img :src="'${path}'" alt="${alt}" style="width: ${cssWidth}px; max-width: 100%;" />\n` +
+    `<img src="${path}" alt="${alt}" style="width: ${cssWidth}px; max-width: 100%;" />\n` +
     `</div>\n`
   )
 }

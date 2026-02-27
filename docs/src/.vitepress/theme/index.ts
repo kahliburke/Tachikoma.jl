@@ -5,9 +5,11 @@ import TerminalWindow from './TerminalWindow.vue'
 import './style.css'
 import './docstrings.css'
 
-// Import GIFs as Vite assets so they're included in the build output
-import heroLogoGif from '../../assets/hero_logo.gif'
-import heroDemoGif from '../../assets/hero_demo.gif'
+// Asset base URL — resolved at build time via Vite define in config.mts
+// Local dev: /Tachikoma.jl/assets/  |  CI: GitHub release download URL
+declare const __ASSET_BASE__: string
+const heroLogoGif = __ASSET_BASE__ + 'hero_logo.gif'
+const heroDemoGif = __ASSET_BASE__ + 'hero_demo.gif'
 
 export default {
   extends: DefaultTheme,

@@ -4,6 +4,7 @@ import { tachiExamplesPlugin } from './tachi-examples'
 import { tachiAutolinkPlugin } from './tachi-autolink'
 
 const BASE = '/Tachikoma.jl/'
+const ASSET_BASE = process.env.TACHIKOMA_ASSET_BASE || (BASE + 'assets/')
 
 export default defineConfig({
   base: BASE,
@@ -12,10 +13,16 @@ export default defineConfig({
   lastUpdated: true,
   cleanUrls: true,
 
+  vite: {
+    define: {
+      __ASSET_BASE__: JSON.stringify(ASSET_BASE),
+    },
+  },
+
   markdown: {
     config(md) {
       md.use(tabsMarkdownPlugin)
-      md.use(tachiExamplesPlugin, BASE)
+      md.use(tachiExamplesPlugin, ASSET_BASE)
       md.use(tachiAutolinkPlugin)
     },
   },

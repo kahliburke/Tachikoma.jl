@@ -74,8 +74,30 @@ jobs:
             doc-assets-
       - name: Generate doc assets
         run: julia --project=docs docs/generate_assets.jl
+      - name: Upload assets to release
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release view docs-assets || gh release create docs-assets --title "Documentation Assets" --notes "Auto-updated GIF assets for documentation"
+          # Upload top-level assets (hero_logo.gif, code_reveal.gif, etc.)
+          for f in docs/src/assets/*.gif; do
+            [ -f "$f" ] && gh release upload docs-assets "$f" --clobber
+          done
+          # Upload examples/ GIFs as-is (names are unique)
+          for f in docs/src/assets/examples/*.gif; do
+            [ -f "$f" ] && gh release upload docs-assets "$f" --clobber
+          done
+          # Upload readme/ GIFs with readme_ prefix to avoid name collisions
+          for f in docs/src/assets/readme/*.gif; do
+            [ -f "$f" ] || continue
+            name="readme_$(basename "$f")"
+            cp "$f" "/tmp/$name"
+            gh release upload docs-assets "/tmp/$name" --clobber
+          done
       - name: Build and deploy
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }}
+          TACHIKOMA_ASSET_BASE: 'https://github.com/kahliburke/Tachikoma.jl/releases/download/docs-assets/'
         run: julia --project=docs docs/make.jl
