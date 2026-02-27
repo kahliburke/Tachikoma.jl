@@ -104,6 +104,7 @@ DocumenterVitepress.build_docs(joinpath(@__DIR__, "build"))
 
 deploydocs(;
     repo = "github.com/kahliburke/Tachikoma.jl",
+    target = "build/.documenter/.vitepress/dist",
     devbranch = "main",
     push_preview = true,
 )
