@@ -111,12 +111,15 @@ function _find_font()
     fonts = discover_mono_fonts()
     # Normalize by stripping spaces — _name_from_filename splits CamelCase
     # (e.g. "JetBrainsMono" → "Jet Brains Mono") so direct substring match fails.
-    for name in ["MesloLGL Nerd Font Mono", "JetBrains Mono", "MesloLGS NF", "MesloLGM NF", "Menlo"]
+    for name in ["MesloLGL Nerd Font Mono", "JetBrains Mono", "MesloLGS NF", "MesloLGM NF",
+                  "Menlo", "DejaVu Sans Mono", "Liberation Mono"]
         norm = lowercase(replace(name, " " => ""))
         idx = findfirst(f -> occursin(norm, lowercase(replace(f.name, " " => ""))), fonts)
         idx !== nothing && return fonts[idx].path
     end
-    isempty(fonts) ? "" : fonts[1].path
+    # Skip the "(none)" sentinel at index 1
+    idx = findfirst(f -> !isempty(f.path), fonts)
+    idx !== nothing ? fonts[idx].path : ""
 end
 
 # ═══════════════════════════════════════════════════════════════════════

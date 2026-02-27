@@ -25,7 +25,13 @@ jobs:
           version: '1.12'
       - uses: julia-actions/cache@v2
       - name: Install system fonts
-        run: sudo apt-get install -y fonts-dejavu fonts-liberation
+        run: |
+          sudo apt-get install -y fonts-dejavu fonts-liberation
+          # JetBrains Mono — preferred font for GIF asset rendering
+          wget -q https://github.com/JetBrains/JetBrainsMono/releases/download/v2.304/JetBrainsMono-2.304.zip -O /tmp/jbmono.zip
+          sudo mkdir -p /usr/share/fonts/truetype/jetbrains-mono
+          sudo unzip -oq /tmp/jbmono.zip -d /usr/share/fonts/truetype/jetbrains-mono
+          sudo fc-cache -f
       - name: Install dependencies
         run: |
           julia --project=docs -e '

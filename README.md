@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://kahliburke.github.io/Tachikoma.jl/assets/hero_demo.gif" alt="Tachikoma.jl demo" width="720">
+  <img src="https://kahliburke.github.io/Tachikoma.jl/dev/assets/hero_demo.gif" alt="Tachikoma.jl demo" width="720">
 </p>
 
 <h1 align="center">Tachikoma.jl</h1>
@@ -86,20 +86,20 @@ See the [Getting Started](https://kahliburke.github.io/Tachikoma.jl/dev/getting-
 
 <table>
 <tr>
-<td align="center"><strong>Dashboard</strong><br><img src="https://kahliburke.github.io/Tachikoma.jl/assets/examples/dashboard_app.gif" width="360"></td>
-<td align="center"><strong>Form with Validation</strong><br><img src="https://kahliburke.github.io/Tachikoma.jl/assets/examples/form_app.gif" width="360"></td>
+<td align="center"><strong>Dashboard</strong><br><img src="https://kahliburke.github.io/Tachikoma.jl/dev/assets/examples/dashboard_app.gif" width="360"></td>
+<td align="center"><strong>Form with Validation</strong><br><img src="https://kahliburke.github.io/Tachikoma.jl/dev/assets/examples/form_app.gif" width="360"></td>
 </tr>
 <tr>
-<td align="center"><strong>Animation Showcase</strong><br><img src="https://kahliburke.github.io/Tachikoma.jl/assets/examples/anim_showcase_app.gif" width="360"></td>
-<td align="center"><strong>Todo List</strong><br><img src="https://kahliburke.github.io/Tachikoma.jl/assets/examples/todo_app.gif" width="360"></td>
+<td align="center"><strong>Animation Showcase</strong><br><img src="https://kahliburke.github.io/Tachikoma.jl/dev/assets/examples/anim_showcase_app.gif" width="360"></td>
+<td align="center"><strong>Todo List</strong><br><img src="https://kahliburke.github.io/Tachikoma.jl/dev/assets/examples/todo_app.gif" width="360"></td>
 </tr>
 <tr>
-<td align="center"><strong>GitHub PR Viewer</strong><br><img src="https://kahliburke.github.io/Tachikoma.jl/assets/examples/github_prs_app.gif" width="360"></td>
-<td align="center"><strong>Constraint Explorer</strong><br><img src="https://kahliburke.github.io/Tachikoma.jl/assets/examples/constraint_explorer_app.gif" width="360"></td>
+<td align="center"><strong>GitHub PR Viewer</strong><br><img src="https://kahliburke.github.io/Tachikoma.jl/dev/assets/examples/github_prs_app.gif" width="360"></td>
+<td align="center"><strong>Constraint Explorer</strong><br><img src="https://kahliburke.github.io/Tachikoma.jl/dev/assets/examples/constraint_explorer_app.gif" width="360"></td>
 </tr>
 <tr>
-<td align="center"><strong>Dotwave Background</strong><br><img src="https://kahliburke.github.io/Tachikoma.jl/assets/examples/bg_dotwave.gif" width="360"></td>
-<td align="center"><strong>Phylogenetic Tree</strong><br><img src="https://kahliburke.github.io/Tachikoma.jl/assets/examples/bg_phylotree.gif" width="360"></td>
+<td align="center"><strong>Dotwave Background</strong><br><img src="https://kahliburke.github.io/Tachikoma.jl/dev/assets/examples/bg_dotwave.gif" width="360"></td>
+<td align="center"><strong>Phylogenetic Tree</strong><br><img src="https://kahliburke.github.io/Tachikoma.jl/dev/assets/examples/bg_phylotree.gif" width="360"></td>
 </tr>
 </table>
 
