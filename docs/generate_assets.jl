@@ -158,9 +158,14 @@ include(joinpath(@__DIR__, "hero_assets.jl"))
 
 include(joinpath(@__DIR__, "example_apps.jl"))
 
-# Hash of example_apps.jl — folded into all app source hashes so that
-# changing APP_REGISTRY entries or APP_EVENTS scripts invalidates their caches.
-const _EXAMPLE_APPS_HASH = bytes2hex(sha256(read(joinpath(@__DIR__, "example_apps.jl"))))
+# Hash of example_apps.jl + recording.jl — folded into all app source hashes so that
+# changing APP_REGISTRY entries, APP_EVENTS scripts, or record_app() invalidates caches.
+const _EXAMPLE_APPS_HASH = let
+    h = sha256(read(joinpath(@__DIR__, "example_apps.jl")))
+    rec = joinpath(@__DIR__, "..", "src", "recording.jl")
+    isfile(rec) && (h = sha256(vcat(h, read(rec))))
+    bytes2hex(h)
+end
 
 # ═══════════════════════════════════════════════════════════════════════
 # Markdown scanner: parse tachi:widget / tachi:app annotations
