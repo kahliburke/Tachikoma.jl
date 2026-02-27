@@ -818,7 +818,7 @@ end
 # README GIFs: 1x resolution, frame-skipped to stay under GitHub's 10MB limit
 # ═══════════════════════════════════════════════════════════════════════
 
-const README_MAX_BYTES = 9 * 1024 * 1024  # 9MB target (under 10MB Camo limit)
+const README_MAX_BYTES = 5 * 1024 * 1024  # 5MB target (Camo rejects large animated GIFs)
 
 const README_GIFS = [
     # (source .tach path, output name)
@@ -851,7 +851,7 @@ function generate_readme_gifs()
         w, h, cells, timestamps, sixels = load_tach(tach_file)
 
         # Try 1x first, then reduce frame rate if still too large
-        for (attempt, skip) in enumerate([1, 2, 3])
+        for (attempt, skip) in enumerate([1, 2, 3, 4])
             # Subsample frames: keep every `skip`-th frame
             if skip > 1
                 indices = 1:skip:length(cells)
@@ -880,7 +880,7 @@ function generate_readme_gifs()
             if sz <= README_MAX_BYTES
                 println("  $name: $(sz_mb)MB (1x, skip=$skip) ✓")
                 break
-            elseif skip == 3
+            elseif skip == 4
                 println("  $name: $(sz_mb)MB (1x, skip=$skip) — still over limit!")
             else
                 println("  $name: $(sz_mb)MB — too large, retrying with skip=$(skip+1)...")

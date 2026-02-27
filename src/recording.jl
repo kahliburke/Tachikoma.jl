@@ -137,6 +137,25 @@ function record_app(model::Model, filename::String;
     buf = tb.buf
     area = Rect(1, 1, width, height)
 
+    # Call init! with a dummy Terminal so async apps can spawn tasks
+    dummy_term = Terminal(
+        [Buffer(area), Buffer(area)], 1, area,
+        false, false, NTuple{4,Int}[], 0, 300,
+        CastRecorder(), devnull, false, gfx_none, nothing)
+    init!(model, dummy_term)
+
+    # Let async tasks spawned by init! settle (e.g. mock data fetches with sleep())
+    for _ in 1:10
+        yield()
+        sleep(0.01)
+        tq = task_queue(model)
+        if tq !== nothing
+            drain_tasks!(tq) do tevt
+                update!(model, tevt)
+            end
+        end
+    end
+
     sorted_events = sort(collect(events); by=first)
     evt_idx = 1
 
@@ -178,17 +197,18 @@ function record_app(model::Model, filename::String;
             end
         end
 
-        reset!(buf)
-        f = Frame(buf, area, GraphicsRegion[], PixelSnapshot[])
-        view(model, f)
-
-        # Drain task queue if present (for async apps)
+        # Drain task queue before rendering (for async apps like GitHub PRs)
         tq = task_queue(model)
         if tq !== nothing
+            yield()  # let async tasks complete
             drain_tasks!(tq) do tevt
                 update!(model, tevt)
             end
         end
+
+        reset!(buf)
+        f = Frame(buf, area, GraphicsRegion[], PixelSnapshot[])
+        view(model, f)
 
         # Only capture after warmup
         if capture_num > 0
