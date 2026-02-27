@@ -2,22 +2,8 @@ using Documenter
 using DocumenterVitepress
 using Tachikoma
 
-# Copy only homepage assets to VitePress public/ — the index page uses relative
-# paths inside @raw html blocks that can't use the __ASSET_BASE__ constant.
-# All other GIFs are served from the docs-assets GitHub release.
-let public_assets = joinpath(@__DIR__, "src", "public", "assets")
-    src_dir = joinpath(@__DIR__, "src", "assets")
-    mkpath(public_assets)
-    mkpath(joinpath(public_assets, "examples"))
-    for f in ["code_reveal.gif", "hero_logo.gif", "hero_demo.gif"]
-        src = joinpath(src_dir, f)
-        isfile(src) && cp(src, joinpath(public_assets, f); force=true)
-    end
-    # quickstart_hello.gif lives in examples/
-    let src = joinpath(src_dir, "examples", "quickstart_hello.gif")
-        isfile(src) && cp(src, joinpath(public_assets, "examples", "quickstart_hello.gif"); force=true)
-    end
-end
+# All GIF assets are served from the docs-assets GitHub release.
+# No assets need to be copied into VitePress public/.
 
 # Clean stale build directory to avoid ENOTEMPTY errors from Documenter
 # Retry loop handles macOS .DS_Store race condition
