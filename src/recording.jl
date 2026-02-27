@@ -145,14 +145,15 @@ function record_app(model::Model, filename::String;
     init!(model, dummy_term)
 
     # Let async tasks spawned by init! settle (e.g. mock data fetches with sleep())
-    for _ in 1:10
-        yield()
-        sleep(0.01)
-        tq = task_queue(model)
-        if tq !== nothing
-            drain_tasks!(tq) do tevt
-                update!(model, tevt)
-            end
+    # Uses Threads.@spawn so yield() alone won't schedule them — need real sleep time.
+    tq = task_queue(model)
+    if tq !== nothing
+        deadline = time() + 2.0  # up to 2 seconds for tasks to complete
+        while tq.active[] > 0 && time() < deadline
+            sleep(0.05)
+        end
+        drain_tasks!(tq) do tevt
+            update!(model, tevt)
         end
     end
 
