@@ -1,4 +1,8 @@
 <p align="center">
+  <img src="https://kahliburke.github.io/Tachikoma.jl/dev/assets/hero_logo.gif" alt="Tachikoma.jl" width="480">
+</p>
+
+<p align="center">
   <img src="https://kahliburke.github.io/Tachikoma.jl/dev/assets/hero_demo.gif" alt="Tachikoma.jl demo" width="720">
 </p>
 
