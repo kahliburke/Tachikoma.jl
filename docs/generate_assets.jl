@@ -111,8 +111,8 @@ function _find_font()
     fonts = discover_mono_fonts()
     # Normalize by stripping spaces — _name_from_filename splits CamelCase
     # (e.g. "JetBrainsMono" → "Jet Brains Mono") so direct substring match fails.
-    for name in ["MesloLGL Nerd Font Mono", "JetBrains Mono", "MesloLGS NF", "MesloLGM NF",
-                  "Menlo", "DejaVu Sans Mono", "Liberation Mono"]
+    for name in ["MesloLGL Nerd Font Mono", "MesloLGS NF", "MesloLGM NF",
+                  "Iosevka", "DejaVu Sans Mono", "Menlo", "JetBrains Mono", "Liberation Mono"]
         norm = lowercase(replace(name, " " => ""))
         idx = findfirst(f -> occursin(norm, lowercase(replace(f.name, " " => ""))), fonts)
         idx !== nothing && return fonts[idx].path
@@ -312,12 +312,27 @@ function scan_markdown(filepath::String)
 
         # Mechanism A: Single fence extraction (for both widget and app)
         # Bounded to the current section: stops at the next heading or tachi annotation
-        # so that later code blocks in the document are not mistakenly extracted.
+        # that appears *outside* a code fence (comments like "# ..." inside fences
+        # must not be mistaken for markdown headings).
         if isempty(code)
             pos = ann_end_pos
             remaining = content[pos:end]
-            stop_match = match(r"(?:^#{1,6}\s|<!--\s*tachi:)"m, remaining)
-            search_end = stop_match !== nothing ? stop_match.offset - 1 : length(remaining)
+            # Find stop point, skipping content inside code fences
+            search_end = length(remaining)
+            in_fence = false
+            for lm in eachmatch(r"^(.*)$"m, remaining)
+                ln = lm.match
+                if startswith(ln, "```")
+                    in_fence = !in_fence
+                    continue
+                end
+                !in_fence || continue
+                if match(r"^#{1,6}\s", ln) !== nothing ||
+                   match(r"<!--\s*tachi:", ln) !== nothing
+                    search_end = lm.offset - 1
+                    break
+                end
+            end
             fence_match = match(r"```julia\s*\n(.*?)```"s, remaining[1:search_end])
             if fence_match !== nothing
                 code = fence_match.captures[1]

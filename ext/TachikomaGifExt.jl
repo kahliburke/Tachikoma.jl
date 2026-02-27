@@ -199,18 +199,20 @@ function _draw_braille!(img::Matrix{RGB{N0f8}}, ch::Char,
     img_h, img_w = size(img)
 
     alpha_scale = dim ? 0.5f0 : 1.0f0
-    # Dot radius in pixels (proportional to cell size)
-    dot_r = max(1, round(Int, min(cell_w, cell_h) * 0.12))
+
+    # Kitty-style rendering: each dot fills a rectangular block in a 2×4 grid,
+    # so active dots tile seamlessly with no gaps between them.
+    col_w = cell_w ÷ 2
+    row_h = cell_h ÷ 4
 
     for row in 0:3, col in 0:1
         (mask & _BRAILLE_BITS[row + 1][col + 1]) == 0 && continue
-        # Dot center position within the cell
-        cx = px0 + round(Int, cell_w * (0.3 + col * 0.4)) - 1
-        cy = py0 + round(Int, cell_h * (0.125 + row * 0.25)) - 1
-        # Fill a small square for each dot
-        for dy in -dot_r:dot_r, dx in -dot_r:dot_r
-            tx = cx + dx
-            ty = cy + dy
+        # Block bounds for this dot
+        x0 = px0 + col * col_w
+        y0 = py0 + row * row_h
+        x1 = col == 1 ? px0 + cell_w - 1 : x0 + col_w - 1  # right col absorbs remainder
+        y1 = row == 3 ? py0 + cell_h - 1 : y0 + row_h - 1  # bottom row absorbs remainder
+        for ty in y0:y1, tx in x0:x1
             (1 <= tx <= img_w && 1 <= ty <= img_h) || continue
             if alpha_scale >= 0.99f0
                 @inbounds img[ty, tx] = fg

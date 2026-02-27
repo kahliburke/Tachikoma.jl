@@ -27,10 +27,21 @@ jobs:
       - name: Install system fonts
         run: |
           sudo apt-get install -y fonts-dejavu fonts-liberation
-          # JetBrains Mono — preferred font for GIF asset rendering
-          wget -q https://github.com/JetBrains/JetBrainsMono/releases/download/v2.304/JetBrainsMono-2.304.zip -O /tmp/jbmono.zip
-          sudo mkdir -p /usr/share/fonts/truetype/jetbrains-mono
-          sudo unzip -oq /tmp/jbmono.zip -d /usr/share/fonts/truetype/jetbrains-mono
+          # Meslo LG Nerd Font — full Unicode coverage including braille (U+2800-U+28FF)
+          wget -q https://github.com/ryanoasis/nerd-fonts/releases/latest/download/Meslo.tar.xz -O /tmp/meslo.tar.xz \
+            && sudo mkdir -p /usr/share/fonts/truetype/meslo-nerd \
+            && sudo tar -xJf /tmp/meslo.tar.xz -C /usr/share/fonts/truetype/meslo-nerd \
+            || echo "Meslo download failed, trying fallbacks"
+          # JetBrains Mono — fallback (no braille, but good for text)
+          wget -q https://github.com/JetBrains/JetBrainsMono/releases/download/v2.304/JetBrainsMono-2.304.zip -O /tmp/jbmono.zip \
+            && sudo mkdir -p /usr/share/fonts/truetype/jetbrains-mono \
+            && sudo unzip -oq /tmp/jbmono.zip -d /usr/share/fonts/truetype/jetbrains-mono \
+            || echo "JetBrains Mono download failed"
+          # Iosevka — fallback with braille support
+          wget -q https://github.com/be5invis/Iosevka/releases/download/v32.5.0/PkgTTF-Iosevka-32.5.0.zip -O /tmp/iosevka.zip \
+            && sudo mkdir -p /usr/share/fonts/truetype/iosevka \
+            && sudo unzip -oq /tmp/iosevka.zip -d /usr/share/fonts/truetype/iosevka \
+            || echo "Iosevka download failed"
           sudo fc-cache -f
       - name: Install dependencies
         run: |
