@@ -95,6 +95,10 @@ jobs:
             cp "$f" "/tmp/$name"
             gh release upload docs-assets "/tmp/$name" --clobber
           done
+      - name: Remove binary assets before VitePress build
+        run: |
+          find docs/src/assets -name '*.gif' -delete
+          find docs/src/assets -name '*.tach' -delete
       - name: Build and deploy
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
