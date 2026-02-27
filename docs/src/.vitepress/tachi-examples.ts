@@ -67,8 +67,8 @@ function parseAnnotation(text: string): TachiAnnotation | null {
 
 function makeImageHtml(ann: TachiAnnotation): string {
   const ext = 'gif'
-  // Use :src (Vue runtime binding) to prevent Vite from resolving as a module import
-  const path = `/Tachikoma.jl/assets/examples/${ann.id}.${ext}`
+  // Path relative to VitePress base — $withBase() prepends the deploy subfolder at runtime
+  const relPath = `/assets/examples/${ann.id}.${ext}`
   const alt = `${ann.id} example`
   // Display at 1x CSS dimensions; the 2x retina GIF provides crisp rendering
   const cssWidth = ann.w * CELL_W
@@ -77,14 +77,14 @@ function makeImageHtml(ann: TachiAnnotation): string {
     return (
       `<div class="tachi-example-container">\n` +
       `<TerminalWindow title="${ann.id.replace(/_/g, ' ')}">\n` +
-      `<img :src="'${path}'" alt="${alt}" style="width: ${cssWidth}px; max-width: 100%;" />\n` +
+      `<img :src="$withBase('${relPath}')" alt="${alt}" style="width: ${cssWidth}px; max-width: 100%;" />\n` +
       `</TerminalWindow>\n` +
       `</div>\n`
     )
   }
   return (
     `<div class="tachi-example-container">\n` +
-    `<img :src="'${path}'" alt="${alt}" style="width: ${cssWidth}px; max-width: 100%;" />\n` +
+    `<img :src="$withBase('${relPath}')" alt="${alt}" style="width: ${cssWidth}px; max-width: 100%;" />\n` +
     `</div>\n`
   )
 }

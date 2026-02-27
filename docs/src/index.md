@@ -55,7 +55,7 @@ features:
 ```@raw html
 <div class="hero-showcase">
   <div class="hero-showcase-demo">
-    <img src="/assets/code_reveal.gif" alt="Julia source code materializing from random characters" />
+    <img :src="$withBase('/assets/code_reveal.gif')" alt="Julia source code materializing from random characters" />
     <!-- <p class="hero-showcase-caption">
       <em>Random characters resolve into syntax-highlighted Julia source — rendered at 60fps with Tachikoma's <a href="/recording">recording system</a>.</em>
     </p> -->
@@ -122,7 +122,7 @@ app(Life())
 </div>
 <div class="quickstart-divider"></div>
 <div class="quickstart-render">
-<img src="/assets/examples/quickstart_hello.gif" alt="Conway's Game of Life with color-coded cells evolving in real time" />
+<img :src="$withBase('/assets/examples/quickstart_hello.gif')" alt="Conway's Game of Life with color-coded cells evolving in real time" />
 </div>
 </div>
 ```
