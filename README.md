@@ -86,6 +86,21 @@ app(Life())
 
 See the [Getting Started](https://kahliburke.github.io/Tachikoma.jl/dev/getting-started) guide for a more complete walkthrough with layouts, widgets, and input handling.
 
+## Demos
+
+The `demos/TachikomaDemos` package includes 25+ interactive demos with a launcher menu:
+
+```julia
+using Pkg
+Pkg.activate("demos/TachikomaDemos")
+Pkg.instantiate()
+
+using TachikomaDemos
+launcher()  # interactive menu
+```
+
+Or run individual demos directly: `dashboard()`, `snake()`, `life()`, `sysmon()`, `anim_demo()`, `chart_demo()`, `form_demo()`, `effects_demo()`, and more.
+
 ## Gallery
 
 <table>

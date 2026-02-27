@@ -81,6 +81,7 @@ export default defineConfig({
       {
         text: 'Reference',
         items: [
+          { text: 'Demos', link: '/demos' },
           { text: 'API Reference', link: '/api' },
           { text: 'Comparison', link: '/comparison' },
         ],

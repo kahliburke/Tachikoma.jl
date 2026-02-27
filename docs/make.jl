@@ -80,6 +80,7 @@ makedocs(;
             "Todo List" => "tutorials/todo-list.md",
             "GitHub PRs Viewer" => "tutorials/github-prs.md",
         ],
+        "Demos" => "demos.md",
         "Comparison" => "comparison.md",
         "API Reference" => "api.md",
     ],
