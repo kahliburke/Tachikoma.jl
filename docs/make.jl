@@ -99,7 +99,25 @@ let documenter_out = joinpath(@__DIR__, "build", ".documenter")
     end
 end
 
-# Step 3: Build VitePress and deploy
+# Step 3: Patch VitePress base path to include deploy subfolder (e.g. /Tachikoma.jl/dev/)
+# When build_vitepress=false, DocumenterVitepress skips its config patching,
+# so we must set the correct base ourselves before building.
+let config_path = joinpath(@__DIR__, "build", ".documenter", ".vitepress", "config.mts")
+    deploy_decision = Documenter.deploy_folder(
+        Documenter.auto_detect_deploy_system();
+        repo = "github.com/kahliburke/Tachikoma.jl",
+        devbranch = "main",
+        devurl = "dev",
+        push_preview = true,
+    )
+    folder = deploy_decision.subfolder
+    base = "/Tachikoma.jl/$(folder)$(isempty(folder) ? "" : "/")"
+    config = read(config_path, String)
+    config = replace(config, r"base:\s*'[^']*'" => "base: '$(base)'")
+    write(config_path, config)
+end
+
+# Step 4: Build VitePress and deploy
 DocumenterVitepress.build_docs(joinpath(@__DIR__, "build"))
 
 deploydocs(;
