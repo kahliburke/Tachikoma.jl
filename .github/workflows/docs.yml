@@ -38,14 +38,31 @@ jobs:
             using Pkg
             Pkg.develop(PackageSpec(path=pwd()))
             Pkg.instantiate()'
-      - name: Generate doc assets
-        run: julia --project=docs docs/generate_assets.jl
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Cache npm dependencies
+        uses: actions/cache@v4
+        with:
+          path: docs/node_modules
+          key: npm-${{ hashFiles('docs/package-lock.json', 'docs/package.json') }}
       - name: Install VitePress dependencies
         working-directory: docs
         run: npm install
+      - name: Restore asset cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            docs/src/assets/*.tach
+            docs/src/assets/*.gif
+            docs/src/assets/examples
+            docs/src/assets/readme
+            docs/.render_cache.json
+          key: doc-assets-${{ hashFiles('docs/generate_assets.jl', 'docs/hero_assets.jl', 'docs/example_apps.jl', 'src/**/*.jl') }}
+          restore-keys: |
+            doc-assets-
+      - name: Generate doc assets
+        run: julia --project=docs docs/generate_assets.jl
       - name: Build and deploy
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
