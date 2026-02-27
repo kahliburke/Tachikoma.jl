@@ -67,7 +67,8 @@ function parseAnnotation(text: string): TachiAnnotation | null {
 
 function makeImageHtml(ann: TachiAnnotation, base: string): string {
   const ext = 'gif'
-  const path = `${base}examples/${ann.id}.${ext}`
+  // Release URLs are flat (no subdirs); local dev has assets/examples/
+  const path = base.startsWith('http') ? `${base}${ann.id}.${ext}` : `${base}examples/${ann.id}.${ext}`
   const alt = `${ann.id} example`
   // Display at 1x CSS dimensions; the 2x retina GIF provides crisp rendering
   const cssWidth = ann.w * CELL_W
