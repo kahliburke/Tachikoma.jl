@@ -814,6 +814,81 @@ end
 # Main
 # ═══════════════════════════════════════════════════════════════════════
 
+# ═══════════════════════════════════════════════════════════════════════
+# README GIFs: 1x resolution, frame-skipped to stay under GitHub's 10MB limit
+# ═══════════════════════════════════════════════════════════════════════
+
+const README_MAX_BYTES = 9 * 1024 * 1024  # 9MB target (under 10MB Camo limit)
+
+const README_GIFS = [
+    # (source .tach path, output name)
+    (joinpath(ASSETS_DIR, "hero_logo.tach"),    "hero_logo"),
+    (joinpath(ASSETS_DIR, "hero_demo.tach"),     "hero_demo"),
+    (joinpath(EXAMPLES_DIR, "dashboard_app.tach"),           "dashboard_app"),
+    (joinpath(EXAMPLES_DIR, "form_app.tach"),                "form_app"),
+    (joinpath(EXAMPLES_DIR, "anim_showcase_app.tach"),       "anim_showcase_app"),
+    (joinpath(EXAMPLES_DIR, "todo_app.tach"),                "todo_app"),
+    (joinpath(EXAMPLES_DIR, "github_prs_app.tach"),          "github_prs_app"),
+    (joinpath(EXAMPLES_DIR, "constraint_explorer_app.tach"), "constraint_explorer_app"),
+    (joinpath(EXAMPLES_DIR, "bg_dotwave.tach"),              "bg_dotwave"),
+    (joinpath(EXAMPLES_DIR, "bg_phylotree.tach"),            "bg_phylotree"),
+]
+
+function generate_readme_gifs()
+    readme_dir = joinpath(ASSETS_DIR, "readme")
+    mkpath(readme_dir)
+    font_path = _find_font()
+
+    enable_gif()
+
+    for (tach_file, name) in README_GIFS
+        if !isfile(tach_file)
+            println("  $name: .tach not found, skipping")
+            continue
+        end
+
+        gif_file = joinpath(readme_dir, "$name.gif")
+        w, h, cells, timestamps, sixels = load_tach(tach_file)
+
+        # Try 1x first, then reduce frame rate if still too large
+        for (attempt, skip) in enumerate([1, 2, 3])
+            # Subsample frames: keep every `skip`-th frame
+            if skip > 1
+                indices = 1:skip:length(cells)
+                sub_cells = cells[indices]
+                sub_timestamps = timestamps[indices]
+                # Rebase timestamps to start at 0
+                t0 = sub_timestamps[1]
+                sub_timestamps = [t - t0 for t in sub_timestamps]
+            else
+                sub_cells = cells
+                sub_timestamps = timestamps
+            end
+
+            try
+                Base.invokelatest(export_gif_from_snapshots, gif_file, w, h, sub_cells, sub_timestamps;
+                                  pixel_snapshots=sixels, font_path=font_path,
+                                  cell_w=10, cell_h=20, font_size=16)
+            catch e
+                @warn "README GIF failed for $name" exception=(e, catch_backtrace())
+                break
+            end
+
+            sz = filesize(gif_file)
+            sz_mb = round(sz / 1048576; digits=1)
+
+            if sz <= README_MAX_BYTES
+                println("  $name: $(sz_mb)MB (1x, skip=$skip) ✓")
+                break
+            elseif skip == 3
+                println("  $name: $(sz_mb)MB (1x, skip=$skip) — still over limit!")
+            else
+                println("  $name: $(sz_mb)MB — too large, retrying with skip=$(skip+1)...")
+            end
+        end
+    end
+end
+
 function main()
     force = "--force" in ARGS
     do_hero = "--hero" in ARGS
@@ -872,6 +947,13 @@ function main()
     println("Assets in $(ASSETS_DIR)")
     n_total = (do_all || do_hero ? 4 : 0) + length(widget_anns) + length(app_anns)
     println("Total renderable items: $(n_total)")
+
+    # ── README-optimized GIFs (1x, reduced for GitHub's 10MB Camo proxy limit) ──
+    if do_all || do_apps || do_hero
+        println()
+        println("── README GIFs (1x, size-limited) ──")
+        generate_readme_gifs()
+    end
 
     # ── Snippet validation ──
     if do_all || do_snippets

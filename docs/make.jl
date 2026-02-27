@@ -9,6 +9,7 @@ using Tachikoma
 let public_assets = joinpath(@__DIR__, "src", "public", "assets")
     for (subdir, src_dir) in [
         ("examples", joinpath(@__DIR__, "src", "assets", "examples")),
+        ("readme",   joinpath(@__DIR__, "src", "assets", "readme")),
         ("",         joinpath(@__DIR__, "src", "assets")),
     ]
         isdir(src_dir) || continue
