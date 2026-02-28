@@ -289,23 +289,31 @@ Tries stdin, stdout, and /dev/tty.
 """
 function _detect_cell_pixels_ioctl!()
     tiocgwinsz = @static (Sys.isapple() || Sys.isbsd()) ? 0x40087468 : 0x5413
+    # Use a plain Vector{UInt8} sized to winsize struct (4×UInt16 = 8 bytes)
+    # and GC.@preserve it across the ccall to prevent heap corruption in
+    # compiled (juliac) binaries.
     for fd_source in (:stdin, :stdout, :devtty)
         try
-            winsz = zeros(UInt16, 4)
-            if fd_source === :devtty
-                tty_fd = ccall(:open, Cint, (Cstring, Cint), "/dev/tty", 0)
-                tty_fd == -1 && continue
-                ret = ccall(:ioctl, Cint, (Cint, Culong, Ptr{UInt16}),
-                             tty_fd, tiocgwinsz, winsz)
-                ccall(:close, Cint, (Cint,), tty_fd)
-                ret == -1 && continue
-            else
-                fd = fd_source === :stdin ? 0 : 1
-                ret = ccall(:ioctl, Cint, (Cint, Culong, Ptr{UInt16}),
-                             fd, tiocgwinsz, winsz)
-                ret == -1 && continue
+            buf = zeros(UInt8, 8)
+            GC.@preserve buf begin
+                if fd_source === :devtty
+                    tty_fd = ccall(:open, Cint, (Cstring, Cint), "/dev/tty", 0)
+                    tty_fd == -1 && continue
+                    ret = ccall(:ioctl, Cint, (Cint, Culong, Ptr{UInt8}),
+                                 tty_fd, tiocgwinsz, buf)
+                    ccall(:close, Cint, (Cint,), tty_fd)
+                    ret == -1 && continue
+                else
+                    fd = fd_source === :stdin ? 0 : 1
+                    ret = ccall(:ioctl, Cint, (Cint, Culong, Ptr{UInt8}),
+                                 fd, tiocgwinsz, buf)
+                    ret == -1 && continue
+                end
+                rows   = Int(reinterpret(UInt16, @view buf[1:2])[1])
+                cols   = Int(reinterpret(UInt16, @view buf[3:4])[1])
+                xpixel = Int(reinterpret(UInt16, @view buf[5:6])[1])
+                ypixel = Int(reinterpret(UInt16, @view buf[7:8])[1])
             end
-            rows, cols, xpixel, ypixel = Int.(winsz)
             (xpixel == 0 || ypixel == 0) && continue
             return _set_cell_pixel_info!(xpixel, ypixel, cols, rows)
         catch

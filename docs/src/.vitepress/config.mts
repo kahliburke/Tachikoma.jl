@@ -69,6 +69,7 @@ export default defineConfig({
           { text: 'Performance', link: '/performance' },
           { text: 'Recording & Export', link: '/recording' },
           { text: 'Scripting Interactions', link: '/scripting' },
+          { text: 'Compiled Binaries', link: '/juliac' },
           { text: 'Testing', link: '/testing' },
         ],
       },
