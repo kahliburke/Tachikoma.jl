@@ -12,6 +12,7 @@ A dashboard with four sections: CPU/memory gauges, network sparklines, a process
 
 ```julia
 using Tachikoma
+@tachikoma_app
 
 @kwdef mutable struct Dashboard <: Model
     quit::Bool = false

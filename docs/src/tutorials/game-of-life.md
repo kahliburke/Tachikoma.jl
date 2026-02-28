@@ -7,6 +7,7 @@ This tutorial walks through the 25-line Conway's Game of Life shown on the front
 <!-- tachi:noeval -->
 ```julia
 using Tachikoma
+@tachikoma_app
 
 @kwdef mutable struct Life <: Model
     quit::Bool = false

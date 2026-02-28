@@ -3,8 +3,7 @@ module TachikomaDemos
 using Dates
 using Match
 using Tachikoma
-
-import Tachikoma: should_quit, update!, view, init!, cleanup!, task_queue
+@tachikoma_app
 
 include("theme_demo.jl")
 include("rain.jl")

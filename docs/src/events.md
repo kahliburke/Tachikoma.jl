@@ -168,6 +168,7 @@ handle_mouse!(widget, evt::MouseEvent, area::Rect) → Bool
 
 ```julia
 using Tachikoma
+@tachikoma_app
 
 @kwdef mutable struct FocusRingDemo <: Model
     quit::Bool = false
@@ -259,6 +260,7 @@ A minimal drawing app showing `MouseEvent` handling — drag to paint cells:
 
 ```julia
 using Tachikoma
+@tachikoma_app
 
 @kwdef mutable struct MouseDraw <: Model
     quit::Bool = false

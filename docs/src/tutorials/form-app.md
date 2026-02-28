@@ -12,6 +12,7 @@ A two-panel app: a form on the left with Tab/Shift-Tab navigation, and a live pr
 
 ```julia
 using Tachikoma
+@tachikoma_app
 
 function build_form(tick)
     Form([

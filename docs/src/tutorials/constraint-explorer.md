@@ -49,6 +49,7 @@ The `adjust` function modifies a constraint's value while preserving its type. E
 
 ```julia
 using Tachikoma
+@tachikoma_app
 
 adjust(c::Fixed, d::Int)   = Fixed(max(c.size + d, 0))
 adjust(c::Min, d::Int)     = Min(max(c.size + d, 0))

@@ -137,26 +137,6 @@ function record_app(model::Model, filename::String;
     buf = tb.buf
     area = Rect(1, 1, width, height)
 
-    # Call init! with a dummy Terminal so async apps can spawn tasks
-    dummy_term = Terminal(
-        [Buffer(area), Buffer(area)], 1, area,
-        false, false, NTuple{4,Int}[], 0, 300,
-        CastRecorder(), devnull, false, gfx_none, nothing)
-    init!(model, dummy_term)
-
-    # Let async tasks spawned by init! settle (e.g. mock data fetches with sleep())
-    # Uses Threads.@spawn so yield() alone won't schedule them — need real sleep time.
-    tq = task_queue(model)
-    if tq !== nothing
-        deadline = time() + 2.0  # up to 2 seconds for tasks to complete
-        while tq.active[] > 0 && time() < deadline
-            sleep(0.05)
-        end
-        drain_tasks!(tq) do tevt
-            update!(model, tevt)
-        end
-    end
-
     sorted_events = sort(collect(events); by=first)
     evt_idx = 1
 
@@ -198,18 +178,17 @@ function record_app(model::Model, filename::String;
             end
         end
 
-        # Drain task queue before rendering (for async apps like GitHub PRs)
+        reset!(buf)
+        f = Frame(buf, area, GraphicsRegion[], PixelSnapshot[])
+        view(model, f)
+
+        # Drain task queue if present (for async apps)
         tq = task_queue(model)
         if tq !== nothing
-            yield()  # let async tasks complete
             drain_tasks!(tq) do tevt
                 update!(model, tevt)
             end
         end
-
-        reset!(buf)
-        f = Frame(buf, area, GraphicsRegion[], PixelSnapshot[])
-        view(model, f)
 
         # Only capture after warmup
         if capture_num > 0
@@ -326,7 +305,8 @@ function export_apng_from_snapshots end
 
 function gif_extension_loaded()
     hasmethod(export_gif_from_snapshots,
-              Tuple{String, Int, Int, Vector{Vector{Cell}}, Vector{Float64}})
+              Tuple{String, Int, Int, Vector{Vector{Cell}}, Vector{Float64}};
+              world=Base.get_world_counter())
 end
 
 # ── Extension convenience loaders ─────────────────────────────────
@@ -371,7 +351,7 @@ Return `true` if the Tables.jl extension has been loaded (i.e. `DataTable`
 accepts a Tables.jl-compatible source).
 """
 function tables_extension_loaded()
-    hasmethod(DataTable, Tuple{Any})
+    hasmethod(DataTable, Tuple{Any}; world=Base.get_world_counter())
 end
 
 """

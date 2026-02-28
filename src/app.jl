@@ -3,6 +3,37 @@
 # ═══════════════════════════════════════════════════════════════════════
 
 """
+    @tachikoma_app
+
+Import the Tachikoma callback functions so you can extend them with your own
+methods. Place this after `using Tachikoma` in your module:
+
+```julia
+module MyApp
+using Tachikoma
+@tachikoma_app
+
+struct App <: Model ... end
+view(m::App, f::Frame) = ...
+update!(m::App, e::KeyEvent) = ...
+should_quit(m::App) = ...
+end
+```
+
+Equivalent to:
+```julia
+import Tachikoma: view, update!, should_quit, init!, cleanup!,
+                  handle_all_key_actions, copy_rect, task_queue
+```
+"""
+macro tachikoma_app()
+    esc(quote
+        import Tachikoma: view, update!, should_quit, init!, cleanup!,
+                          handle_all_key_actions, copy_rect, task_queue
+    end)
+end
+
+"""
     Model
 
 Abstract type for application state. Subtype this and implement:
@@ -791,17 +822,16 @@ function _resolve_export_config(overlay::AppOverlay, snap::RecordingSnapshot)
 end
 
 function _do_exports_bg(config::ExportConfig, snap::RecordingSnapshot)
-    # invokelatest is required here because extension methods (TachikomaGifExt)
-    # may be loaded by enable_gif() during the app session, after the world age
-    # captured by the app() event loop and its spawned tasks.
+    # invokelatest is required because extension methods (TachikomaGifExt)
+    # may have been defined after the world age captured by Threads.@spawn.
     if config.export_gif
         try
             Base.invokelatest(export_gif_from_snapshots,
-                config.base * ".gif", snap.width, snap.height,
-                snap.cell_snapshots, snap.timestamps;
-                pixel_snapshots=snap.pixel_snapshots,
-                font_path=config.font_path,
-                default_fg=config.text_rgb)
+                              config.base * ".gif", snap.width, snap.height,
+                              snap.cell_snapshots, snap.timestamps;
+                              pixel_snapshots=snap.pixel_snapshots,
+                              font_path=config.font_path,
+                              default_fg=config.text_rgb)
         catch e
             @warn "GIF export failed" exception=e
         end
@@ -810,11 +840,11 @@ function _do_exports_bg(config::ExportConfig, snap::RecordingSnapshot)
     if config.export_svg
         try
             Base.invokelatest(export_svg,
-                config.base * ".svg", snap.width, snap.height,
-                snap.cell_snapshots, snap.timestamps;
-                font_family=config.svg_font_family,
-                font_path=config.svg_embed_font_path,
-                fg_color=config.svg_fg)
+                              config.base * ".svg", snap.width, snap.height,
+                              snap.cell_snapshots, snap.timestamps;
+                              font_family=config.svg_font_family,
+                              font_path=config.svg_embed_font_path,
+                              fg_color=config.svg_fg)
         catch e
             @warn "SVG export failed" exception=e
         end
@@ -839,9 +869,9 @@ function dispatch_event!(t::Terminal, overlay::AppOverlay, model::Model,
     end
     if default_bindings && evt isa KeyEvent
         handled = handle_default_binding!(t, overlay, model, evt)
-        handled || update!(model, evt)
+        handled || Base.invokelatest(update!, model, evt)
     else
-        update!(model, evt)
+        Base.invokelatest(update!, model, evt)
     end
 end
 
@@ -958,7 +988,7 @@ function app(model::Model; fps=60, default_bindings=true, on_stdout=nothing, on_
                     if default_bindings && overlay_active(overlay)
                         render_overlay!(overlay, f)
                     else
-                        view(model, f)
+                        Base.invokelatest(view, model, f)
                         default_bindings && render_overlay!(overlay, f)
                     end
                 end
@@ -968,9 +998,10 @@ function app(model::Model; fps=60, default_bindings=true, on_stdout=nothing, on_
                     rec = t.recorder
                     _tach_snap = snapshot_recording(rec)
                     spawn_task!(_framework_tasks, :_tach_saved) do
-                        write_tach(_tach_snap.filename, _tach_snap.width, _tach_snap.height,
-                                  _tach_snap.cell_snapshots, _tach_snap.timestamps,
-                                  _tach_snap.pixel_snapshots)
+                        Base.invokelatest(write_tach,
+                                          _tach_snap.filename, _tach_snap.width, _tach_snap.height,
+                                          _tach_snap.cell_snapshots, _tach_snap.timestamps,
+                                          _tach_snap.pixel_snapshots)
                         :ok
                     end
                     _setup_export_modal!(overlay, rec)

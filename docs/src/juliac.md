@@ -9,6 +9,7 @@ Create an entry point file with the `(@main)` macro:
 ```julia
 # myapp.jl
 using Tachikoma
+@tachikoma_app
 
 @kwdef mutable struct Counter <: Model
     quit::Bool = false
@@ -23,7 +24,7 @@ function Tachikoma.update!(m::Counter, e::Tachikoma.KeyEvent)
     e.key == :down && (m.count -= 1)
 end
 
-function Tachikoma.view(m::Counter, f::Tachikoma.Frame)
+function Tachikoma.draw(m::Counter, f::Tachikoma.Frame)
     chunks = Tachikoma.split_layout(
         Tachikoma.Layout(Tachikoma.Vertical, [Tachikoma.Percent(100)]),
         f.area)

@@ -12,6 +12,7 @@ A two-pane app: a scrollable list of todo items on top with checkboxes that can 
 
 ```julia
 using Tachikoma
+@tachikoma_app
 
 @enum Status Todo Completed
 

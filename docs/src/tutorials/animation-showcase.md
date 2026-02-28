@@ -16,6 +16,7 @@ A four-panel showcase:
 
 ```julia
 using Tachikoma
+@tachikoma_app
 
 @kwdef mutable struct AnimShowcase <: Model
     quit::Bool = false
@@ -210,7 +211,6 @@ function render_cascade!(buf, area, m)
     set_string!(buf, inner.x, inner.y, frame_info, tstyle(:text_dim))
 
     bar_w = inner.width - 6
-    bar_colors = [:primary, :accent, :success, :warning, :error, :secondary]
     for (i, tw) in enumerate(m.cascade)
         y = inner.y + i
         y > bottom(inner) && break
@@ -219,10 +219,9 @@ function render_cascade!(buf, area, m)
         filled = round(Int, v * bar_w)
         set_string!(buf, inner.x, y, lpad(string(i), 2) * "│ ", tstyle(:text_dim))
 
-        color = bar_colors[mod1(i, length(bar_colors))]
         for cx in 0:(bar_w - 1)
             if cx < filled
-                set_char!(buf, inner.x + 4 + cx, y, '█', tstyle(color))
+                set_char!(buf, inner.x + 4 + cx, y, '█', tstyle(:primary))
             else
                 set_char!(buf, inner.x + 4 + cx, y, '·', tstyle(:text_dim, dim=true))
             end

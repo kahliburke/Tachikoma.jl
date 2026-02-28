@@ -12,6 +12,7 @@ A `DataTable` showing open pull requests for a GitHub repository, fetched asynch
 
 ```julia
 using Tachikoma
+@tachikoma_app
 
 struct PullRequest
     number::Int

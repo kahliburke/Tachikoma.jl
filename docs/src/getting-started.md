@@ -14,6 +14,7 @@ Your model is a `mutable struct` that subtypes `Model`. It holds all application
 
 ```julia
 using Tachikoma
+@tachikoma_app
 using Match
 
 @kwdef mutable struct PigGame <: Model
@@ -220,6 +221,7 @@ Here's the full game — copy it into a file and run with `julia --project game.
 <!-- tachi:app pig_game w=50 h=18 frames=240 fps=15 chrome -->
 ```julia
 using Tachikoma
+@tachikoma_app
 using Match
 
 # 1. Define your model

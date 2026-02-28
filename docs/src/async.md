@@ -158,6 +158,7 @@ A minimal app that spawns background computations:
 
 ```julia
 using Tachikoma
+@tachikoma_app
 
 @kwdef mutable struct ComputeModel <: Model
     quit::Bool = false

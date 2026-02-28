@@ -2,8 +2,23 @@ using Documenter
 using DocumenterVitepress
 using Tachikoma
 
-# All GIF assets are served from the docs-assets GitHub release.
-# No assets need to be copied into VitePress public/.
+# Copy local assets into VitePress public/ so they're available during build.
+# In CI, these are served from the docs-assets GitHub release instead.
+let public_dir = joinpath(@__DIR__, "src", ".vitepress", "public", "assets")
+    src_assets = joinpath(@__DIR__, "src", "assets")
+    if isdir(src_assets)
+        mkpath(public_dir)
+        for (root, dirs, files) in walkdir(src_assets)
+            for f in files
+                endswith(f, ".gif") || continue
+                rel = relpath(joinpath(root, f), src_assets)
+                dest = joinpath(public_dir, rel)
+                mkpath(dirname(dest))
+                cp(joinpath(root, f), dest; force=true)
+            end
+        end
+    end
+end
 
 # Clean stale build directory to avoid ENOTEMPTY errors from Documenter
 # Retry loop handles macOS .DS_Store race condition

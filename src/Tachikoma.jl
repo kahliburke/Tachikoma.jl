@@ -54,10 +54,8 @@ export # Core types
        layout_space_between, layout_space_around, layout_space_evenly,
        ResizableLayout, handle_resize!, reset_layout!, render_resize_handles!,
        # App framework
-       app, should_quit, update!, view, init!, cleanup!, copy_rect,
+       app, @tachikoma_app,
        prepare_for_exec!,
-       handle_all_key_actions,
-       task_queue,
        clipboard_copy!, buffer_to_text,
        # Async tasks
        TaskEvent, TaskQueue, CancelToken,
