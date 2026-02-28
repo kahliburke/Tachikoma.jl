@@ -52,18 +52,19 @@ Pkg.add("Tachikoma")
 
 ```julia
 using Tachikoma
+@tachikoma_app
 
 @kwdef mutable struct Life <: Model
     quit::Bool = false
     grid::Matrix{Bool} = rand(24, 80) .< 0.25
 end
 
-Tachikoma.should_quit(m::Life) = m.quit
-function Tachikoma.update!(m::Life, e::KeyEvent)
+should_quit(m::Life) = m.quit
+function update!(m::Life, e::KeyEvent)
     e.key == :escape && (m.quit = true)
 end
 
-function Tachikoma.view(m::Life, f::Frame)
+function view(m::Life, f::Frame)
     h, w = size(m.grid)
     g = m.grid
     nc = [sum(g[mod1(i+di,h), mod1(j+dj,w)]

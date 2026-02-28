@@ -30,6 +30,12 @@ end
 should_quit(m::PigGame) = m.quit
 ```
 
+`@tachikoma_app` imports the callback functions (`view`, `update!`, `should_quit`, etc.) so you can define your own methods for them. Without it, `using Tachikoma` only makes these names available for *calling* — you need to *extend* them to add methods for your model type. There are three ways to do this:
+
+1. **`@tachikoma_app`** — the macro (recommended, cleanest)
+2. **`import Tachikoma: view, update!, should_quit`** — explicit import
+3. **`Tachikoma.view(m::MyModel, f::Frame) = ...`** — fully qualified definitions
+
 `@kwdef` generates a keyword constructor with defaults. `should_quit` tells the framework when to exit — return `true` and the event loop stops cleanly.
 
 ## Step 2: Game Logic
