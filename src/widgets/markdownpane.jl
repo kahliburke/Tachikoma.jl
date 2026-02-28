@@ -80,7 +80,7 @@ function _md_parse(source::String, width::Int;
             [s for s in _plain_lines(source, text_style)]...,
         ]
     end
-    markdown_to_spans(source, width;
+    Base.invokelatest(markdown_to_spans, source, width;
         h1_style, h2_style, h3_style, bold_style, emph_style,
         code_style, link_style, quote_style, text_style, hr_style)
 end

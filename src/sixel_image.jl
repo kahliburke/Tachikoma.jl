@@ -215,6 +215,10 @@ function render(si::PixelImage, rect::Rect, f::Frame; tick::Int=0)
 
     _pixelimage_resize!(si, content.width, content.height)
     gfx = GRAPHICS_PROTOCOL[]
+    if gfx == gfx_none
+        render(si, content, buf)
+        return
+    end
     if gfx == gfx_kitty
         data = encode_kitty(si.pixels; decay=si.decay, tick=tick,
                             cols=content.width, rows=content.height)

@@ -187,6 +187,7 @@ terminals that don't respond.
 Updates `SIXEL_AREA_PX[]`.
 """
 function _detect_sixel_geometry!()
+    @static Sys.iswindows() && return
     # Try via /dev/tty (works even when stdin/stdout are redirected)
     # O_RDWR=2, O_NONBLOCK=4 on macOS (0x800 on Linux)
     o_nonblock = @static (Sys.isapple() || Sys.isbsd()) ? 0x0004 : 0x0800
@@ -288,6 +289,7 @@ Use TIOCGWINSZ ioctl to get pixel dimensions from the kernel.
 Tries stdin, stdout, and /dev/tty.
 """
 function _detect_cell_pixels_ioctl!()
+    @static Sys.iswindows() && return false
     tiocgwinsz = @static (Sys.isapple() || Sys.isbsd()) ? 0x40087468 : 0x5413
     # Use a plain Vector{UInt8} sized to winsize struct (4×UInt16 = 8 bytes)
     # and GC.@preserve it across the ccall to prevent heap corruption in
@@ -768,6 +770,7 @@ const _REMOTE_INPUT_STREAM   = Ref{Union{Base.BufferStream, Nothing}}(nothing)
 const _REMOTE_INPUT_TERMIOS  = Ref{Vector{UInt8}}(UInt8[])
 
 function _start_remote_input!(path::String)
+    @static Sys.iswindows() && error("Remote TTY input is not supported on Windows")
     buf = Base.BufferStream()
     # O_RDWR|O_NONBLOCK|O_NOCTTY: non-blocking so the reader @async task never
     # stalls the Julia thread; O_NOCTTY prevents accidental controlling-terminal
@@ -808,6 +811,7 @@ function _start_remote_input!(path::String)
 end
 
 function _stop_remote_input!()
+    @static Sys.iswindows() && return
     fd = _REMOTE_INPUT_FD[]
     fd == -1 && return
     _REMOTE_INPUT_FD[] = -1          # signals the reader task to stop
@@ -947,6 +951,7 @@ Call this immediately before `ccall(:execvp, ...)` or similar process
 replacement from any context (async tasks, bridge code, etc.).
 """
 function prepare_for_exec!()
+    @static Sys.iswindows() && return
     # 1. Stop libuv stdin reading (before we touch fds)
     try stop_input!() catch end
 
