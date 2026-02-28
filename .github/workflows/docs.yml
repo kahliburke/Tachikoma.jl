@@ -80,20 +80,37 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release view docs-assets || gh release create docs-assets --title "Documentation Assets" --notes "Auto-updated GIF assets for documentation"
+          # Fetch existing asset digests for change detection
+          gh api repos/${{ github.repository }}/releases/tags/docs-assets \
+            --jq '.assets[] | "\(.name) \(.digest)"' > /tmp/remote_assets.txt 2>/dev/null || true
+
+          upload_if_changed() {
+            local file="$1" name="$2"
+            local local_sha remote_sha
+            local_sha="sha256:$(sha256sum "$file" | awk '{print $1}')"
+            remote_sha=$(grep "^${name} " /tmp/remote_assets.txt | awk '{print $2}')
+            if [ "$local_sha" = "$remote_sha" ]; then
+              echo "  $name: unchanged, skipping"
+              return
+            fi
+            echo "  $name: uploading..."
+            gh release upload docs-assets "$file" --clobber
+          }
+
           # Upload top-level assets (hero_logo.gif, code_reveal.gif, etc.)
           for f in docs/src/assets/*.gif; do
-            [ -f "$f" ] && gh release upload docs-assets "$f" --clobber
+            [ -f "$f" ] && upload_if_changed "$f" "$(basename "$f")"
           done
           # Upload examples/ GIFs as-is (names are unique)
           for f in docs/src/assets/examples/*.gif; do
-            [ -f "$f" ] && gh release upload docs-assets "$f" --clobber
+            [ -f "$f" ] && upload_if_changed "$f" "$(basename "$f")"
           done
           # Upload readme/ GIFs with readme_ prefix to avoid name collisions
           for f in docs/src/assets/readme/*.gif; do
             [ -f "$f" ] || continue
             name="readme_$(basename "$f")"
             cp "$f" "/tmp/$name"
-            gh release upload docs-assets "/tmp/$name" --clobber
+            upload_if_changed "/tmp/$name" "$name"
           done
       - name: Remove binary assets before VitePress build
         run: |

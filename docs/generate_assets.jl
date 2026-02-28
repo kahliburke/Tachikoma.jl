@@ -136,9 +136,9 @@ function export_formats(tach_file::String; gif::Bool=true)
             enable_gif()
             gif_file = base * ".gif"
             # 2x cell size for retina displays (default is cell_w=10, cell_h=20, font_size=16)
-            Base.invokelatest(export_gif_from_snapshots, gif_file, w, h, cells, timestamps;
-                              pixel_snapshots=sixels, font_path=font_path,
-                              cell_w=20, cell_h=40, font_size=32)
+            export_gif_from_snapshots(gif_file, w, h, cells, timestamps;
+                                     pixel_snapshots=sixels, font_path=font_path,
+                                     cell_w=20, cell_h=40, font_size=32)
             println("    → $(basename(gif_file))")
         catch e
             @warn "GIF export skipped" exception=(e, catch_backtrace())
@@ -854,7 +854,7 @@ const README_GIFS = [
     (joinpath(EXAMPLES_DIR, "bg_phylotree.tach"),            "bg_phylotree"),
 ]
 
-function generate_readme_gifs()
+function generate_readme_gifs(; force::Bool=false)
     readme_dir = joinpath(ASSETS_DIR, "readme")
     mkpath(readme_dir)
     font_path = _find_font()
@@ -868,6 +868,14 @@ function generate_readme_gifs()
         end
 
         gif_file = joinpath(readme_dir, "$name.gif")
+
+        # Skip if GIF exists and is newer than the source .tach
+        if !force && isfile(gif_file) && mtime(gif_file) >= mtime(tach_file)
+            sz_mb = round(filesize(gif_file) / 1048576; digits=1)
+            println("  $name: $(sz_mb)MB (cached) ✓")
+            continue
+        end
+
         w, h, cells, timestamps, sixels = load_tach(tach_file)
 
         # Try 1x first, then reduce frame rate if still too large
@@ -886,9 +894,9 @@ function generate_readme_gifs()
             end
 
             try
-                Base.invokelatest(export_gif_from_snapshots, gif_file, w, h, sub_cells, sub_timestamps;
-                                  pixel_snapshots=sixels, font_path=font_path,
-                                  cell_w=10, cell_h=20, font_size=16)
+                export_gif_from_snapshots(gif_file, w, h, sub_cells, sub_timestamps;
+                                     pixel_snapshots=sixels, font_path=font_path,
+                                     cell_w=10, cell_h=20, font_size=16)
             catch e
                 @warn "README GIF failed for $name" exception=(e, catch_backtrace())
                 break
@@ -972,7 +980,7 @@ function main()
     if do_all || do_apps || do_hero
         println()
         println("── README GIFs (1x, size-limited) ──")
-        generate_readme_gifs()
+        generate_readme_gifs(; force)
     end
 
     # ── Snippet validation ──
