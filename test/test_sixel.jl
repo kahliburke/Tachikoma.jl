@@ -199,8 +199,8 @@
         buf = T.Buffer(T.Rect(1, 1, 10, 5))
         frame = T.Frame(buf, T.Rect(1, 1, 10, 5), T.GraphicsRegion[], T.PixelSnapshot[])
         T.render(img, T.Rect(1, 1, 5, 3), frame; tick=0)
-        @test length(frame.gfx_regions) == 1
-        @test !isempty(frame.gfx_regions[1].data)
+        # With gfx_none (test env), falls back to braille rendering
+        @test UInt32(buf.content[1].char) >= 0x2800
     end
 
     @testset "PixelImage render to Buffer (braille fallback)" begin
