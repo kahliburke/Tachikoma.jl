@@ -791,9 +791,12 @@ function _resolve_export_config(overlay::AppOverlay, snap::RecordingSnapshot)
 end
 
 function _do_exports_bg(config::ExportConfig, snap::RecordingSnapshot)
+    # invokelatest is required here because extension methods (TachikomaGifExt)
+    # may be loaded by enable_gif() during the app session, after the world age
+    # captured by the app() event loop and its spawned tasks.
     if config.export_gif
         try
-            export_gif_from_snapshots(
+            Base.invokelatest(export_gif_from_snapshots,
                 config.base * ".gif", snap.width, snap.height,
                 snap.cell_snapshots, snap.timestamps;
                 pixel_snapshots=snap.pixel_snapshots,
@@ -806,7 +809,7 @@ function _do_exports_bg(config::ExportConfig, snap::RecordingSnapshot)
 
     if config.export_svg
         try
-            export_svg(
+            Base.invokelatest(export_svg,
                 config.base * ".svg", snap.width, snap.height,
                 snap.cell_snapshots, snap.timestamps;
                 font_family=config.svg_font_family,

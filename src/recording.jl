@@ -326,8 +326,7 @@ function export_apng_from_snapshots end
 
 function gif_extension_loaded()
     hasmethod(export_gif_from_snapshots,
-              Tuple{String, Int, Int, Vector{Vector{Cell}}, Vector{Float64}};
-              world=Base.get_world_counter())
+              Tuple{String, Int, Int, Vector{Vector{Cell}}, Vector{Float64}})
 end
 
 # ── Extension convenience loaders ─────────────────────────────────
@@ -372,7 +371,7 @@ Return `true` if the Tables.jl extension has been loaded (i.e. `DataTable`
 accepts a Tables.jl-compatible source).
 """
 function tables_extension_loaded()
-    hasmethod(DataTable, Tuple{Any}; world=Base.get_world_counter())
+    hasmethod(DataTable, Tuple{Any})
 end
 
 """
