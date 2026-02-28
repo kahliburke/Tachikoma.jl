@@ -2,7 +2,7 @@
 
 ## Requirements
 
-- **Julia 1.12** or later
+- **Julia 1.10** or later (LTS supported)
 - A terminal emulator with Unicode support (virtually all modern terminals)
 
 ## Install

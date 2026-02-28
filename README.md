@@ -16,7 +16,7 @@
   <a href="https://github.com/kahliburke/Tachikoma.jl/actions/workflows/CI.yml"><img src="https://github.com/kahliburke/Tachikoma.jl/actions/workflows/CI.yml/badge.svg" alt="CI"></a>
   <a href="https://kahliburke.github.io/Tachikoma.jl/dev/"><img src="https://img.shields.io/badge/docs-dev-blue.svg" alt="Dev Docs"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green.svg" alt="MIT License"></a>
-  <img src="https://img.shields.io/badge/julia-%E2%89%A5%201.12-9558B2?logo=julia&logoColor=white" alt="Julia 1.12+">
+  <img src="https://img.shields.io/badge/julia-%E2%89%A5%201.10-9558B2?logo=julia&logoColor=white" alt="Julia 1.10+">
 </p>
 
 ---
@@ -173,7 +173,7 @@ Full documentation is available at **[kahliburke.github.io/Tachikoma.jl](https:/
 
 ## Requirements
 
-- Julia 1.12+
+- Julia 1.10+
 - A terminal with ANSI color support (most modern terminals)
 - Kitty or sixel-capable terminal for pixel graphics (kitty, iTerm2, WezTerm, foot, etc.)
 
