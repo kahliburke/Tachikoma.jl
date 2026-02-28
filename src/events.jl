@@ -75,6 +75,12 @@ end
 
 const INPUT_ACTIVE = Ref(false)
 
+# Timestamp of the most recent start_input!() call. Used to suppress
+# spurious escape events during the startup window — on high-latency
+# SSH connections, terminal probe responses can arrive split at the \e
+# boundary, causing read_escape() to time out and produce false escapes.
+const _STARTUP_TIME = Ref(0.0)
+
 # Override input IO for remote TTY rendering. When nothing (the default),
 # functions fall back to the live `stdin` global — critical because in MCP
 # server contexts stdin is a pipe at module-load time but becomes the real
@@ -84,6 +90,7 @@ const INPUT_IO = Ref{Union{IO,Nothing}}(nothing)
 _input_io() = something(INPUT_IO[], stdin)
 
 function start_input!()
+    _STARTUP_TIME[] = time()
     INPUT_ACTIVE[] = true
     reset_key_state!()
     io = _input_io()
@@ -159,17 +166,48 @@ end
 
 function read_escape()
     b = read_byte(0.05)
-    b === nothing && return KeyEvent(:escape)
+    if b === nothing
+        # Bare \e with no follow-up: real Escape key press on a legacy terminal.
+        # During the startup window, however, probe responses can arrive split
+        # at the \e boundary on high-latency SSH — treat as unknown to suppress
+        # false quit triggers until the terminal has finished its handshake.
+        time() - _STARTUP_TIME[] < 1.0 && return KeyEvent(:unknown)
+        return KeyEvent(:escape)
+    end
     b == UInt8('[') && return read_csi()
     b == UInt8('O') && return read_ss3()
-    return KeyEvent(:escape)
+    # APC (\e_), DCS (\eP), OSC (\e]), PM (\e^), SOS (\eX):
+    # consume until ST (\e\) or BEL and discard — terminal probe responses.
+    if b in (UInt8('_'), UInt8('P'), UInt8(']'), UInt8('^'), UInt8('X'))
+        _consume_until_st()
+        return KeyEvent(:unknown)
+    end
+    # Another \e immediately following: the first was a stray byte (e.g. a probe
+    # response whose lead byte arrived alone).  Recursively parse from the second.
+    b == 0x1b && return read_escape()
+    # Any other unrecognised byte after \e is not a standard Escape key sequence.
+    # Return :unknown rather than :escape to avoid false quit triggers from
+    # stray bytes in terminal responses.
+    return KeyEvent(:unknown)
+end
+
+function _consume_until_st()
+    while true
+        b = read_byte(0.05)
+        b === nothing && return
+        b == 0x07 && return          # BEL — OSC terminator
+        b == 0x1b || continue
+        b2 = read_byte(0.05)         # expect \ (ST)
+        b2 === nothing && return
+        b2 == UInt8('\\') && return
+    end
 end
 
 function read_csi()
     params = UInt8[]
     while true
         b = read_byte(0.05)
-        b === nothing && return KeyEvent(:escape)
+        b === nothing && return KeyEvent(:unknown)
         if b >= 0x40 && b <= 0x7e
             return csi_to_key(params, Char(b))
         end
@@ -180,7 +218,7 @@ end
 
 function read_ss3()
     b = read_byte(0.05)
-    b === nothing && return KeyEvent(:escape)
+    b === nothing && return KeyEvent(:unknown)
     # Application cursor key mode: \eOA/B/C/D for arrow keys
     Char(b) == 'A' && return KeyEvent(:up)
     Char(b) == 'B' && return KeyEvent(:down)
