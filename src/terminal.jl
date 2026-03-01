@@ -895,6 +895,9 @@ function enter_tui!(t::Terminal; remote_tty::Bool = false)
                                gfx_env == "sixel" ? gfx_sixel : gfx_none
     end
     GRAPHICS_PROTOCOL[] = t.graphics_protocol
+    # Clear any probe artifacts (some terminals render APC/CSI probe bytes as
+    # raw text) before the first TUI frame, so they don't persist on screen.
+    !remote_tty && (print(t.io, CLEAR_SCREEN); Base.flush(t.io))
 end
 
 function leave_tui!(t::Terminal)
