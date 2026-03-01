@@ -291,21 +291,26 @@ Tries stdin, stdout, and /dev/tty.
 function _detect_cell_pixels_ioctl!()
     @static Sys.iswindows() && return false
     tiocgwinsz = @static (Sys.isapple() || Sys.isbsd()) ? 0x40087468 : 0x5413
+    # ioctl is variadic on macOS/BSD — the third arg must use `...` in the ccall
+    # signature so ARM64 passes it in the correct register (stack vs register ABI).
     for fd_source in (:stdin, :stdout, :devtty)
         try
             buf = zeros(UInt16, 4)
-            if fd_source === :devtty
-                tty_fd = ccall(:open, Cint, (Cstring, Cint), "/dev/tty", 0)
-                tty_fd == -1 && continue
-                ret = ccall(:ioctl, Cint, (Cint, Culong, Ptr{UInt16}),
-                             tty_fd, tiocgwinsz, buf)
-                ccall(:close, Cint, (Cint,), tty_fd)
-                ret == -1 && continue
-            else
-                fd = fd_source === :stdin ? 0 : 1
-                ret = ccall(:ioctl, Cint, (Cint, Culong, Ptr{UInt16}),
-                             fd, tiocgwinsz, buf)
-                ret == -1 && continue
+            GC.@preserve buf begin
+                p = pointer(buf)
+                if fd_source === :devtty
+                    tty_fd = ccall(:open, Cint, (Cstring, Cint), "/dev/tty", 0)
+                    tty_fd == -1 && continue
+                    ret = ccall(:ioctl, Cint, (Cint, Culong, Ptr{Cvoid}...),
+                                 tty_fd, tiocgwinsz, p)
+                    ccall(:close, Cint, (Cint,), tty_fd)
+                    ret == -1 && continue
+                else
+                    fd = fd_source === :stdin ? 0 : 1
+                    ret = ccall(:ioctl, Cint, (Cint, Culong, Ptr{Cvoid}...),
+                                 fd, tiocgwinsz, p)
+                    ret == -1 && continue
+                end
             end
             rows, cols, xpixel, ypixel = Int(buf[1]), Int(buf[2]), Int(buf[3]), Int(buf[4])
             (xpixel == 0 || ypixel == 0) && continue
