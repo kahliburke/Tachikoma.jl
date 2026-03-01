@@ -27,4 +27,5 @@ struct _DummyModel <: T.Model end
     include("test_animation.jl")
     include("test_tokenizers.jl")
     include("test_style.jl")
+    include("test_ccall_safety.jl")
 end
