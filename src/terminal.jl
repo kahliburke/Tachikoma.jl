@@ -1021,10 +1021,15 @@ function with_terminal(f::Function; tty_out=nothing, tty_size=nothing, on_stdout
     # the current terminal (not tty_out) and its escape-sequence responses
     # buffer up in the remote TTY's input, corrupting the shell on exit.
     tty_out === nothing && detect_cell_pixels!()
-    tty_path = something(tty_out, "/dev/tty")
-    tty_io = open(tty_path, "w")
+    tty_io = if tty_out !== nothing
+        open(tty_out, "w")
+    elseif Sys.iswindows()
+        stdout
+    else
+        open("/dev/tty", "w")
+    end
     sz = if tty_out !== nothing
-        something(tty_size, _tty_size(tty_path))
+        something(tty_size, _tty_size(tty_out))
     else
         terminal_size()
     end
@@ -1037,7 +1042,7 @@ function with_terminal(f::Function; tty_out=nothing, tty_size=nothing, on_stdout
     finally
         leave_tui!(t)
         _stop_capture(state)
-        try close(tty_io) catch end
+        tty_io !== stdout && try close(tty_io) catch end
     end
 end
 
