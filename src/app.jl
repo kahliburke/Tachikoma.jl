@@ -869,9 +869,9 @@ function dispatch_event!(t::Terminal, overlay::AppOverlay, model::Model,
     end
     if default_bindings && evt isa KeyEvent
         handled = handle_default_binding!(t, overlay, model, evt)
-        handled || Base.invokelatest(update!, model, evt)
+        handled || update!(model, evt)
     else
-        Base.invokelatest(update!, model, evt)
+        update!(model, evt)
     end
 end
 
@@ -988,7 +988,7 @@ function app(model::Model; fps=60, default_bindings=true, on_stdout=nothing, on_
                     if default_bindings && overlay_active(overlay)
                         render_overlay!(overlay, f)
                     else
-                        Base.invokelatest(view, model, f)
+                        view(model, f)
                         default_bindings && render_overlay!(overlay, f)
                     end
                 end
@@ -998,10 +998,9 @@ function app(model::Model; fps=60, default_bindings=true, on_stdout=nothing, on_
                     rec = t.recorder
                     _tach_snap = snapshot_recording(rec)
                     spawn_task!(_framework_tasks, :_tach_saved) do
-                        Base.invokelatest(write_tach,
-                                          _tach_snap.filename, _tach_snap.width, _tach_snap.height,
-                                          _tach_snap.cell_snapshots, _tach_snap.timestamps,
-                                          _tach_snap.pixel_snapshots)
+                        write_tach(_tach_snap.filename, _tach_snap.width, _tach_snap.height,
+                                  _tach_snap.cell_snapshots, _tach_snap.timestamps,
+                                  _tach_snap.pixel_snapshots)
                         :ok
                     end
                     _setup_export_modal!(overlay, rec)
