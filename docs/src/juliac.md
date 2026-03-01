@@ -16,30 +16,28 @@ using Tachikoma
     count::Int = 0
 end
 
-Tachikoma.should_quit(m::Counter) = m.quit
+should_quit(m::Counter) = m.quit
 
-function Tachikoma.update!(m::Counter, e::Tachikoma.KeyEvent)
+function update!(m::Counter, e::KeyEvent)
     e.key == :escape && (m.quit = true)
     e.key == :up && (m.count += 1)
     e.key == :down && (m.count -= 1)
 end
 
-function Tachikoma.draw(m::Counter, f::Tachikoma.Frame)
-    chunks = Tachikoma.split_layout(
-        Tachikoma.Layout(Tachikoma.Vertical, [Tachikoma.Percent(100)]),
-        f.area)
-    b = Tachikoma.Block(title="Counter (↑/↓ to change, Esc to quit)")
-    inner = Tachikoma.render!(f, b, chunks[1])
+function view(m::Counter, f::Frame)
+    chunks = split_layout(Layout(Vertical, [Percent(100)]), f.area)
+    b = Block(title="Counter (↑/↓ to change, Esc to quit)")
+    inner = render(b, chunks[1], f.buffer)
     buf = f.buffer
     text = "Count: $(m.count)"
     for (i, ch) in enumerate(text)
         x = inner.x + i - 1
         x <= inner.x + inner.width - 1 || break
-        Tachikoma.set_char!(buf, x, inner.y, ch, Tachikoma.tstyle(:primary))
+        set_char!(buf, x, inner.y, ch, tstyle(:primary))
     end
 end
 
-(@main)(ARGS) = (Tachikoma.app(Counter()); return 0)
+(@main)(ARGS) = (app(Counter()); return 0)
 ```
 
 Compile it:
@@ -97,19 +95,21 @@ using TachikomaDemos
 
 ## Writing juliac-Compatible Code
 
-### Use `GC.@preserve` for ccall Buffers
+### Use Variadic ccall for `ioctl`
 
-Buffers passed to `ccall` should be wrapped in `GC.@preserve` to ensure the GC doesn't relocate them during the foreign call. This is good practice in general Julia, and essential for compiled binaries:
+On macOS/BSD, `ioctl` is a variadic C function. On ARM64 (Apple Silicon), variadic arguments use a different calling convention than fixed arguments. Without `...` in the ccall signature, pointer arguments are passed in the wrong register, causing `EFAULT` or segfaults. Always use the variadic form:
 
 <!-- tachi:noeval -->
 ```julia
-buf = zeros(UInt8, 8)
+buf = zeros(UInt16, 4)
 GC.@preserve buf begin
-    ccall(:ioctl, Cint, (Cint, Culong, Ptr{UInt8}), fd, request, buf)
-    rows = Int(reinterpret(UInt16, @view buf[1:2])[1])
-    cols = Int(reinterpret(UInt16, @view buf[3:4])[1])
+    p = pointer(buf)
+    ret = ccall(:ioctl, Cint, (Cint, Culong, Ptr{Cvoid}...), fd, request, p)
 end
+rows, cols, xpixel, ypixel = Int(buf[1]), Int(buf[2]), Int(buf[3]), Int(buf[4])
 ```
+
+The `Ptr{Cvoid}...` tells Julia this is a variadic argument, ensuring correct ABI on all architectures. Wrap buffers in `GC.@preserve` to prevent the GC from collecting them during the foreign call.
 
 ### Avoid `invokelatest`
 
