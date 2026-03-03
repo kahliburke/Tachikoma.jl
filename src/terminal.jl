@@ -571,6 +571,7 @@ end
 # ── Draw / Flush ──────────────────────────────────────────────────────
 
 function draw!(func::Function, t::Terminal)
+    _kitty_shm_cleanup!()   # unlink previous frame's shm segments (terminal has had a full frame to read them)
     resized = check_resize!(t)
     t.frame_count += 1
     f = Frame(current_buf(t), t.size, GraphicsRegion[], PixelSnapshot[])
@@ -937,6 +938,7 @@ function leave_tui!(t::Terminal)
     GRAPHICS_PROTOCOL[] = gfx_none
     _KITTY_SHM_AVAILABLE[] = nothing
     _KITTY_SHM_COUNTER[] = UInt32(0)
+    _kitty_shm_cleanup_all!()   # unlink all shm segments (pending + ring) on TUI exit
 end
 
 """
@@ -990,6 +992,9 @@ function prepare_for_exec!()
     GRAPHICS_PROTOCOL[] = gfx_none
     _KITTY_SHM_AVAILABLE[] = nothing
     _KITTY_SHM_COUNTER[] = UInt32(0)
+
+    # 8. Clean up all shm segments (pending + ring) before process replacement
+    _kitty_shm_cleanup_all!()
 
     nothing
 end
