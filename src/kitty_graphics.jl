@@ -37,15 +37,65 @@ const _MAP_FAILED = Ptr{Nothing}(-1 % UInt)
 
 const _KITTY_SHM_AVAILABLE = Ref{Union{Nothing, Bool}}(nothing)
 
-# Monotonically-incrementing counter: each encode_kitty call gets a unique
-# SHM segment name.  This avoids the collision that occurs with a 2-slot
-# alternating scheme when multiple PixelImage widgets render in the same
-# frame: all APCs are buffered in Julia and flushed together, so Kitty
-# processes them after all SHM writes are done — meaning a 2-slot scheme
-# overwrites slot 0 before Kitty reads it for the first image.
-# Kitty unlinks each segment immediately after reading (t=s protocol), so
-# segments don't accumulate even with a monotonic counter.
+# ── Sender-side shm cleanup ───────────────────────────────────────────
+# POSIX shm segments created for Kitty t=s transmission are supposed to
+# be unlinked by the terminal after reading.  If the terminal doesn't
+# support t=s (misdetected) or crashes, segments leak permanently.
+#
+# Two-generation tracking: segments created this frame go into _CURRENT,
+# which is promoted to _PREVIOUS at the start of the next frame (and
+# the old _PREVIOUS is unlinked).  This gives the terminal a full frame
+# interval (~16ms @60fps) to open each segment before the name is removed.
+# POSIX semantics: after shm_unlink the segment stays usable by any
+# process that already has it open.
+#
+# Each generation naturally scales with the number of image widgets —
+# no fixed ring size to tune.  Worst-case leak from SIGKILL is one
+# frame's worth of segments (typically 1–3).
+
 const _KITTY_SHM_COUNTER = Ref(UInt32(0))
+
+# Two generations of segment names.
+const _KITTY_SHM_PREVIOUS = String[]   # from the frame before last — safe to unlink
+const _KITTY_SHM_CURRENT  = String[]   # from the most recent frame — terminal may still be reading
+
+"""
+    _kitty_shm_cleanup!()
+
+Promote the current generation and unlink the previous one.
+Called at the start of each frame: unlinks segments from two frames ago
+(the terminal has had a full frame to read them), then moves the last
+frame's segments into the "previous" slot.
+"""
+function _kitty_shm_cleanup!()
+    # Unlink the old previous generation
+    for name in _KITTY_SHM_PREVIOUS
+        ccall(:shm_unlink, Cint, (Cstring,), name)
+    end
+    empty!(_KITTY_SHM_PREVIOUS)
+    # Promote current → previous
+    append!(_KITTY_SHM_PREVIOUS, _KITTY_SHM_CURRENT)
+    empty!(_KITTY_SHM_CURRENT)
+end
+
+"""
+    _kitty_shm_cleanup_all!()
+
+Unlink every tracked segment (both generations).
+Called on TUI exit, process replacement, and atexit.
+"""
+function _kitty_shm_cleanup_all!()
+    for name in _KITTY_SHM_PREVIOUS
+        ccall(:shm_unlink, Cint, (Cstring,), name)
+    end
+    empty!(_KITTY_SHM_PREVIOUS)
+    for name in _KITTY_SHM_CURRENT
+        ccall(:shm_unlink, Cint, (Cstring,), name)
+    end
+    empty!(_KITTY_SHM_CURRENT)
+end
+
+atexit(_kitty_shm_cleanup_all!)
 
 """
     _is_ssh_session() → Bool
@@ -101,10 +151,10 @@ end
 
 Write raw RGB bytes to a POSIX shared memory segment for Kitty to read.
 Returns the shm name on success, `nothing` on failure.
-Kitty unlinks the segment after reading (t=s protocol).
 
-Each call uses a unique name derived from a monotonic counter, so
-multiple images rendered in the same frame never collide.
+Each call gets a unique name via a monotonic counter.  The name is
+tracked in `_KITTY_SHM_CURRENT` for deferred cleanup (see
+`_kitty_shm_cleanup!`).
 
 Uses `ccall(:memcpy, ...)` for the copy — this is opaque to Julia's
 compiler and prevents dead store elimination of writes to mmap'd memory.
@@ -113,8 +163,6 @@ function _kitty_shm_write(rgb::Vector{UInt8})
     nbytes = length(rgb)
     idx = (_KITTY_SHM_COUNTER[] += UInt32(1))
     name = "/tach_k$(getpid())_$(idx)"
-
-    # Each name is unique — no pre-unlink needed.
 
     # shm_open is variadic on macOS: int shm_open(const char *, int, ...)
     fd = ccall(:shm_open, Cint, (Cstring, Cint, Cuint...),
@@ -148,6 +196,7 @@ function _kitty_shm_write(rgb::Vector{UInt8})
     ccall(:munmap, Cint, (Ptr{Nothing}, Csize_t), ptr, nbytes)
     ccall(:close, Cint, (Cint,), fd)
 
+    push!(_KITTY_SHM_CURRENT, name)
     return name
 end
 
