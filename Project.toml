@@ -1,7 +1,7 @@
 name = "Tachikoma"
 uuid = "468859d6-42d8-48b7-8ad9-1d312e0e3b0a"
 authors = ["Kahli Burke <kahli@kahliburke.com>"]
-version = "1.0.1"
+version = "1.0.2"
 description = "A terminal UI framework for Julia — widgets, layouts, sixel graphics, animations, and juliac compilation"
 keywords = ["tui", "terminal", "ui", "widgets", "sixel", "cli", "juliac"]
 
@@ -28,7 +28,7 @@ TachikomaTablesExt = "Tables"
 CodecZlib = "0.7.8"
 CodecZstd = "0.7, 0.8"
 ColorTypes = "0.11, 0.12"
-CommonMark = "0.8"
+CommonMark = "0.8, 1"
 Dates = "1"
 FreeTypeAbstraction = "0.10, 0.11"
 Preferences = "1.5.1"
