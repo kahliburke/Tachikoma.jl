@@ -52,6 +52,25 @@ Same drawing API as `Canvas` but at 2×2 resolution per cell.
 
 BlockCanvas produces visually denser output than braille — better for filled shapes and thick lines.
 
+## OctantCanvas (Octant Blocks)
+
+`OctantCanvas` uses Unicode octant block characters at 4×2 resolution per cell. Each cell has 8 independently addressable octants, producing gap-free solid shapes:
+
+<!-- tachi:widget canvas_block w=40 h=20 -->
+```julia
+canvas = OctantCanvas(40, 20; style=tstyle(:primary))
+
+circle!(canvas, 39, 19, 15)
+line!(canvas, 0, 0, 79, 39)
+rect!(canvas, 5, 5, 74, 34)
+
+render(canvas, area, buf)
+```
+
+Same drawing API as `Canvas`, with a 4×2 resolution per cell, but without gap between the cells.
+
+OctantCanvas produces visually denser output than braille — better for filled shapes and thick lines.
+
 ## PixelImage (Pixel Raster)
 
 `PixelImage` is a widget that renders pixel-perfect raster graphics using the Kitty or sixel graphics protocol (auto-detected), with braille fallback. Each terminal cell maps to approximately 8×16 pixels (varies by terminal):
@@ -135,7 +154,7 @@ The `create_canvas` helper creates the appropriate canvas type for the current b
 <!-- tachi:noeval -->
 ```julia
 canvas = create_canvas(width, height; style=tstyle(:primary))
-# Returns Canvas, BlockCanvas, or PixelCanvas based on render_backend()
+# Returns Canvas, BlockCanvas, OctantCanvas, or PixelCanvas based on render_backend()
 ```
 
 ## Terminal Pixel Detection

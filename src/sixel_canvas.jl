@@ -314,7 +314,7 @@ canvas_dot_size(c::PixelCanvas) = (c.dot_w, c.dot_h)
     render_canvas(c, rect, f::Frame; tick=0)
 
 Backend-agnostic render helper. Dispatches to the correct render
-method for Canvas, BlockCanvas, or PixelCanvas.
+method for Canvas, BlockCanvas, OctantCanvas, or PixelCanvas.
 """
 render_canvas(c::Canvas, rect::Rect, f::Frame; tick::Int=0) =
     render(c, rect, f.buffer)
