@@ -36,6 +36,80 @@
         @test buf.content[1].char == ' '
     end
 
+    @testset "Buffer wide characters" begin
+        # set_string! places wide char + pad sentinel correctly
+        buf = T.Buffer(T.Rect(1, 1, 10, 1))
+        T.set_string!(buf, 1, 1, "你好")
+        @test buf.content[1].char == '你'
+        @test buf.content[2].char == T.WIDE_CHAR_PAD
+        @test buf.content[3].char == '好'
+        @test buf.content[4].char == T.WIDE_CHAR_PAD
+
+        # set_char! overwriting leading cell cleans up orphaned pad
+        buf = T.Buffer(T.Rect(1, 1, 10, 1))
+        T.set_string!(buf, 1, 1, "你")
+        @test buf.content[2].char == T.WIDE_CHAR_PAD
+        T.set_char!(buf, 1, 1, 'A')
+        @test buf.content[1].char == 'A'
+        @test buf.content[2].char == ' '  # pad cleaned up
+
+        # set_char! overwriting pad cell cleans up broken leading char
+        buf = T.Buffer(T.Rect(1, 1, 10, 1))
+        T.set_string!(buf, 1, 1, "你")
+        T.set_char!(buf, 2, 1, 'B')
+        @test buf.content[1].char == ' '  # leading cell cleaned up
+        @test buf.content[2].char == 'B'
+
+        # Wide char at boundary is skipped (pad doesn't fit)
+        buf = T.Buffer(T.Rect(1, 1, 5, 1))
+        T.set_string!(buf, 1, 1, "abc你")
+        @test buf.content[1].char == 'a'
+        @test buf.content[2].char == 'b'
+        @test buf.content[3].char == 'c'
+        # '你' needs cols 4-5 but clip=right(area)=5, col=4, col+1=5 ≤ 5 → fits
+        @test buf.content[4].char == '你'
+        @test buf.content[5].char == T.WIDE_CHAR_PAD
+
+        # Wide char truly at boundary — pad would overflow
+        buf = T.Buffer(T.Rect(1, 1, 4, 1))
+        T.set_string!(buf, 1, 1, "abc你")
+        @test buf.content[1].char == 'a'
+        @test buf.content[2].char == 'b'
+        @test buf.content[3].char == 'c'
+        @test buf.content[4].char == ' '  # wide char skipped, space placed
+
+        # Multiple wide chars in sequence
+        buf = T.Buffer(T.Rect(1, 1, 10, 1))
+        T.set_string!(buf, 1, 1, "你好世")
+        @test buf.content[1].char == '你'
+        @test buf.content[2].char == T.WIDE_CHAR_PAD
+        @test buf.content[3].char == '好'
+        @test buf.content[4].char == T.WIDE_CHAR_PAD
+        @test buf.content[5].char == '世'
+        @test buf.content[6].char == T.WIDE_CHAR_PAD
+
+        # buffer_to_text skips pad sentinels
+        buf = T.Buffer(T.Rect(1, 1, 10, 1))
+        T.set_string!(buf, 1, 1, "A你B")
+        text = T.buffer_to_text(buf, T.Rect(1, 1, 10, 1))
+        @test text == "A你B"
+
+        # Overwrite wide char with another wide char
+        buf = T.Buffer(T.Rect(1, 1, 10, 1))
+        T.set_string!(buf, 1, 1, "你")
+        T.set_string!(buf, 1, 1, "好")
+        @test buf.content[1].char == '好'
+        @test buf.content[2].char == T.WIDE_CHAR_PAD
+
+        # set_string! starting on a pad cell cleans up leading char
+        buf = T.Buffer(T.Rect(1, 1, 10, 1))
+        T.set_string!(buf, 1, 1, "你")
+        @test buf.content[1].char == '你'
+        T.set_string!(buf, 2, 1, "X")
+        @test buf.content[1].char == ' '  # leading cell cleaned up
+        @test buf.content[2].char == 'X'
+    end
+
     @testset "Layout" begin
         r = T.Rect(1, 1, 100, 24)
 

@@ -3,6 +3,7 @@
 # ═══════════════════════════════════════════════════════════════════════
 
 const EMPTY_CHAR = ' '
+const WIDE_CHAR_PAD = '\0'   # sentinel for the trailing cell of a double-width character
 const _ANSI_RE = r"\e(?:\[[?=>!]?[0-9;:]*[\x20-\x2f]*[A-Za-z@~]|\][^\x07\e]*(?:\x07|\e\\)|\([A-Za-z0-9]|[P^_][^\e]*\e\\|[A-Za-z0-9=<>])"
 _strip_ansi(s::AbstractString) = contains(s, '\e') ? replace(s, _ANSI_RE => "") : s
 
@@ -47,7 +48,28 @@ end
 
 function set_char!(buf::Buffer, x::Int, y::Int, ch::Char,
                    style::Style=RESET)
-    set!(buf, x, y, Cell(ch, style))
+    in_bounds(buf, x, y) || return
+    # Clean up adjacent wide-char state before overwriting
+    @inbounds begin
+        i = buf_index(buf, x, y)
+        old = buf.content[i]
+        if old.char != WIDE_CHAR_PAD && textwidth(old.char) == 2
+            # Overwriting the leading cell of a wide char → orphaned pad at x+1
+            if in_bounds(buf, x + 1, y)
+                j = buf_index(buf, x + 1, y)
+                if buf.content[j].char == WIDE_CHAR_PAD
+                    buf.content[j] = Cell(EMPTY_CHAR, buf.content[j].style)
+                end
+            end
+        elseif old.char == WIDE_CHAR_PAD
+            # Overwriting the pad cell → broken leading char at x-1
+            if in_bounds(buf, x - 1, y)
+                j = buf_index(buf, x - 1, y)
+                buf.content[j] = Cell(EMPTY_CHAR, buf.content[j].style)
+            end
+        end
+        buf.content[i] = Cell(ch, style)
+    end
 end
 
 function set_string!(buf::Buffer, x::Int, y::Int,
@@ -59,8 +81,20 @@ function set_string!(buf::Buffer, x::Int, y::Int,
     clip = min(max_x, right(buf.area))
     for ch in clean
         col > clip && break
-        in_bounds(buf, col, y) && set_char!(buf, col, y, ch, style)
-        col += 1
+        w = textwidth(ch)
+        if w == 2
+            if col + 1 > clip
+                # Wide char at boundary — pad won't fit, place space instead
+                in_bounds(buf, col, y) && set_char!(buf, col, y, EMPTY_CHAR, style)
+                col += 1
+                continue
+            end
+            in_bounds(buf, col, y) && set_char!(buf, col, y, ch, style)
+            in_bounds(buf, col + 1, y) && set_char!(buf, col + 1, y, WIDE_CHAR_PAD, style)
+        else
+            in_bounds(buf, col, y) && set_char!(buf, col, y, ch, style)
+        end
+        col += max(w, 1)
     end
     col
 end
@@ -104,7 +138,9 @@ function buffer_to_text(buf::Buffer, rect::Rect)
         chars = Char[]
         for col in rect.x:min(right(rect), right(buf.area))
             if in_bounds(buf, col, row)
-                push!(chars, buf.content[buf_index(buf, col, row)].char)
+                ch = buf.content[buf_index(buf, col, row)].char
+                ch == WIDE_CHAR_PAD && continue   # skip trailing cell of wide chars
+                push!(chars, ch)
             end
         end
         push!(lines, rstrip(String(chars)))
