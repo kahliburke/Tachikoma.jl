@@ -47,6 +47,18 @@ end
 
 function set_char!(buf::Buffer, x::Int, y::Int, ch::Char,
                    style::Style=RESET)
+    # Preserve existing cell bg when new style has no bg (NoColor).
+    # This prevents "black fringe" artifacts inside semi-transparent FloatingWindows
+    # where _blend_bg! has already set the correct blended bg on each cell.
+    if style.bg isa NoColor && in_bounds(buf, x, y)
+        existing_bg = @inbounds buf.content[buf_index(buf, x, y)].style.bg
+        if !(existing_bg isa NoColor)
+            merged = Style(fg=style.fg, bg=existing_bg, bold=style.bold, dim=style.dim,
+                           italic=style.italic, underline=style.underline)
+            set!(buf, x, y, Cell(ch, merged))
+            return
+        end
+    end
     set!(buf, x, y, Cell(ch, style))
 end
 
