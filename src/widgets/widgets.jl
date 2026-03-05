@@ -78,6 +78,7 @@ include("chart.jl")
 include("datatable.jl")
 include("markdownpane.jl")
 include("floating_window.jl")
+include("window_manager.jl")
 
 # NOTE: form.jl depends on FocusRing, included after its definition below
 
