@@ -179,6 +179,7 @@ function render(p::Paragraph, rect::Rect, buf::Buffer)
         # Fast path: original behavior (no scrollbar needed — no scrolling)
         col = content_area.x
         row = content_area.y
+        rx = right(content_area)
         for span in p.spans
             for ch in span.content
                 if ch == '\n'
@@ -187,7 +188,19 @@ function render(p::Paragraph, rect::Rect, buf::Buffer)
                     row > bottom(content_area) && return
                     continue
                 end
-                if col <= right(content_area)
+                col > rx && continue
+                w = textwidth(ch)
+                if w == 2
+                    if col + 1 > rx
+                        # Wide char doesn't fit at right boundary
+                        set_char!(buf, col, row, EMPTY_CHAR, span.style)
+                        col += 1
+                        continue
+                    end
+                    set_char!(buf, col, row, ch, span.style)
+                    set_char!(buf, col + 1, row, WIDE_CHAR_PAD, span.style)
+                    col += 2
+                else
                     set_char!(buf, col, row, ch, span.style)
                     col += 1
                 end
@@ -237,11 +250,24 @@ function render(p::Paragraph, rect::Rect, buf::Buffer)
 
         col = text_area.x + x_offset
         y = text_area.y + row_idx - 1
+        tx = right(text_area)
         for (text, style) in line
             for ch in text
-                col > right(text_area) && break
-                set_char!(buf, col, y, ch, style)
-                col += 1
+                col > tx && break
+                w = textwidth(ch)
+                if w == 2
+                    if col + 1 > tx
+                        set_char!(buf, col, y, EMPTY_CHAR, style)
+                        col += 1
+                        continue
+                    end
+                    set_char!(buf, col, y, ch, style)
+                    set_char!(buf, col + 1, y, WIDE_CHAR_PAD, style)
+                    col += 2
+                else
+                    set_char!(buf, col, y, ch, style)
+                    col += 1
+                end
             end
         end
     end
