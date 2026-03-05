@@ -1,9 +1,9 @@
 # ═══════════════════════════════════════════════════════════════════════
-# Backend Compare Demo ── three-way braille vs block vs sixel
+# Backend Compare Demo ── 2×2 grid: braille, block, octant, pixel
 #
-# Draws the same animated pattern into a braille Canvas (left),
-# a BlockCanvas using sextant characters (center), and a PixelCanvas
-# (right) so users can visually compare all three rendering backends.
+# Draws the same animated pattern into a braille Canvas (top-left),
+# a BlockCanvas (top-right), an OctantCanvas (bottom-left), and a
+# PixelImage (bottom-right) so users can visually compare backends.
 # ═══════════════════════════════════════════════════════════════════════
 
 @enum DemoPattern demo_lissajous demo_spiral demo_sine demo_particles
@@ -158,56 +158,65 @@ function view(m::BackendDemoModel, f::Frame)
                 " $(DOT) $(pname) $(DOT) px=$(cpx.w)x$(cpx.h) text=$(tap.w)x$(tap.h) $(sixel_info)",
                 tstyle(:text_dim))
 
-    # Split into three panels — stack vertically when narrow
-    dir = content.width >= 80 ? Horizontal : Vertical
-    panels = split_layout(Layout(dir, [Percent(33), Percent(34), Fill()]), content)
-    length(panels) < 3 && return
+    # 2×2 grid layout
+    grid_rows = split_layout(Layout(Vertical, [Percent(50), Fill()]), content)
+    length(grid_rows) < 2 && return
+    top_cols = split_layout(Layout(Horizontal, [Percent(50), Fill()]), grid_rows[1])
+    bot_cols = split_layout(Layout(Horizontal, [Percent(50), Fill()]), grid_rows[2])
+    (length(top_cols) < 2 || length(bot_cols) < 2) && return
 
-    # ── Left panel: Braille (2×4 dots per cell) ──
-    left_block = Block(title="Braille 2×4",
-                       border_style=tstyle(:border),
-                       title_style=tstyle(:title))
-    left_inner = render(left_block, panels[1], buf)
+    # ── Top-left: Braille (2×4 dots per cell) ──
+    tl_block = Block(title="Braille 2×4",
+                     border_style=tstyle(:border),
+                     title_style=tstyle(:title))
+    tl_inner = render(tl_block, top_cols[1], buf)
 
-    cw = left_inner.width
-    ch = left_inner.height
+    cw = tl_inner.width
+    ch = tl_inner.height
     if cw >= 2 && ch >= 1
         braille_canvas = Canvas(cw, ch; style=tstyle(:primary))
-        dw = cw * 2
-        dh = ch * 4
-        _draw_compare_pattern!(braille_canvas, m, dw, dh)
-        render(braille_canvas, left_inner, buf)
+        _draw_compare_pattern!(braille_canvas, m, cw * 2, ch * 4)
+        render(braille_canvas, tl_inner, buf)
     end
 
-    # ── Center panel: Block / Quadrant (2×2 dots per cell) ──
-    mid_block = Block(title="Block 2×2",
-                      border_style=tstyle(:border),
-                      title_style=tstyle(:title))
-    mid_inner = render(mid_block, panels[2], buf)
+    # ── Top-right: Block / Quadrant (2×2 dots per cell) ──
+    tr_block = Block(title="Block 2×2",
+                     border_style=tstyle(:border),
+                     title_style=tstyle(:title))
+    tr_inner = render(tr_block, top_cols[2], buf)
 
-    cw_m = mid_inner.width
-    ch_m = mid_inner.height
+    cw_m = tr_inner.width
+    ch_m = tr_inner.height
     if cw_m >= 2 && ch_m >= 1
         block_canvas = BlockCanvas(cw_m, ch_m; style=tstyle(:primary))
-        dw_m = cw_m * 2
-        dh_m = ch_m * 2
-        _draw_compare_pattern!(block_canvas, m, dw_m, dh_m)
-        render(block_canvas, mid_inner, buf)
+        _draw_compare_pattern!(block_canvas, m, cw_m * 2, ch_m * 2)
+        render(block_canvas, tr_inner, buf)
     end
 
-    # ── Right panel: PixelImage (pixel-native) ──
-    right_block = Block(title="PixelImage",
-                        border_style=tstyle(:border),
-                        title_style=tstyle(:title))
-    right_inner = render(right_block, panels[3], buf)
+    # ── Bottom-left: Octant (2×4 dots per cell, gap-free) ──
+    bl_block = Block(title="Octant 2×4",
+                     border_style=tstyle(:border),
+                     title_style=tstyle(:title))
+    bl_inner = render(bl_block, bot_cols[1], buf)
 
-    cw2 = right_inner.width
-    ch2 = right_inner.height
+    cw_o = bl_inner.width
+    ch_o = bl_inner.height
+    if cw_o >= 2 && ch_o >= 1
+        octant_canvas = OctantCanvas(cw_o, ch_o; style=tstyle(:primary))
+        _draw_compare_pattern!(octant_canvas, m, cw_o * 2, ch_o * 4)
+        render(octant_canvas, bl_inner, buf)
+    end
+
+    # ── Bottom-right: PixelImage (pixel-native) ──
+    br_block = Block(title="PixelImage",
+                     border_style=tstyle(:border),
+                     title_style=tstyle(:title))
+    br_inner = render(br_block, bot_cols[2], buf)
+
+    cw2 = br_inner.width
+    ch2 = br_inner.height
     if cw2 >= 2 && ch2 >= 1
         img = PixelImage(cw2, ch2; style=tstyle(:primary))
-        # Use dot-space coordinates mapped to pixels for pattern compatibility
-        dw2 = cw2 * 2
-        dh2 = ch2 * 4
         pw, ph = img.pixel_w, img.pixel_h
 
         # Draw pattern via pixel mapping (same coords → pixel space)
@@ -258,7 +267,7 @@ function view(m::BackendDemoModel, f::Frame)
                 set_pixel!(img, px, py + 1)
             end
         end
-        render(img, right_inner, f; tick=m.tick)
+        render(img, br_inner, f; tick=m.tick)
     end
 
     # Footer

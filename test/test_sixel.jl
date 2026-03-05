@@ -310,11 +310,15 @@
         T.RENDER_BACKEND[] = T.braille_backend
         T.DECAY[] = T.DecayParams()
 
-        # Adjust backend via right arrow on item 1 (cycles: braille→block)
+        # Adjust backend via right arrow on item 1 (cycles: braille→block→octant)
         T._adjust_setting!(1, 1)
         @test T.RENDER_BACKEND[] == T.block_backend
         T._adjust_setting!(1, 1)
+        @test T.RENDER_BACKEND[] == T.octant_backend
+        T._adjust_setting!(1, 1)
         @test T.RENDER_BACKEND[] == T.braille_backend  # wraps around
+        T._adjust_setting!(1, -1)
+        @test T.RENDER_BACKEND[] == T.octant_backend
         T._adjust_setting!(1, -1)
         @test T.RENDER_BACKEND[] == T.block_backend
         T._adjust_setting!(1, -1)

@@ -431,12 +431,12 @@ end
 
 # ── Render backend preference ─────────────────────────────────────────
 
-@enum RenderBackend braille_backend block_backend sixel_backend
+@enum RenderBackend braille_backend block_backend octant_backend sixel_backend
 const RENDER_BACKEND = Ref(braille_backend)
 render_backend() = RENDER_BACKEND[]
 
 # Cycle order for settings toggle (sixel is now a dedicated widget, not a global backend)
-const _BACKEND_CYCLE = (braille_backend, block_backend)
+const _BACKEND_CYCLE = (braille_backend, block_backend, octant_backend)
 
 function set_render_backend!(b::RenderBackend)
     RENDER_BACKEND[] = b
@@ -454,6 +454,8 @@ function load_render_backend!()
     name = @load_preference("render_backend", "braille_backend")
     RENDER_BACKEND[] = if name == "block_backend"
         block_backend
+    elseif name == "octant_backend"
+        octant_backend
     else
         # "sixel_backend" gracefully migrates to braille (sixel is now a widget)
         braille_backend

@@ -289,13 +289,15 @@ end
 """
     create_canvas(width, height; style=tstyle(:primary))
 
-Backend-agnostic canvas factory. Returns BlockCanvas or Canvas
-depending on the active render backend preference.
+Backend-agnostic canvas factory. Returns Canvas, BlockCanvas, or
+OctantCanvas depending on the active render backend preference.
 """
 function create_canvas(width::Int, height::Int;
                        style::Style=tstyle(:primary))
     rb = RENDER_BACKEND[]
-    if rb == block_backend
+    if rb == octant_backend
+        OctantCanvas(width, height; style)
+    elseif rb == block_backend
         BlockCanvas(width, height; style)
     else
         Canvas(width, height; style)
@@ -314,7 +316,7 @@ canvas_dot_size(c::PixelCanvas) = (c.dot_w, c.dot_h)
     render_canvas(c, rect, f::Frame; tick=0)
 
 Backend-agnostic render helper. Dispatches to the correct render
-method for Canvas, BlockCanvas, or PixelCanvas.
+method for Canvas, BlockCanvas, OctantCanvas, or PixelCanvas.
 """
 render_canvas(c::Canvas, rect::Rect, f::Frame; tick::Int=0) =
     render(c, rect, f.buffer)

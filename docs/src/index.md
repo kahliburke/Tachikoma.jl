@@ -139,7 +139,7 @@ app(Life())
 | [Styling & Themes](styling.md) | Colors, styles, and the 11 built-in themes |
 | [Input & Events](events.md) | Keyboard and mouse event handling |
 | [Animation](animation.md) | Tweens, springs, timelines, and organic effects |
-| [Graphics & Pixel Rendering](canvas.md) | Canvas, BlockCanvas, PixelImage, PixelCanvas |
+| [Graphics & Pixel Rendering](canvas.md) | Canvas, BlockCanvas, OctantCanvas, PixelImage, PixelCanvas |
 | [Widgets](widgets.md) | Complete widget catalog |
 | [Backgrounds](backgrounds.md) | Procedural animated backgrounds |
 | [Performance](performance.md) | Rendering pipeline, benchmarks, and optimization tips |

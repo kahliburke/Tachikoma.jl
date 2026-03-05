@@ -718,6 +718,130 @@
     end
 
     # ─────────────────────────────────────────────────────────────────
+    # OctantCanvas
+    # ─────────────────────────────────────────────────────────────────
+
+    @testset "OctantCanvas: basic rendering" begin
+        bc = T.OctantCanvas(5, 5)
+        T.set_point!(bc, 0, 0)  # top-left dot
+        buf = T.Buffer(T.Rect(1, 1, 5, 5))
+        T.render(bc, T.Rect(1, 1, 5, 5), buf)
+        # Dot at (0,0) → cell (1,1), top-left quadrant = 𜺨
+        @test buf.content[1].char == '𜺨'
+    end
+
+    @testset "OctantCanvas: set_point! and unset_point!" begin
+        bc = T.OctantCanvas(3, 3)
+        T.set_point!(bc, 0, 0)
+        @test bc.dots[1, 1] == 0x01  # top-left bit
+        T.set_point!(bc, 1, 0)       # top-right
+        @test bc.dots[1, 1] == 0x03  # both top bits
+        T.unset_point!(bc, 0, 0)
+        @test bc.dots[1, 1] == 0x02  # only top-right remains
+    end
+
+    @testset "OctantCanvas: full block" begin
+        bc = T.OctantCanvas(1, 1)
+        T.set_point!(bc, 0, 0)  # top-left
+        T.set_point!(bc, 1, 0)  # top-right
+        T.set_point!(bc, 0, 1)
+        T.set_point!(bc, 1, 1)
+        T.set_point!(bc, 0, 2)
+        T.set_point!(bc, 1, 2)
+        T.set_point!(bc, 0, 3)  # bottom-left
+        T.set_point!(bc, 1, 3)  # bottom-right
+        buf = T.Buffer(T.Rect(1, 1, 1, 1))
+        T.render(bc, T.Rect(1, 1, 1, 1), buf)
+        @test buf.content[1].char == '█'  # full block
+    end
+
+    @testset "OctantCanvas: clear!" begin
+        bc = T.OctantCanvas(3, 3)
+        T.set_point!(bc, 0, 0)
+        T.set_point!(bc, 2, 2)
+        T.clear!(bc)
+        @test all(bc.dots .== 0x00)
+    end
+
+    @testset "OctantCanvas: line!" begin
+        bc = T.OctantCanvas(5, 5)
+        T.line!(bc, 0, 0, 9, 9)  # diagonal through the canvas
+        # Should have set some dots along the diagonal
+        @test any(bc.dots .!= 0x00)
+    end
+
+    @testset "OctantCanvas: rect!" begin
+        bc = T.OctantCanvas(5, 5)
+        T.rect!(bc, 0, 0, 9, 9)
+        # Should have dots on edges
+        @test bc.dots[1, 1] != 0x00  # top-left corner
+        @test bc.dots[5, 3] != 0x00  # bottom-right corner
+    end
+
+    @testset "OctantCanvas: circle!" begin
+        bc = T.OctantCanvas(10, 10)
+        T.circle!(bc, 10, 10, 5)
+        @test any(bc.dots .!= 0x00)
+    end
+
+    @testset "OctantCanvas: arc!" begin
+        bc = T.OctantCanvas(10, 10)
+        T.arc!(bc, 10, 10, 5, 0.0, 180.0)
+        @test any(bc.dots .!= 0x00)
+    end
+
+    @testset "OctantCanvas: canvas_dot_size" begin
+        bc = T.OctantCanvas(10, 8)
+        @test T.canvas_dot_size(bc) == (20, 32)
+    end
+
+    @testset "OctantCanvas: out of bounds set_point!" begin
+        bc = T.OctantCanvas(3, 3)
+        # Negative coordinates — should not crash
+        T.set_point!(bc, -1, -1)
+        @test all(bc.dots .== 0x00)
+        # Beyond bounds — should not crash
+        T.set_point!(bc, 100, 100)
+        @test all(bc.dots .== 0x00)
+    end
+
+    @testset "OctantCanvas: octant mapping" begin
+        bc = T.OctantCanvas(1, 1)
+        # Bottom-left only
+        T.set_point!(bc, 0, 3)
+        buf = T.Buffer(T.Rect(1, 1, 1, 1))
+        T.render(bc, T.Rect(1, 1, 1, 1), buf)
+        @test buf.content[1].char == '𜺣'
+
+        # Bottom-right only
+        T.clear!(bc)
+        T.set_point!(bc, 1, 3)
+        buf = T.Buffer(T.Rect(1, 1, 1, 1))
+        T.render(bc, T.Rect(1, 1, 1, 1), buf)
+        @test buf.content[1].char == '𜺠'
+
+        # Upper half
+        T.clear!(bc)
+        T.set_point!(bc, 0, 0)
+        T.set_point!(bc, 1, 0)
+        T.set_point!(bc, 0, 1)
+        T.set_point!(bc, 1, 1)
+        buf = T.Buffer(T.Rect(1, 1, 1, 1))
+        T.render(bc, T.Rect(1, 1, 1, 1), buf)
+        @test buf.content[1].char == '▀'
+
+        # Lower half
+        T.clear!(bc)
+        T.set_point!(bc, 0, 2)
+        T.set_point!(bc, 1, 2)
+        T.set_point!(bc, 0, 3)
+        T.set_point!(bc, 1, 3)
+        buf = T.Buffer(T.Rect(1, 1, 1, 1))
+        T.render(bc, T.Rect(1, 1, 1, 1), buf)
+        @test buf.content[1].char == '▄'
+    end
+
+    # ─────────────────────────────────────────────────────────────────
     # ProgressList
     # ─────────────────────────────────────────────────────────────────
 
