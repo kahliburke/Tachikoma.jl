@@ -289,13 +289,15 @@ end
 """
     create_canvas(width, height; style=tstyle(:primary))
 
-Backend-agnostic canvas factory. Returns BlockCanvas or Canvas
-depending on the active render backend preference.
+Backend-agnostic canvas factory. Returns Canvas, BlockCanvas, or
+OctantCanvas depending on the active render backend preference.
 """
 function create_canvas(width::Int, height::Int;
                        style::Style=tstyle(:primary))
     rb = RENDER_BACKEND[]
-    if rb == block_backend
+    if rb == octant_backend
+        OctantCanvas(width, height; style)
+    elseif rb == block_backend
         BlockCanvas(width, height; style)
     else
         Canvas(width, height; style)
