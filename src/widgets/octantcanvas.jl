@@ -290,7 +290,7 @@ const OCTANT_LUT = Char[
 mutable struct OctantCanvas
     width::Int               # in terminal columns
     height::Int              # in terminal rows
-    dots::Matrix{UInt8}      # width × height grid of 4-bit quadrant masks
+    dots::Matrix{UInt8}      # width × height grid of 8-bit octant masks
     style::Style
 end
 

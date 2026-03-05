@@ -56,7 +56,7 @@ BlockCanvas produces visually denser output than braille — better for filled s
 
 `OctantCanvas` uses Unicode octant block characters at 4×2 resolution per cell. Each cell has 8 independently addressable octants, producing gap-free solid shapes:
 
-<!-- tachi:widget canvas_block w=40 h=20 -->
+<!-- tachi:widget canvas_octant w=40 h=20 -->
 ```julia
 canvas = OctantCanvas(40, 20; style=tstyle(:primary))
 

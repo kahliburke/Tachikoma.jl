@@ -454,8 +454,8 @@ function load_render_backend!()
     name = @load_preference("render_backend", "braille_backend")
     RENDER_BACKEND[] = if name == "block_backend"
         block_backend
-    elseif name == "octan_backend"
-        octand_backend
+    elseif name == "octant_backend"
+        octant_backend
     else
         # "sixel_backend" gracefully migrates to braille (sixel is now a widget)
         braille_backend
