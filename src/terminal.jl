@@ -705,6 +705,11 @@ function flush!(t::Terminal, io::IO)
         for col in cur.area.x:right(cur.area)
             i = buf_index(cur, col, row)
             @inbounds cc = cur.content[i]
+
+            # Skip wide-char continuation cells — the leading cell already
+            # covers this column on the terminal.
+            cc.char == WIDE_CHAR_PAD && continue
+
             @inbounds pc = prev.content[i]
             cc == pc && continue
 
@@ -731,7 +736,9 @@ function flush!(t::Terminal, io::IO)
             end
 
             write(io, cc.char)
-            last_col = col
+            # Wide chars advance the terminal cursor by 2 columns
+            w = textwidth(cc.char)
+            last_col = col + w - 1
             last_row = row
         end
     end
