@@ -18,6 +18,7 @@
 #         Escape          — close focused detail popup
 #         q               — quit
 # Mouse:  Click to focus, drag title bar to move, drag corners to resize
+#         Wheel over DATA/INPUTS windows to test scrolling
 #         Click ✕ to close popup windows
 # ═══════════════════════════════════════════════════════════════════════
 
@@ -70,14 +71,19 @@ function _ensure_windows!(m::WindowsDemoModel, area::Rect)
         FormField("Action",  Button("Run Task"; bordered=true)),
     ]; submit_label="Apply", bordered_submit=true)
 
-    # Create DataTable widget
+    # Create DataTable widget (enough rows to exercise wheel scrolling)
+    nodes = ["node-$(lpad(string(i), 2, '0'))" for i in 1:24]
+    cpu = [mod(17 * i + 23, 100) for i in 1:24]
+    mem = [256 + mod(173 * i, 1792) for i in 1:24]
+    status_cycle = ["ok", "warn", "ok", "ok", "crit", "ok"]
+    statuses = [status_cycle[mod1(i, length(status_cycle))] for i in 1:24]
     m.datatable = DataTable(
         ["Node", "CPU %", "Mem MB", "Status"],
         [
-            Any["alpha", "beta", "gamma", "delta", "epsilon"],
-            Any[42, 78, 15, 91, 33],
-            Any[512, 1024, 256, 2048, 768],
-            Any["ok", "warn", "ok", "crit", "ok"],
+            Any[nodes...],
+            Any[cpu...],
+            Any[mem...],
+            Any[statuses...],
         ];
         selected=1,
     )
@@ -115,7 +121,7 @@ function Tachikoma.update!(m::WindowsDemoModel, evt::KeyEvent)
     end
 
     @match (evt.key, evt.char) begin
-        (:char, 'q') || (:escape, _) => (m.quit = true)
+        (:char, 'q') => (m.quit = true)
         (:char, '+') || (:char, '=') => begin
             step = m.opacity >= 0.90 ? 0.01 : 0.05
             m.opacity = min(1.0, m.opacity + step)
@@ -276,7 +282,7 @@ function Tachikoma.view(m::WindowsDemoModel, f::Frame)
         set_char!(buf, x, footer_y, ' ', Style(bg=footer_bg))
     end
     opacity_pct = round(Int, m.opacity * 100)
-    hint = " F2/F3:cycle │ +/-:opacity($(opacity_pct)%) │ ^T:tile ^K:stack │ drag title/corners │ q:quit "
+    hint = " F2/F3:cycle │ wheel:DATA/INPUTS │ +/-:opacity($(opacity_pct)%) │ ^T:tile ^K:stack │ q:quit "
     set_string!(buf, area.x + 1, footer_y, hint,
                 Style(fg=brighten(bg, 0.8), bg=footer_bg, bold=true))
 end
