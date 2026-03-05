@@ -13,6 +13,7 @@ mutable struct DropDown
     selected_style::Style
     focused_style::Style
     tick::Union{Int, Nothing}
+    last_area::Rect               # cached from last render for mouse hit testing
 end
 
 """
@@ -29,7 +30,7 @@ function DropDown(items::Vector{String};
     tick::Union{Int, Nothing}=nothing,
 )
     sel = clamp(selected, 1, max(1, length(items)))
-    DropDown(items, sel, sel, false, max_visible, 0, style, selected_style, focused_style, tick)
+    DropDown(items, sel, sel, false, max_visible, 0, style, selected_style, focused_style, tick, Rect())
 end
 
 focusable(::DropDown) = true
@@ -68,15 +69,47 @@ function handle_key!(dd::DropDown, evt::KeyEvent)::Bool
 end
 
 function handle_mouse!(dd::DropDown, evt::MouseEvent)::Bool
-    dd.open || return false
+    r = dd.last_area
+    r.width == 0 && return false
     n = length(dd.items)
-    vis = min(n, dd.max_visible)
-    if evt.button == mouse_scroll_up && evt.action == mouse_press
-        dd.offset = max(0, dd.offset - 1)
-        return true
-    elseif evt.button == mouse_scroll_down && evt.action == mouse_press
-        dd.offset = min(max(0, n - vis), dd.offset + 1)
-        return true
+
+    if evt.button == mouse_left && evt.action == mouse_press
+        if dd.open
+            # Click on expanded item → select it
+            row = evt.y - r.y
+            if 1 <= row && contains(r, evt.x, evt.y)
+                idx = dd.offset + row
+                if 1 <= idx <= n
+                    dd.selected = idx
+                    dd.open = false
+                    return true
+                end
+            end
+            # Click on collapsed row while open → close
+            if evt.y == r.y && contains(r, evt.x, evt.y)
+                dd.open = false
+                return true
+            end
+        else
+            # Click on collapsed row → open
+            if evt.y == r.y && r.x <= evt.x <= right(r)
+                dd.open = true
+                dd.focused = dd.selected
+                return true
+            end
+        end
+    end
+
+    # Scroll when open
+    if dd.open
+        vis = min(n, dd.max_visible)
+        if evt.button == mouse_scroll_up && evt.action == mouse_press
+            dd.offset = max(0, dd.offset - 1)
+            return true
+        elseif evt.button == mouse_scroll_down && evt.action == mouse_press
+            dd.offset = min(max(0, n - vis), dd.offset + 1)
+            return true
+        end
     end
     false
 end
@@ -92,6 +125,7 @@ end
 
 function render(dd::DropDown, rect::Rect, buf::Buffer)
     (rect.width < 1 || rect.height < 1) && return
+    dd.last_area = rect
     n = length(dd.items)
 
     # Collapsed view: single row showing selected item

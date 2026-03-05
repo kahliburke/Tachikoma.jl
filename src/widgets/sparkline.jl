@@ -49,13 +49,29 @@ function render(sp::Sparkline, rect::Rect, buf::Buffer)
         full_rows = floor(Int, scaled / 8)
         frac = round(Int, scaled % 8)
 
-        # Draw from bottom up
+        # Draw from bottom up, preserving existing cell bg for seamless blending
         for row in 0:(h - 1)
             cy = bottom(content) - row
+            in_bounds(buf, cx, cy) || continue
             if row < full_rows
-                set_char!(buf, cx, cy, '█', sp.style)
+                # Full block — bg matches fg so no fringe
+                existing_bg = buf.content[buf_index(buf, cx, cy)].style.bg
+                s = if existing_bg isa ColorRGB
+                    Style(fg=sp.style.fg, bg=existing_bg, bold=sp.style.bold)
+                else
+                    sp.style
+                end
+                set_char!(buf, cx, cy, '█', s)
             elseif row == full_rows && frac > 0
-                set_char!(buf, cx, cy, BARS_V[frac], sp.style)
+                # Partial block — bg shows through the empty part of the glyph,
+                # so preserve the existing bg for seamless window blending
+                existing_bg = buf.content[buf_index(buf, cx, cy)].style.bg
+                s = if existing_bg isa ColorRGB
+                    Style(fg=sp.style.fg, bg=existing_bg, bold=sp.style.bold)
+                else
+                    sp.style
+                end
+                set_char!(buf, cx, cy, BARS_V[frac], s)
             end
         end
     end

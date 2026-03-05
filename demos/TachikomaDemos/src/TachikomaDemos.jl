@@ -33,6 +33,7 @@ include("sixel_demo.jl")
 include("sixel_gallery.jl")
 include("async_demo.jl")
 include("markdown_demo.jl")
+include("windows_demo.jl")
 include("launcher.jl")
 
 export demo, rain, dashboard, life, snake, clock, waves, chaos,
@@ -40,6 +41,6 @@ export demo, rain, dashboard, life, snake, clock, waves, chaos,
        showcase, backend_demo, resize_demo, scrollpane_demo,
        effects_demo, chart_demo, datatable_demo, form_demo, editor_demo,
        fps_demo, phylo_demo, clado_demo, sixel_demo, sixel_gallery,
-       async_demo, markdown_demo, launcher
+       async_demo, markdown_demo, windows_demo, launcher
 
 end
