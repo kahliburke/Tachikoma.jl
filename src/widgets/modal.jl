@@ -2,7 +2,7 @@
 # Modal ── centered overlay dialog for confirmations
 # ═══════════════════════════════════════════════════════════════════════
 
-struct Modal
+mutable struct Modal
     title::String
     message::String                # can contain newlines
     confirm_label::String
@@ -15,6 +15,9 @@ struct Modal
     cancel_style::Style            # when selected
     dim_style::Style               # unselected button
     tick::Union{Int, Nothing}
+    # Cached button hit areas (set during render)
+    _cancel_rect::Rect
+    _confirm_rect::Rect
 end
 
 function Modal(;
@@ -33,8 +36,11 @@ function Modal(;
 )
     Modal(title, message, confirm_label, cancel_label, selected,
           border_style, title_style, text_style,
-          confirm_style, cancel_style, dim_style, tick)
+          confirm_style, cancel_style, dim_style, tick,
+          Rect(), Rect())
 end
+
+focusable(::Modal) = true
 
 function render(modal::Modal, area::Rect, buf::Buffer)
     (area.width < 10 || area.height < 5) && return
@@ -122,5 +128,65 @@ function render(modal::Modal, area::Rect, buf::Buffer)
     end
 
     bx = set_string!(buf, btn_x, btn_y, cancel_str, cancel_s)
-    set_string!(buf, bx + 2, btn_y, confirm_str, confirm_s)
+    confirm_x = bx + 2
+    set_string!(buf, confirm_x, btn_y, confirm_str, confirm_s)
+
+    # Cache button hit areas for mouse handling
+    modal._cancel_rect = Rect(btn_x, btn_y, length(cancel_str), 1)
+    modal._confirm_rect = Rect(confirm_x, btn_y, length(confirm_str), 1)
+end
+
+# ── Key handling ─────────────────────────────────────────────────────
+
+"""
+    handle_key!(modal, evt) → Symbol
+
+Handle key events for the modal. Returns:
+- `:confirm` — user confirmed (Enter on confirm, or right-hand shortcut)
+- `:cancel` — user cancelled (Escape, Enter on cancel)
+- `:none` — key was handled but no decision yet (navigation)
+- `false` — key was not handled
+"""
+function handle_key!(modal::Modal, evt::KeyEvent)
+    if evt.key in (:left, :right, :tab, :backtab)
+        modal.selected = modal.selected == :cancel ? :confirm : :cancel
+        return :none
+    elseif evt.key == :enter
+        return modal.selected
+    elseif evt.key == :escape
+        return :cancel
+    end
+    false
+end
+
+# ── Mouse handling ───────────────────────────────────────────────────
+
+"""
+    handle_mouse!(modal, evt) → Symbol
+
+Handle mouse events. Returns `:confirm`, `:cancel`, `:none`, or `false`.
+Click on a button to select+confirm. Hover to highlight.
+"""
+function handle_mouse!(modal::Modal, evt::MouseEvent)
+    on_cancel = Base.contains(modal._cancel_rect, evt.x, evt.y)
+    on_confirm = Base.contains(modal._confirm_rect, evt.x, evt.y)
+
+    if evt.button == mouse_left && evt.action == mouse_press
+        if on_cancel
+            modal.selected = :cancel
+            return :cancel
+        elseif on_confirm
+            modal.selected = :confirm
+            return :confirm
+        end
+    elseif evt.action == mouse_move
+        if on_cancel
+            modal.selected = :cancel
+            return :none
+        elseif on_confirm
+            modal.selected = :confirm
+            return :none
+        end
+    end
+    false
 end
