@@ -50,6 +50,7 @@ update!(::Model, ::Event) = nothing
 cleanup!(::Model) = nothing
 should_quit(::Model) = false
 
+
 """
     handle_all_key_actions(model::Model) → Bool
 
@@ -880,7 +881,8 @@ end
 
 Run a TUI application with the Elm architecture loop: poll events → `update!` → `view`.
 Enters the alternate screen, enables raw mode and mouse, then renders at `fps` frames/sec.
-Press Ctrl+C to quit. Set `default_bindings=false` to disable built-in shortcuts
+Ctrl+C is dispatched as a KeyEvent(:ctrl_c) — handle it in `update!` to quit or confirm.
+Set `default_bindings=false` to disable built-in shortcuts
 (theme picker, help overlay, etc.).
 
 Stdout and stderr are automatically redirected during TUI mode to prevent background
@@ -899,9 +901,8 @@ function app(model::Model; fps=60, default_bindings=true, on_stdout=nothing, on_
         end
         frame_interval = 1.0 / fps
         next_frame = time()
-        quit = false
         try
-            while !quit && !should_quit(model)
+            while !should_quit(model)
                 # Wait until next frame, processing events as they arrive.
                 # When rendering exceeds the frame budget, the poll loop below
                 # would be skipped entirely (now >= next_frame), starving input.
@@ -913,35 +914,23 @@ function app(model::Model; fps=60, default_bindings=true, on_stdout=nothing, on_
                     # so the terminal can deliver buffered keystrokes.
                     evt = poll_event(0.002)  # 2ms minimum event window
                     if evt !== nothing
-                        if evt isa KeyEvent && evt.key == :ctrl_c && evt.action == key_press
-                            quit = true
-                        else
-                            dispatch_event!(t, overlay, model, evt, default_bindings)
-                        end
+                        dispatch_event!(t, overlay, model, evt, default_bindings)
                     end
                 else
                     while now < next_frame
                         evt = poll_event(next_frame - now)
                         if evt !== nothing
-                            if evt isa KeyEvent && evt.key == :ctrl_c && evt.action == key_press
-                                quit = true; break
-                            end
                             dispatch_event!(t, overlay, model, evt, default_bindings)
                         end
                         now = time()
                     end
                 end
-                quit && break
                 # Drain any remaining pending events
                 while INPUT_ACTIVE[] && bytesavailable(_input_io()) > 0
                     evt = read_event()
                     evt isa KeyEvent && (evt = _track_key_state!(evt))
-                    if evt isa KeyEvent && evt.key == :ctrl_c && evt.action == key_press
-                        quit = true; break
-                    end
                     dispatch_event!(t, overlay, model, evt, default_bindings)
                 end
-                quit && break
                 # Drain async task queues
                 drain_tasks!(_framework_tasks) do tevt
                     if tevt isa TaskEvent && tevt.id == :_export_done
