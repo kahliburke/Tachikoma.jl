@@ -207,6 +207,57 @@
     end
 
     # ═════════════════════════════════════════════════════════════════
+    # ScrollPane: word wrap
+    # ═════════════════════════════════════════════════════════════════
+
+    @testset "ScrollPane: word_wrap wraps long lines" begin
+        # "abcdefghij" (10 chars) in a 5-wide area → 2 visual lines
+        sp = T.ScrollPane(["abcdefghij", "short"]; following=false, word_wrap=true)
+        buf = T.Buffer(T.Rect(1, 1, 5, 4))
+        T.render(sp, T.Rect(1, 1, 5, 4), buf)
+        # Row 1: "abcde", Row 2: "fghij", Row 3: "short"
+        row1 = String([buf.content[T.buf_index(buf, i, 1)].char for i in 1:5])
+        row2 = String([buf.content[T.buf_index(buf, i, 2)].char for i in 1:5])
+        row3 = String([buf.content[T.buf_index(buf, i, 3)].char for i in 1:5])
+        @test row1 == "abcde"
+        @test row2 == "fghij"
+        @test rstrip(row3) == "short"
+    end
+
+    @testset "ScrollPane: word_wrap _visual_total is correct" begin
+        # 3 logical lines, first wraps to 3 visual lines (15 chars / 5 = 3)
+        sp = T.ScrollPane(["aaaaabbbbbccccc", "dd", "ee"]; following=false, word_wrap=true)
+        buf = T.Buffer(T.Rect(1, 1, 5, 10))
+        T.render(sp, T.Rect(1, 1, 5, 10), buf)
+        # 3 + 1 + 1 = 5 visual lines
+        @test sp._visual_total == 5
+    end
+
+    @testset "ScrollPane: word_wrap scroll reaches bottom" begin
+        # 2 logical lines of 10 chars each, 6-wide area (5 text + 1 scrollbar), 2-row viewport
+        # Each line wraps to 2 visual lines at width 5 → 4 visual total
+        sp = T.ScrollPane(["aaaaabbbbb", "cccccddddd"]; following=false, word_wrap=true)
+        buf = T.Buffer(T.Rect(1, 1, 6, 2))
+        T.render(sp, T.Rect(1, 1, 6, 2), buf)
+        # max_offset should be 4 - 2 = 2
+        # Scroll to end
+        T.handle_key!(sp, T.KeyEvent(:end_key))
+        T.render(sp, T.Rect(1, 1, 6, 2), buf)
+        @test sp.offset == 2
+        # Last two visual lines should be "ccccc" and "ddddd"
+        row1 = String([buf.content[T.buf_index(buf, i, 1)].char for i in 1:5])
+        row2 = String([buf.content[T.buf_index(buf, i, 2)].char for i in 1:5])
+        @test row1 == "ccccc"
+        @test row2 == "ddddd"
+    end
+
+    @testset "ScrollPane: word_wrap _total_lines falls back before render" begin
+        sp = T.ScrollPane(["hello", "world"]; following=false, word_wrap=true)
+        # Before any render, _visual_total is 0 → falls back to logical count
+        @test T._total_lines(sp) == 2
+    end
+
+    # ═════════════════════════════════════════════════════════════════
     # Batch 1: Paragraph wrapping + alignment
     # ═════════════════════════════════════════════════════════════════
 

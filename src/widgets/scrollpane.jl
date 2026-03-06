@@ -17,6 +17,7 @@ mutable struct ScrollPane
     last_area::Rect          # cached content area for mouse hit testing
     tick::Union{Int, Nothing}
     word_wrap::Bool          # wrap long lines at content width
+    _visual_total::Int       # cached visual line count (after word wrap)
 end
 
 # ── Constructors ─────────────────────────────────────────────────────
@@ -32,7 +33,7 @@ function ScrollPane(lines::Vector{String};
 )
     ScrollPane(lines, offset, following, reverse, block,
                show_scrollbar, scrollbar_style, scrollbar_thumb_style,
-               text_style, 0, Rect(), tick, word_wrap)
+               text_style, 0, Rect(), tick, word_wrap, 0)
 end
 
 function ScrollPane(lines::Vector{Vector{Span}};
@@ -46,7 +47,7 @@ function ScrollPane(lines::Vector{Vector{Span}};
 )
     ScrollPane(lines, offset, following, reverse, block,
                show_scrollbar, scrollbar_style, scrollbar_thumb_style,
-               text_style, 0, Rect(), tick, word_wrap)
+               text_style, 0, Rect(), tick, word_wrap, 0)
 end
 
 function ScrollPane(render_fn::Function, total_lines::Int;
@@ -60,7 +61,7 @@ function ScrollPane(render_fn::Function, total_lines::Int;
 )
     ScrollPane((render_fn, total_lines), offset, following, reverse, block,
                show_scrollbar, scrollbar_style, scrollbar_thumb_style,
-               text_style, 0, Rect(), tick, word_wrap)
+               text_style, 0, Rect(), tick, word_wrap, 0)
 end
 
 focusable(::ScrollPane) = true
@@ -68,6 +69,10 @@ focusable(::ScrollPane) = true
 # ── Content helpers ──────────────────────────────────────────────────
 
 function _total_lines(sp::ScrollPane)
+    # When word wrap is active, use the cached visual total (set during render)
+    if sp.word_wrap && sp._visual_total > 0
+        return sp._visual_total
+    end
     c = sp.content
     c isa Vector{String}        && return length(c)
     c isa Vector{Vector{Span}}  && return length(c)
@@ -174,6 +179,7 @@ function render(sp::ScrollPane, rect::Rect, buf::Buffer)
             total = length(visual)
         end
 
+        sp._visual_total = total
         _update_follow_total!(sp, total, visible_h)
         sp.last_area = content_area
         _render_visual_lines!(sp, visual, text_area, buf, visible_h, total)
