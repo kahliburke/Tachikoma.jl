@@ -595,6 +595,7 @@ function draw!(func::Function, t::Terminal)
     io = IOBuffer()
     write(io, SYNC_START)
     has_sixel = any(r -> r.format == gfx_fmt_sixel, visible_regions)
+    has_iterm2 = any(r -> r.format == gfx_fmt_iterm2, visible_regions)
     if resized
         # Terminal was resized: clear screen inside the sync block to avoid a
         # blank-screen flash between the clear and the redrawn content.
@@ -602,8 +603,9 @@ function draw!(func::Function, t::Terminal)
         reset!(previous_buf(t))
     elseif t.frame_count % t.clear_interval == 0 && has_sixel
         # Periodic clear: cap iTerm2 sixel memory growth by clearing the
-        # screen AND scrollback buffer.  \e[3J frees iTerm2's accumulated
-        # sixel image objects.  Only needed for sixel (Kitty manages its own).
+        # screen AND scrollback buffer.  \e[3J frees accumulated sixel
+        # image objects.  Not needed for Kitty (manages its own) or iTerm2
+        # inline images (ECH erase per-frame in flush_gfx! handles cleanup).
         write(io, CLEAR_SCROLLBACK)
         reset!(previous_buf(t))
     elseif t.had_gfx && !has_gfx
@@ -745,6 +747,14 @@ end
 
 function flush_gfx!(regions::Vector{GraphicsRegion}, io::IO)
     for r in regions
+        # iTerm2 inline images stack — erase the area first so old images
+        # don't accumulate underneath.  Use ECH (erase characters) per row.
+        if r.format == gfx_fmt_iterm2
+            for row in r.row:(r.row + r.height - 1)
+                write(io, "\e[", string(row), ";", string(r.col), "H")
+                write(io, "\e[", string(r.width), "X")  # ECH: erase N chars
+            end
+        end
         write(io, "\e[", string(r.row), ";", string(r.col), "H")
         write(io, r.data)
     end
@@ -874,10 +884,12 @@ function enter_tui!(t::Terminal; remote_tty::Bool = false)
             print(t.io, KITTY_KEYBOARD_ON)
             Base.flush(t.io)
         end
-        # Detect graphics protocol (TACHIKOMA_GFX=kitty|sixel|none to override)
+        # Detect graphics protocol (TACHIKOMA_GFX=kitty|sixel|iterm2|none to override)
         gfx_env = lowercase(get(ENV, "TACHIKOMA_GFX", ""))
         if gfx_env == "kitty"
             t.graphics_protocol = gfx_kitty
+        elseif gfx_env == "iterm2"
+            t.graphics_protocol = gfx_iterm2
         elseif gfx_env == "sixel"
             t.graphics_protocol = gfx_sixel
         elseif gfx_env == "none"
@@ -885,10 +897,15 @@ function enter_tui!(t::Terminal; remote_tty::Bool = false)
         else
             # WezTerm supports sixel but not Kitty graphics — skip the
             # Kitty query to avoid misdetection (see #7).
-            is_wezterm = get(ENV, "TERM_PROGRAM", "") == "WezTerm"
+            term_program = get(ENV, "TERM_PROGRAM", "")
+            is_wezterm = term_program == "WezTerm"
             kitty_gfx = !is_wezterm && _detect_kitty_graphics!(t.io)
+            # iTerm2 inline images: supported by iTerm2, WezTerm, Ghostty
+            is_iterm2_capable = term_program in ("iTerm.app", "WezTerm", "ghostty")
             if kitty_gfx
                 t.graphics_protocol = gfx_kitty
+            elseif is_iterm2_capable
+                t.graphics_protocol = gfx_iterm2
             elseif SIXEL_AREA_PX[].w > 0
                 t.graphics_protocol = gfx_sixel
             else
@@ -900,8 +917,9 @@ function enter_tui!(t::Terminal; remote_tty::Bool = false)
         # remote TTY's input and corrupt its shell after the TUI exits).
         # Honour TACHIKOMA_GFX env override only; default to none.
         gfx_env = lowercase(get(ENV, "TACHIKOMA_GFX", ""))
-        t.graphics_protocol = gfx_env == "kitty"  ? gfx_kitty  :
-                               gfx_env == "sixel" ? gfx_sixel : gfx_none
+        t.graphics_protocol = gfx_env == "kitty"   ? gfx_kitty  :
+                               gfx_env == "iterm2" ? gfx_iterm2 :
+                               gfx_env == "sixel"  ? gfx_sixel  : gfx_none
     end
     GRAPHICS_PROTOCOL[] = t.graphics_protocol
     # Clear any probe artifacts (some terminals render APC/CSI probe bytes as

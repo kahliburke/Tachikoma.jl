@@ -462,7 +462,7 @@ end
 
 # ── Graphics protocol (sixel vs kitty) ───────────────────────────────
 
-@enum GraphicsProtocol gfx_none gfx_sixel gfx_kitty
+@enum GraphicsProtocol gfx_none gfx_sixel gfx_kitty gfx_iterm2
 const GRAPHICS_PROTOCOL = Ref(gfx_none)
 graphics_protocol() = GRAPHICS_PROTOCOL[]
 

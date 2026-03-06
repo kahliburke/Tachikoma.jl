@@ -145,8 +145,9 @@ function Tachikoma.view(m::ShmStressModel, f::Frame)
     n = m.n_widgets
     mode_label = m.mode == mode_pixel ? "pixel" : "raw"
     proto = graphics_protocol()
-    proto_label = proto == gfx_kitty ? "KITTY (shm)" :
-                  proto == gfx_sixel ? "SIXEL (no shm)" : "NONE (braille)"
+    proto_label = proto == gfx_kitty  ? "KITTY (shm)" :
+                  proto == gfx_iterm2 ? "iTerm2 (PNG)" :
+                  proto == gfx_sixel  ? "SIXEL (no shm)" : "NONE (braille)"
     label = "SHM Stress — $(mode_label) — $(n) widgets — $proto_label"
     set_string!(buf, header_area.x + 1, header_area.y, label,
                 tstyle(:accent, bold=true))

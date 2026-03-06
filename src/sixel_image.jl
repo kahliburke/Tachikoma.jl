@@ -223,6 +223,10 @@ function render(si::PixelImage, rect::Rect, f::Frame; tick::Int=0)
         data = encode_kitty(si.pixels; decay=si.decay, tick=tick,
                             cols=content.width, rows=content.height)
         fmt = gfx_fmt_kitty
+    elseif gfx == gfx_iterm2
+        data = encode_iterm2(si.pixels; decay=si.decay, tick=tick,
+                             cols=content.width, rows=content.height)
+        fmt = gfx_fmt_iterm2
     else
         data = encode_sixel(si.pixels; decay=si.decay, tick=tick)
         fmt = gfx_fmt_sixel

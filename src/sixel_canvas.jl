@@ -240,6 +240,10 @@ function render(c::PixelCanvas, rect::Rect, f::Frame;
         data = encode_kitty(c.pixels; decay=decay, tick=tick,
                             cols=rect.width, rows=rect.height)
         fmt = gfx_fmt_kitty
+    elseif gfx == gfx_iterm2
+        data = encode_iterm2(c.pixels; decay=decay, tick=tick,
+                             cols=rect.width, rows=rect.height)
+        fmt = gfx_fmt_iterm2
     else
         data = encode_sixel(c.pixels; decay=decay, tick=tick)
         fmt = gfx_fmt_sixel

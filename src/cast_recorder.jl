@@ -4,7 +4,7 @@
 # CastRecorder can store raster snapshots.
 # ═══════════════════════════════════════════════════════════════════════
 
-@enum GraphicsFormat gfx_fmt_sixel gfx_fmt_kitty
+@enum GraphicsFormat gfx_fmt_sixel gfx_fmt_kitty gfx_fmt_iterm2
 
 struct GraphicsRegion
     row::Int
