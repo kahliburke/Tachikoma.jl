@@ -469,10 +469,11 @@ function _lzw_encode(indices::Matrix{UInt8}, min_code_size::UInt8)
 end
 
 function _write_gif(filename::String, frames::Vector{Matrix{RGB{N0f8}}};
-                    fps::Int=10)
+                    fps::Int=10,
+                    delays::Union{Vector{UInt16}, Nothing}=nothing)
     isempty(frames) && return
     h, w = size(frames[1])
-    delay = round(UInt16, 100 / fps)
+    default_delay = round(UInt16, 100 / fps)
 
     open(filename, "w") do f
         write(f, b"GIF89a")
@@ -497,11 +498,12 @@ function _write_gif(filename::String, frames::Vector{Matrix{RGB{N0f8}}};
         write(f, UInt16(0))  # infinite loop
         write(f, UInt8(0))
 
-        for img in frames
+        for (i, img) in enumerate(frames)
+            frame_delay = delays !== nothing && i <= length(delays) ? delays[i] : default_delay
             # Graphic Control Extension
             write(f, UInt8(0x21), UInt8(0xf9), UInt8(4))
             write(f, UInt8(0x00))  # disposal=none
-            write(f, delay)
+            write(f, frame_delay)
             write(f, UInt8(0), UInt8(0))  # transparent idx + terminator
 
             # Image Descriptor
@@ -637,8 +639,13 @@ function Tachikoma.export_gif_from_snapshots(filename::String, width::Int, heigh
                                              font_size::Int=16,
                                              cell_w::Int=10, cell_h::Int=20,
                                              bg::RGB{N0f8}=RGB{N0f8}(0.067, 0.075, 0.118),
-                                             default_fg::Union{Tachikoma.ColorRGB, Nothing}=nothing)
+                                             default_fg::Union{Tachikoma.ColorRGB, Nothing}=nothing,
+                                             fps::Union{Int, Nothing}=nothing,
+                                             scale::Float64=1.0)
     isempty(cell_snapshots) && return filename
+    font_size = round(Int, font_size * scale)
+    cell_w = round(Int, cell_w * scale)
+    cell_h = round(Int, cell_h * scale)
     gc = nothing
     if !isempty(font_path) && isfile(font_path)
         gc = GlyphCache(font_path, font_size)
@@ -652,11 +659,21 @@ function Tachikoma.export_gif_from_snapshots(filename::String, width::Int, heigh
                                           cell_w, cell_h, bg, default_fg=fg, pixel_snapshots=spx))
     end
 
-    # Estimate fps from timestamps
-    fps = length(timestamps) > 1 ?
-        round(Int, clamp((length(timestamps) - 1) / (timestamps[end] - timestamps[1]), 1, 60)) : 10
+    # Use explicit fps if provided, otherwise estimate from timestamps
+    if fps === nothing
+        fps = length(timestamps) > 1 ?
+            round(Int, clamp((length(timestamps) - 1) / (timestamps[end] - timestamps[1]), 1, 60)) : 10
+    end
 
-    _write_gif(filename, frames; fps)
+    # Compute per-frame delays from timestamps (GIF delay unit = 1/100s)
+    delays = if length(timestamps) > 1
+        UInt16[round(UInt16, clamp((timestamps[min(i+1, end)] - timestamps[i]) * 100, 2, 65535))
+               for i in 1:length(timestamps)]
+    else
+        nothing
+    end
+
+    _write_gif(filename, frames; fps, delays)
     filename
 end
 
