@@ -202,12 +202,104 @@ APP_EVENTS["mouse_draw_demo"] = function (fps)
     events
 end
 
+# ─── Window Manager Demo (window-manager.md) ────────────────────────
+APP_EVENTS["window_manager_demo"] = EventScript(
+    (2.0, key('t')),        # tile layout
+    (1.0, key('f')),        # focus next
+    (2.0, key('c')),        # cascade layout
+    (1.0, key('f')),        # focus next
+    (2.0, key('t')),        # tile again
+    (1.0, key('f')),        # focus next
+    (2.0, key('c')),        # cascade again
+)
 
 # ═══════════════════════════════════════════════════════════════════════
 # APP_REGISTRY — only for apps NOT rendered via tachi:app annotations
 # ═══════════════════════════════════════════════════════════════════════
 
 const APP_REGISTRY = Dict{String,Function}()
+
+# ─── Window Manager Minimal Demo (window-manager.md) ─────────────
+@kwdef mutable struct _WMMinDemo <: Model
+    wm::Tachikoma.WindowManager = Tachikoma.WindowManager()
+    tick::Int = 0
+end
+
+Tachikoma.should_quit(::_WMMinDemo) = false
+
+function Tachikoma.view(m::_WMMinDemo, f::Frame)
+    m.tick += 1
+    if isempty(m.wm.windows)
+        push!(m.wm, Tachikoma.FloatingWindow(id=:notes, title="Notes",
+            x=3, y=2, width=24, height=9,
+            content=ScrollPane(["Line $i" for i in 1:20]; following=true)))
+        push!(m.wm, Tachikoma.FloatingWindow(id=:log, title="Log",
+            x=16, y=8, width=26, height=9, box=BOX_HEAVY,
+            content=ScrollPane(["Log entry $i" for i in 1:15]; following=true)))
+    end
+    if mod(m.tick, 45) == 1
+        Tachikoma.tile!(m.wm, f.area; animate=true, duration=12)
+    elseif mod(m.tick, 45) == 23
+        Tachikoma.cascade!(m.wm, f.area; animate=true, duration=12)
+    end
+    if mod(m.tick, 50) == 1
+        Tachikoma.focus_next!(m.wm)
+    end
+    render(m.wm, f.area, f.buffer; tick=m.tick)
+end
+
+APP_REGISTRY["window_manager_minimal_demo"] = function (tach_file, w, h, frames, fps, realtime=false, warmup=0)
+    record_app(_WMMinDemo(), tach_file; width=w, height=h, frames, fps,
+        realtime=realtime, warmup=warmup)
+end
+
+# ─── Window Opacity Demo (window-manager.md) ─────────────────────
+@kwdef mutable struct _WMOpacityDemo <: Model
+    wm::Tachikoma.WindowManager = Tachikoma.WindowManager()
+    tick::Int = 0
+end
+
+Tachikoma.should_quit(::_WMOpacityDemo) = false
+
+function Tachikoma.view(m::_WMOpacityDemo, f::Frame)
+    m.tick += 1
+
+    if isempty(m.wm.windows)
+        # Back window: animated noise field rendered via on_render
+        push!(m.wm, Tachikoma.FloatingWindow(id=:noise, title="Noise Field",
+            x=2, y=2, width=36, height=14, opacity=1.0,
+            border_color=ColorRGB(0x60, 0x90, 0xc0),
+            on_render=(area, buf, focused) -> begin
+                c1 = ColorRGB(0x20, 0x30, 0x50)
+                c2 = ColorRGB(0x40, 0xa0, 0xe0)
+                fill_noise!(buf, area, c1, c2, m.tick; scale=0.25, speed=0.04)
+            end))
+        # Middle window: pulsing opacity overlapping the noise
+        push!(m.wm, Tachikoma.FloatingWindow(id=:overlay, title="opacity: pulse",
+            x=12, y=5, width=28, height=10, opacity=0.8,
+            border_color=ColorRGB(0xd0, 0xa0, 0xff),
+            content=ScrollPane(["Log entry $i" for i in 1:30]; following=true)))
+        # Front window: fully opaque for contrast
+        push!(m.wm, Tachikoma.FloatingWindow(id=:solid, title="opacity: 1.0",
+            x=30, y=3, width=26, height=9, opacity=1.0,
+            border_color=ColorRGB(0x90, 0xd0, 0x80),
+            content=ScrollPane(["Event $i" for i in 1:20]; following=true)))
+    end
+
+    # Animate middle window opacity between 0.3 and 0.95
+    m.wm.windows[2].opacity = pulse(m.tick; period=90, lo=0.3, hi=0.95)
+    m.wm.windows[2].title = "opacity: $(round(m.wm.windows[2].opacity; digits=2))"
+
+    if mod(m.tick, 60) == 1
+        Tachikoma.focus_next!(m.wm)
+    end
+    render(m.wm, f.area, f.buffer; tick=m.tick)
+end
+
+APP_REGISTRY["window_opacity_demo"] = function (tach_file, w, h, frames, fps, realtime=false, warmup=0)
+    record_app(_WMOpacityDemo(), tach_file; width=w, height=h, frames, fps,
+        realtime=realtime, warmup=warmup)
+end
 
 # ─── Quick Start Game of Life (index.md) ──────────────────────────
 # Rendered by _generate_quickstart in hero_assets.jl, NOT via tachi:app.

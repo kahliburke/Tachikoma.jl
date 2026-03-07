@@ -142,7 +142,7 @@ export_gif_from_snapshots("recording.gif", w, h, cells, ts;
 
 A monospace font is required to render text into the GIF. `discover_mono_fonts()` returns all monospace fonts found on your system — index 1 is "(none)", so index 2 onward are real fonts. You can also pass an explicit path like `font_path="/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf"`.
 
-See [Recording & Export](./recording) for full details on font selection, SVG export, and other options.
+See [Recording & Export](/recording) for full details on font selection, SVG export, and other options.
 
 ## What Works
 

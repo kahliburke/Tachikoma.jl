@@ -381,6 +381,7 @@ end
 
 const SETTINGS_ITEMS = [
     "Render Backend",
+    "Window Opacity",
     "Decay Amount",
     "Jitter Scale",
     "Rot Probability",
@@ -404,6 +405,7 @@ function _handle_settings_key!(overlay::AppOverlay, evt::KeyEvent)
     elseif evt.key == :enter
         save_decay_params!()
         save_bg_config!()
+        save_window_opacity!()
         overlay.show_settings = false
     end
 end
@@ -415,20 +417,22 @@ function _adjust_setting!(idx::Int, dir::Int)
         # Cycle backend: braille → block → sixel (← →)
         cycle_render_backend!(dir)
     elseif idx == 2
-        d.decay = clamp(d.decay + dir * step, 0.0, 1.0)
+        WINDOW_OPACITY[] = clamp(WINDOW_OPACITY[] + dir * step, 0.0, 1.0)
     elseif idx == 3
-        d.jitter = clamp(d.jitter + dir * step, 0.0, 1.0)
+        d.decay = clamp(d.decay + dir * step, 0.0, 1.0)
     elseif idx == 4
-        d.rot_prob = clamp(d.rot_prob + dir * step, 0.0, 1.0)
+        d.jitter = clamp(d.jitter + dir * step, 0.0, 1.0)
     elseif idx == 5
-        d.noise_scale = clamp(d.noise_scale + dir * step, 0.0, 1.0)
+        d.rot_prob = clamp(d.rot_prob + dir * step, 0.0, 1.0)
     elseif idx == 6
-        bg = BG_CONFIG[]
-        bg.brightness = clamp(bg.brightness + dir * step, 0.0, 1.0)
+        d.noise_scale = clamp(d.noise_scale + dir * step, 0.0, 1.0)
     elseif idx == 7
         bg = BG_CONFIG[]
-        bg.saturation = clamp(bg.saturation + dir * step, 0.0, 1.0)
+        bg.brightness = clamp(bg.brightness + dir * step, 0.0, 1.0)
     elseif idx == 8
+        bg = BG_CONFIG[]
+        bg.saturation = clamp(bg.saturation + dir * step, 0.0, 1.0)
+    elseif idx == 9
         bg = BG_CONFIG[]
         bg.speed = clamp(bg.speed + dir * step, 0.0, 1.0)
     end
@@ -439,18 +443,20 @@ function _settings_value_str(idx::Int)
         rb = RENDER_BACKEND[]
         rb == sixel_backend ? "sixel" : rb == block_backend ? "block" : "braille"
     elseif idx == 2
-        _pct_bar(DECAY[].decay)
+        _pct_bar(WINDOW_OPACITY[])
     elseif idx == 3
-        _pct_bar(DECAY[].jitter)
+        _pct_bar(DECAY[].decay)
     elseif idx == 4
-        _pct_bar(DECAY[].rot_prob)
+        _pct_bar(DECAY[].jitter)
     elseif idx == 5
-        _pct_bar(DECAY[].noise_scale)
+        _pct_bar(DECAY[].rot_prob)
     elseif idx == 6
-        _pct_bar(BG_CONFIG[].brightness)
+        _pct_bar(DECAY[].noise_scale)
     elseif idx == 7
-        _pct_bar(BG_CONFIG[].saturation)
+        _pct_bar(BG_CONFIG[].brightness)
     elseif idx == 8
+        _pct_bar(BG_CONFIG[].saturation)
+    elseif idx == 9
         _pct_bar(BG_CONFIG[].speed)
     else
         ""

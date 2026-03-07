@@ -42,6 +42,7 @@ dashboard()
 | **Backend Compare** | `backend_demo()` | Split-screen: same animation in braille, block, and PixelImage rendering |
 | **Resize Panes** | `resize_demo()` | Drag pane borders to resize, demonstrating ResizableLayout |
 | **ScrollPane Log** | `scrollpane_demo()` | Live log viewer with auto-follow, reverse mode, mouse wheel scrolling |
+| **Overlapping Windows** | `windows_demo()` | Draggable/resizable floating windows with z-order, opacity, and wheel-driven content scrolling |
 | **Effects Gallery** | `effects_demo()` | fill_gradient!, fill_noise!, glow, flicker, drift, shimmer, breathing, pulse |
 | **Chart** | `chart_demo()` | Interactive chart with dual sine, scatter cloud, and live streaming modes |
 | **DataTable** | `datatable_demo()` | Sortable, scrollable data table with column sort |
