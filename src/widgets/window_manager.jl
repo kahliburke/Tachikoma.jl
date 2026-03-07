@@ -5,10 +5,14 @@
 # ── WindowManager ─────────────────────────────────────────────────────
 
 """
-    WindowManager(; windows=FloatingWindow[])
+    WindowManager(; windows=FloatingWindow[], focus_shortcuts=true)
 
 Manages a stack of `FloatingWindow`s with z-order (last = topmost),
 focus cycling, and mouse-based title-bar dragging.
+
+    By default, focus shortcuts are enabled so the manager consumes
+    Ctrl+] / Ctrl+[ for next/previous focus. Set `focus_shortcuts=false`
+    to keep all focus keys in content widgets.
 """
 mutable struct WindowManager
     windows::Vector{FloatingWindow}
@@ -34,14 +38,49 @@ mutable struct WindowManager
     # Content mouse delegation state (for drag/move/release forwarding)
     _content_active::Bool
     _content_win::Int
+    focus_shortcuts::Bool
+    _tick::Int
 end
 
-function WindowManager(; windows::Vector{FloatingWindow}=FloatingWindow[])
+function WindowManager(; windows::Vector{FloatingWindow}=FloatingWindow[], focus_shortcuts::Bool=true)
     n = length(windows)
     WindowManager(windows, n > 0 ? n : 0, false, 0, 0, 0,
                   false, 0, :br, 0, 0, 0, 0, 0, 0,
                   NTuple{4, Tween}[], false,
-                  false, 0)
+                  false, 0, focus_shortcuts, 0)
+end
+
+"""Current internal tick counter for per-frame/window-manager updates."""
+tick(wm::WindowManager) = wm._tick
+
+"""
+    step!(wm::WindowManager, area::Union{Rect, Nothing}=nothing;
+          layout_interval::Int=0, layout_tile_at::Int=1, layout_cascade_at::Int=23,
+          layout_animate::Bool=true, layout_duration::Int=12) -> Int
+
+Advance the WM tick by one and optionally run automatic layout changes.
+
+If `layout_interval > 0`, every frame advances an internal phase from
+`1:layout_interval` and:
+- at `layout_tile_at`, `tile!(wm, area)`
+- at `layout_cascade_at`, `cascade!(wm, area)`
+
+Return the updated tick count.
+"""
+function step!(wm::WindowManager, area::Union{Rect, Nothing}=nothing;
+               layout_interval::Int=0, layout_tile_at::Int=1,
+               layout_cascade_at::Int=23, layout_animate::Bool=true,
+               layout_duration::Int=12)
+    wm._tick += 1
+    if layout_interval > 0 && area !== nothing
+        phase = mod1(wm._tick, layout_interval)
+        if phase == layout_tile_at
+            tile!(wm, area; animate=layout_animate, duration=layout_duration)
+        elseif phase == layout_cascade_at
+            cascade!(wm, area; animate=layout_animate, duration=layout_duration)
+        end
+    end
+    return wm._tick
 end
 
 focusable(::WindowManager) = true
@@ -96,13 +135,14 @@ end
 # ── Render ────────────────────────────────────────────────────────────
 
 """
-    render(wm::WindowManager, area::Rect, buf::Buffer; tick::Int=0)
+    render(wm::WindowManager, area::Rect, buf::Buffer; tick::Int=nothing)
 
 Render all windows back-to-front within the given area.
-Pass `tick` for animated borders on the focused window.
+If omitted, `tick` defaults to the manager's internal tick counter.
 """
-function render(wm::WindowManager, area::Rect, buf::Buffer; tick::Int=0)
+function render(wm::WindowManager, area::Rect, buf::Buffer; tick::Union{Int, Nothing}=nothing)
     advance_layout!(wm)
+    tick = tick === nothing ? wm._tick : tick
     for (i, w) in enumerate(wm.windows)
         render(w, buf; focused=(i == wm.focus), tick=tick)
     end
@@ -219,15 +259,31 @@ end
 # ── Keyboard ──────────────────────────────────────────────────────────
 
 """
+    handle_event!(wm::WindowManager, evt::Event) → Bool
+
+    Dispatch keyboard and mouse events to WindowManager-owned handlers.
+"""
+function handle_event!(wm::WindowManager, evt::Event)::Bool
+    evt isa KeyEvent && return handle_key!(wm, evt)
+    evt isa MouseEvent && return handle_mouse!(wm, evt)
+    false
+end
+
+"""
     handle_key!(wm::WindowManager, evt::KeyEvent) → Bool
 
-F2 → next window, F3 → previous. Tab/Shift+Tab pass through to content.
+    Ctrl+] → next window, Ctrl+[ → previous. Some terminals emit these as
+    raw control characters (\\x1d / \\x1b) instead; both forms are accepted.
+    These bindings are only consumed when `focus_shortcuts=true`;
+    otherwise keys pass through to focused content.
 """
 function handle_key!(wm::WindowManager, evt::KeyEvent)::Bool
-    if evt.key == :f2
+    if wm.focus_shortcuts && evt.key == :ctrl &&
+       evt.char in (']', '\x1d')
         focus_next!(wm)
         return true
-    elseif evt.key == :f3
+    elseif wm.focus_shortcuts && evt.key == :ctrl &&
+           evt.char in ('[', '\x1b')
         focus_prev!(wm)
         return true
     end

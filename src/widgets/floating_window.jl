@@ -20,7 +20,7 @@ either a `content` widget or an `on_render` callback.
 
 - `content`: any widget with `render(widget, rect, buf)`
 - `on_render`: `(inner::Rect, buf::Buffer, focused::Bool) -> nothing`
-- `opacity`: 0.0 (fully transparent) to 1.0 (fully opaque, default)
+- `opacity`: 0.0 (fully transparent) to 1.0 (fully opaque); defaults to `WINDOW_OPACITY[]` (0.95)
 - `border_color`: override border color (ColorRGB); `nothing` uses theme
 - `bg_color`: override background color; `nothing` uses theme
 """
@@ -49,6 +49,36 @@ end
 # Auto-incrementing ID counter for default IDs
 const _FLOATING_WIN_COUNTER = Ref(0)
 
+# ── Global window opacity preference ─────────────────────────────────
+
+"""Global default opacity for new FloatingWindows (0.0–1.0)."""
+const WINDOW_OPACITY = Ref(0.95)
+
+function save_window_opacity!()
+    @set_preferences!("window_opacity" => WINDOW_OPACITY[])
+end
+
+function load_window_opacity!()
+    WINDOW_OPACITY[] = clamp(@load_preference("window_opacity", 0.95), 0.0, 1.0)
+end
+
+"""
+    window_opacity() → Float64
+
+Current global window opacity (0.0–1.0). New FloatingWindows use this as their default.
+"""
+window_opacity() = WINDOW_OPACITY[]
+
+"""
+    set_window_opacity!(v::Float64)
+
+Set and persist the global window opacity.
+"""
+function set_window_opacity!(v::Float64)
+    WINDOW_OPACITY[] = clamp(v, 0.0, 1.0)
+    save_window_opacity!()
+end
+
 function FloatingWindow(;
     id::Symbol=Symbol("win_", _FLOATING_WIN_COUNTER[] += 1),
     title::String="",
@@ -59,7 +89,7 @@ function FloatingWindow(;
     box::NamedTuple=BOX_ROUNDED,
     visible::Bool=true,
     minimized::Bool=false,
-    opacity::Float64=1.0,
+    opacity::Float64=WINDOW_OPACITY[],
     border_color::Union{ColorRGB,Nothing}=nothing,
     bg_color::Union{ColorRGB,Nothing}=nothing,
     resizable::Bool=true,
