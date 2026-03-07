@@ -320,21 +320,21 @@
         T._adjust_setting!(1, -1)
         @test T.RENDER_BACKEND[] == T.braille_backend
 
-        # Adjust decay amount
-        T._adjust_setting!(2, 1)
+        # Adjust decay amount (idx 3 — after Render Backend and Window Opacity)
+        T._adjust_setting!(3, 1)
         @test T.DECAY[].decay ≈ 0.05
 
         # Adjust jitter
-        T._adjust_setting!(3, 1)
+        T._adjust_setting!(4, 1)
         @test T.DECAY[].jitter ≈ 0.05
 
         # Adjust rot
-        T._adjust_setting!(4, 1)
+        T._adjust_setting!(5, 1)
         @test T.DECAY[].rot_prob ≈ 0.05
 
         # Clamping: can't go below 0
         T.DECAY[].decay = 0.0
-        T._adjust_setting!(2, -1)
+        T._adjust_setting!(3, -1)
         @test T.DECAY[].decay == 0.0
 
         T.RENDER_BACKEND[] = orig_backend
@@ -460,32 +460,32 @@
     end
 
     @testset "Settings overlay BG items" begin
-        @test length(T.SETTINGS_ITEMS) == 8
-        @test T.SETTINGS_ITEMS[6] == "BG Brightness"
-        @test T.SETTINGS_ITEMS[7] == "BG Saturation"
-        @test T.SETTINGS_ITEMS[8] == "BG Speed"
+        @test length(T.SETTINGS_ITEMS) == 9
+        @test T.SETTINGS_ITEMS[7] == "BG Brightness"
+        @test T.SETTINGS_ITEMS[8] == "BG Saturation"
+        @test T.SETTINGS_ITEMS[9] == "BG Speed"
     end
 
     @testset "Settings BG adjust" begin
         orig = T.BG_CONFIG[]
         T.BG_CONFIG[] = T.BackgroundConfig(0.5, 0.5, 0.5)
 
-        T._adjust_setting!(6, 1)
+        T._adjust_setting!(7, 1)
         @test T.BG_CONFIG[].brightness ≈ 0.55
 
-        T._adjust_setting!(7, -1)
+        T._adjust_setting!(8, -1)
         @test T.BG_CONFIG[].saturation ≈ 0.45
 
-        T._adjust_setting!(8, 1)
+        T._adjust_setting!(9, 1)
         @test T.BG_CONFIG[].speed ≈ 0.55
 
         # Clamping
         T.BG_CONFIG[].brightness = 1.0
-        T._adjust_setting!(6, 1)
+        T._adjust_setting!(7, 1)
         @test T.BG_CONFIG[].brightness == 1.0
 
         T.BG_CONFIG[].speed = 0.0
-        T._adjust_setting!(8, -1)
+        T._adjust_setting!(9, -1)
         @test T.BG_CONFIG[].speed == 0.0
 
         T.BG_CONFIG[] = orig
