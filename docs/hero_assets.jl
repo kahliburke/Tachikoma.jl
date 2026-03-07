@@ -516,7 +516,13 @@ end
 
 function _generate_quickstart(cache::Dict{String,String}; force::Bool=false)
     tach_file = joinpath(EXAMPLES_DIR, "quickstart_hello.tach")
-    src_hash = bytes2hex(sha256(read(joinpath(@__DIR__, "example_apps.jl"), String)))
+    # Hash only the DocLife source block + recording infrastructure, not the whole file.
+    # Extract the DocLife section via regex so unrelated APP_EVENTS/APP_REGISTRY changes
+    # don't trigger a re-render.
+    apps_text = read(joinpath(@__DIR__, "example_apps.jl"), String)
+    m = match(r"@kwdef mutable struct DocLife.*?APP_REGISTRY\[\"quickstart_hello\"\].*"s, apps_text)
+    doclife_src = m !== nothing ? m.match : apps_text
+    src_hash = bytes2hex(sha256(doclife_src * _RECORDING_HASH))
 
     if !force && !should_render(cache, "quickstart_hello", src_hash, tach_file)
         println("  quickstart_hello: up to date (skipped)")

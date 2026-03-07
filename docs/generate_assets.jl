@@ -136,9 +136,9 @@ function export_formats(tach_file::String; gif::Bool=true)
             enable_gif()
             gif_file = base * ".gif"
             # 2x cell size for retina displays (default is cell_w=10, cell_h=20, font_size=16)
-            export_gif_from_snapshots(gif_file, w, h, cells, timestamps;
-                                     pixel_snapshots=sixels, font_path=font_path,
-                                     cell_w=20, cell_h=40, font_size=32)
+            Base.invokelatest(export_gif_from_snapshots, gif_file, w, h, cells, timestamps;
+                              pixel_snapshots=sixels, font_path=font_path,
+                              cell_w=20, cell_h=40, font_size=32)
             println("    → $(basename(gif_file))")
         catch e
             @warn "GIF export skipped" exception=(e, catch_backtrace())
@@ -158,14 +158,17 @@ include(joinpath(@__DIR__, "hero_assets.jl"))
 
 include(joinpath(@__DIR__, "example_apps.jl"))
 
-# Hash of example_apps.jl + recording.jl — folded into all app source hashes so that
-# changing APP_REGISTRY entries, APP_EVENTS scripts, or record_app() invalidates caches.
-const _EXAMPLE_APPS_HASH = let
-    h = sha256(read(joinpath(@__DIR__, "example_apps.jl")))
+# ── Cache hashing ─────────────────────────────────────────────────────
+# recording.jl hash — rendering infrastructure, applies to all apps.
+const _RECORDING_HASH = let
     rec = joinpath(@__DIR__, "..", "src", "recording.jl")
-    isfile(rec) && (h = sha256(vcat(h, read(rec))))
-    bytes2hex(h)
+    isfile(rec) ? bytes2hex(sha256(read(rec))) : ""
 end
+
+# example_apps.jl hash — only for APP_REGISTRY apps whose code lives in that file.
+const _EXAMPLE_APPS_HASH = bytes2hex(sha256(read(joinpath(@__DIR__, "example_apps.jl"))))
+
+# _app_cache_hash is defined after TachiAnnotation (see below)
 
 # ═══════════════════════════════════════════════════════════════════════
 # Markdown scanner: parse tachi:widget / tachi:app annotations
@@ -177,6 +180,34 @@ struct TachiAnnotation
     params::Dict{String,String}
     code::String          # extracted code block (widget only)
     source_hash::String   # SHA256 of annotation + code
+end
+
+"""
+    _app_cache_hash(ann) → String
+
+Per-app cache hash. Markdown-extracted apps only include their own
+materialized events (if any). APP_REGISTRY apps include the full
+example_apps.jl hash since their code lives there.
+"""
+function _app_cache_hash(ann::TachiAnnotation)
+    base = ann.source_hash * _RECORDING_HASH
+
+    # APP_REGISTRY apps: code lives in example_apps.jl, hash the whole file
+    if isempty(ann.code)
+        return bytes2hex(sha256(base * _EXAMPLE_APPS_HASH))
+    end
+
+    # Markdown-extracted apps: only fold in their specific events
+    if haskey(APP_EVENTS, ann.id)
+        events = try
+            Base.invokelatest(APP_EVENTS[ann.id], 15)
+        catch
+            Tuple{Int,Any}[]
+        end
+        return bytes2hex(sha256(base * repr(events)))
+    end
+
+    bytes2hex(sha256(base))
 end
 
 """
@@ -387,7 +418,13 @@ function render_widget_example(ann::TachiAnnotation, cache::Dict{String,String};
     tach_file = joinpath(EXAMPLES_DIR, "$(ann.id).tach")
 
     if !force && !should_render(cache, ann.id, ann.source_hash, tach_file)
-        println("  $(ann.id): up to date (skipped)")
+        gif_file = replace(tach_file, r"\.tach$" => ".gif")
+        if isfile(gif_file)
+            println("  $(ann.id): up to date (skipped)")
+        else
+            println("  $(ann.id): gif missing, exporting from existing .tach")
+            export_formats(tach_file)
+        end
         return
     end
 
@@ -548,12 +585,16 @@ function render_app_example(ann::TachiAnnotation, cache::Dict{String,String};
 
     tach_file = joinpath(EXAMPLES_DIR, "$(ann.id).tach")
 
-    # Augment source hash with example_apps.jl — covers APP_REGISTRY code and
-    # APP_EVENTS scripts which aren't captured in ann.source_hash.
-    app_hash = bytes2hex(sha256(ann.source_hash * _EXAMPLE_APPS_HASH))
+    app_hash = _app_cache_hash(ann)
 
     if !force && !should_render(cache, ann.id, app_hash, tach_file)
-        println("  $(ann.id): up to date (skipped)")
+        gif_file = replace(tach_file, r"\.tach$" => ".gif")
+        if isfile(gif_file)
+            println("  $(ann.id): up to date (skipped)")
+        else
+            println("  $(ann.id): gif missing, exporting from existing .tach")
+            export_formats(tach_file)
+        end
         return
     end
 
@@ -894,7 +935,7 @@ function generate_readme_gifs(; force::Bool=false)
             end
 
             try
-                export_gif_from_snapshots(gif_file, w, h, sub_cells, sub_timestamps;
+                Base.invokelatest(export_gif_from_snapshots, gif_file, w, h, sub_cells, sub_timestamps;
                                      pixel_snapshots=sixels, font_path=font_path,
                                      cell_w=10, cell_h=20, font_size=16)
             catch e

@@ -107,6 +107,26 @@
         @test wm.windows[end].id == :b
     end
 
+    @testset "focus shortcuts default and opt-out" begin
+        wm = T.WindowManager()
+        push!(wm, T.FloatingWindow(id=:a, x=1, y=1, width=10, height=5))
+        push!(wm, T.FloatingWindow(id=:b, x=15, y=1, width=10, height=5))
+
+        @test T.focused_window(wm).id == :b
+        @test T.handle_key!(wm, T.KeyEvent(:ctrl, ']'))
+        @test T.focused_window(wm).id == :a
+
+        wm_no_shortcuts = T.WindowManager(focus_shortcuts=false)
+        push!(wm_no_shortcuts, T.FloatingWindow(id=:a, x=1, y=1, width=10, height=5))
+        push!(wm_no_shortcuts, T.FloatingWindow(id=:b, x=15, y=1, width=10, height=5))
+        @test T.focused_window(wm_no_shortcuts).id == :b
+        @test !T.handle_key!(wm_no_shortcuts, T.KeyEvent(:ctrl, ']'))
+        @test T.focused_window(wm_no_shortcuts).id == :b
+
+        @test T.handle_key!(wm, T.KeyEvent(:ctrl, '['))
+        @test T.focused_window(wm).id == :b
+    end
+
     @testset "tile/cascade layout geometry" begin
         wm = T.WindowManager()
         for i in 1:4
@@ -123,6 +143,27 @@
         end
 
         T.cascade!(wm, area; animate=false)
+        @test wm.windows[2].x - wm.windows[1].x == 3
+        @test wm.windows[2].y - wm.windows[1].y == 2
+    end
+
+    @testset "step! handles tick and periodic layout" begin
+        wm = T.WindowManager()
+        for i in 1:3
+            push!(wm, T.FloatingWindow(id=Symbol("w", i), x=1, y=1, width=12, height=6))
+        end
+        area = T.Rect(1, 1, 60, 20)
+
+        @test T.step!(wm, area; layout_interval=4, layout_tile_at=1, layout_cascade_at=3, layout_animate=false, layout_duration=4) == 1
+        @test T.tick(wm) == 1
+        @test wm.windows[1].x == 1
+        @test wm.windows[1].y == 1
+
+        @test T.step!(wm, area; layout_interval=4, layout_tile_at=1, layout_cascade_at=3, layout_animate=false, layout_duration=4) == 2
+        @test wm.windows[1].x == 1
+        @test wm.windows[1].y == 1
+
+        @test T.step!(wm, area; layout_interval=4, layout_tile_at=1, layout_cascade_at=3, layout_animate=false, layout_duration=4) == 3
         @test wm.windows[2].x - wm.windows[1].x == 3
         @test wm.windows[2].y - wm.windows[1].y == 2
     end

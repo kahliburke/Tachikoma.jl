@@ -1,9 +1,9 @@
 name = "Tachikoma"
 uuid = "468859d6-42d8-48b7-8ad9-1d312e0e3b0a"
-authors = ["Kahli Burke <kahli@kahliburke.com>"]
-version = "1.0.3"
-description = "A terminal UI framework for Julia — widgets, layouts, sixel graphics, animations, and juliac compilation"
 keywords = ["tui", "terminal", "ui", "widgets", "sixel", "cli", "juliac"]
+version = "1.0.3"
+authors = ["Kahli Burke <kahli@kahliburke.com>"]
+description = "A terminal UI framework for Julia — widgets, layouts, sixel graphics, animations, and juliac compilation"
 
 [deps]
 Base64 = "2a0f44e3-6c83-55bd-87e4-b1978d98bd5f"
@@ -11,7 +11,6 @@ CodecZlib = "944b1d66-785c-5afd-91f1-9de20f533193"
 CodecZstd = "6b39b394-51ab-5f42-8807-6242bab2b4c2"
 Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
 Preferences = "21216c6a-2e73-6563-6e65-726566657250"
-Supposition = "5a0628fe-1738-4658-9b6d-0b7605a9755b"
 
 [weakdeps]
 ColorTypes = "3da002f7-5984-5a60-b8a6-cbb66c0b333f"

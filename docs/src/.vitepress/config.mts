@@ -4,10 +4,12 @@ import { tachiExamplesPlugin } from './tachi-examples'
 import { tachiAutolinkPlugin } from './tachi-autolink'
 
 const BASE = '/Tachikoma.jl/'
-const ASSET_BASE = process.env.TACHIKOMA_ASSET_BASE || (BASE + 'assets/')
+const IS_VITEPRESS_DEV = process.env.npm_lifecycle_event === 'docs:dev' || process.argv.includes('dev')
+const VITEPRESS_BASE = IS_VITEPRESS_DEV ? '/' : BASE
+const ASSET_BASE = process.env.TACHIKOMA_ASSET_BASE || (IS_VITEPRESS_DEV ? '/assets/' : VITEPRESS_BASE + 'assets/')
 
 export default defineConfig({
-  base: BASE,
+  base: VITEPRESS_BASE,
   title: 'Tachikoma.jl',
   description: 'Terminal UI framework for Julia',
   lastUpdated: true,
@@ -16,6 +18,18 @@ export default defineConfig({
   vite: {
     define: {
       __ASSET_BASE__: JSON.stringify(ASSET_BASE),
+    },
+    vue: {
+      template: {
+        transformAssetUrls: {
+          includeAbsolute: false,
+        },
+      },
+    },
+    build: {
+      rollupOptions: {
+        external: [/^\/assets\//, /^\/Tachikoma\.jl\/assets\//],
+      },
     },
   },
 
@@ -58,6 +72,7 @@ export default defineConfig({
         text: 'Widgets & Graphics',
         items: [
           { text: 'Widgets', link: '/widgets' },
+          { text: 'Window Manager', link: '/window-manager' },
           { text: 'Graphics & Pixel Rendering', link: '/canvas' },
           { text: 'Animation', link: '/animation' },
           { text: 'Backgrounds', link: '/backgrounds' },

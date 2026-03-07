@@ -88,7 +88,7 @@ function _ensure_windows!(m::WindowsDemoModel, area::Rect)
         selected=1,
     )
 
-    wm = WindowManager()
+    wm = WindowManager(focus_shortcuts=true)
     push!(wm, FloatingWindow(id=:signals, title="SIGNALS", x=2, y=2, width=46, height=12,
                               border_color=_WDM_PALETTES[:signals].border, box=BOX_ROUNDED))
     push!(wm, FloatingWindow(id=:inputs, title="INPUTS", x=18, y=6, width=40, height=18,

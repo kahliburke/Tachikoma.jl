@@ -33,6 +33,7 @@ function __init__()
     load_render_backend!()
     load_decay_params!()
     load_bg_config!()
+    load_window_opacity!()
     load_export_prefs!()
 end
 
@@ -132,6 +133,7 @@ export # Core types
        FloatingWindow, WindowManager,
        window_rect, focused_window, bring_to_front!,
        focus_next!, focus_prev!, tile!, cascade!,
+       window_opacity, set_window_opacity!, WINDOW_OPACITY,
        # Canvas
        Canvas, set_point!, line!, clear!, unset_point!, in_bounds,
        rect!, circle!, arc!,
