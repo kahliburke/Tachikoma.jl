@@ -215,3 +215,82 @@ function load_tach(filename::String)
         (width, height, cell_snapshots, timestamps, pixel_snapshots)
     end
 end
+
+# ── Dead space compression ─────────────────────────────────────────────
+
+"""
+    compress_dead_space(cell_snapshots, timestamps, pixel_snapshots;
+                        compress=1.0)
+
+Process recorded frame data to compress "dead space" — periods where the
+screen content is unchanging across consecutive frames.
+
+Identical consecutive frames are collapsed to a single frame. The duration
+of each dead run is then compressed using a logarithmic curve controlled by
+`compress`:
+
+- `compress = 1.0`: no timing change (identity — only deduplicates frames)
+- `compress = 2.0`: mild compression
+- `compress = 3-4`: moderate compression
+- `compress = 10.0`: aggressive compression
+
+    compressed_gap = gap / (1 + (compress - 1) * log(1 + gap))
+
+Short gaps are barely affected; long gaps are compressed logarithmically.
+
+| Original gap | compress=2 | compress=5 | compress=10 |
+|-------------|-----------|-----------|------------|
+| 0.1s        | 0.09s     | 0.07s     | 0.05s      |
+| 1.0s        | 0.59s     | 0.27s     | 0.14s      |
+| 5.0s        | 1.79s     | 0.61s     | 0.31s      |
+| 10.0s       | 2.94s     | 0.94s     | 0.47s      |
+| 30.0s       | 6.77s     | 2.04s     | 1.02s      |
+
+Returns `(cell_snapshots, timestamps, pixel_snapshots)` with the same
+types as the input, ready for `write_tach` or `export_gif_from_snapshots`.
+"""
+function compress_dead_space(cell_snapshots::Vector{Vector{Cell}},
+                             timestamps::Vector{Float64},
+                             pixel_snapshots::Vector{Vector{T}};
+                             compress::Float64=1.0) where T
+    n = length(cell_snapshots)
+    n <= 1 && return (cell_snapshots, timestamps, pixel_snapshots)
+    compress >= 1 || throw(ArgumentError("compress must be ≥ 1.0"))
+
+    # Identify which frames to keep: first frame + every frame that differs
+    # from its predecessor
+    keep = Int[1]
+    for i in 2:n
+        if cell_snapshots[i] != cell_snapshots[i-1]
+            push!(keep, i)
+        end
+    end
+    # Always keep last frame so the final state is visible
+    if keep[end] != n
+        push!(keep, n)
+    end
+
+    # Build compressed output
+    new_cells = [cell_snapshots[i] for i in keep]
+    new_pixels = if isempty(pixel_snapshots)
+        similar(pixel_snapshots, 0)
+    else
+        [i <= length(pixel_snapshots) ? pixel_snapshots[i] : T[] for i in keep]
+    end
+
+    # Rebuild timestamps: compress gaps from dead runs logarithmically
+    new_timestamps = Float64[0.0]
+    for j in 2:length(keep)
+        original_gap = timestamps[keep[j]] - timestamps[keep[j-1]]
+        if keep[j] - keep[j-1] > 1
+            # Dead run — apply log compression
+            compressed_gap = original_gap / (1 + (compress - 1) * 0.75 * log(1 + original_gap))
+        else
+            # Consecutive non-identical frames — keep original timing
+            compressed_gap = original_gap
+        end
+        push!(new_timestamps, new_timestamps[end] + compressed_gap)
+    end
+
+    (new_cells, new_timestamps, new_pixels)
+end
