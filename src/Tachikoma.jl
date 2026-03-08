@@ -18,6 +18,7 @@ include("kitty_graphics.jl")
 include("sixel_canvas.jl")
 include("sixel_image.jl")
 include("widgets/blockcanvas.jl")
+include("widgets/octantcanvas.jl")
 include("app.jl")
 include("test_backend.jl")
 include("recording.jl")         # recording functions (after app.jl + test_backend.jl)
@@ -132,6 +133,7 @@ export # Core types
        Canvas, set_point!, line!, clear!, unset_point!, in_bounds,
        rect!, circle!, arc!,
        BlockCanvas,
+       OctantCanvas,
        # Box styles
        BOX_ROUNDED, BOX_HEAVY, BOX_DOUBLE, BOX_PLAIN,
        # Render backend + decay

@@ -132,7 +132,7 @@ Or run individual demos directly: `dashboard()`, `snake()`, `life()`, `sysmon()`
 | **Selection & Lists** | `SelectableList`, `TabBar`, `TreeView`, `Calendar` |
 | **Data** | `DataTable`, `Chart`, `BarChart`, `Sparkline`, `Gauge`, `ProgressList` |
 | **Layout** | `Container`, `ScrollPane`, `Scrollbar`, `Modal`, `Form` |
-| **Graphics** | `Canvas`, `BlockCanvas`, `PixelImage` |
+| **Graphics** | `Canvas`, `BlockCanvas`, `OctantCanvas`, `PixelImage` |
 
 ## Backgrounds
 
@@ -166,7 +166,7 @@ Full documentation is available at **[kahliburke.github.io/Tachikoma.jl](https:/
 | [Layout](https://kahliburke.github.io/Tachikoma.jl/dev/layout) | Constraint-based layout system |
 | [Widgets](https://kahliburke.github.io/Tachikoma.jl/dev/widgets) | Complete catalog of all widgets |
 | [Animation](https://kahliburke.github.io/Tachikoma.jl/dev/animation) | Tweens, springs, timelines, and organic effects |
-| [Graphics](https://kahliburke.github.io/Tachikoma.jl/dev/canvas) | Canvas, BlockCanvas, and pixel rendering |
+| [Graphics](https://kahliburke.github.io/Tachikoma.jl/dev/canvas) | Canvas, BlockCanvas, OctantCanvas, and pixel rendering |
 | [Themes](https://kahliburke.github.io/Tachikoma.jl/dev/styling) | 11 built-in themes with hot-swap switching |
 | [Recording](https://kahliburke.github.io/Tachikoma.jl/dev/recording) | Recording and export to SVG/GIF |
 | [Testing](https://kahliburke.github.io/Tachikoma.jl/dev/testing) | TestBackend for headless widget testing |

@@ -36,7 +36,7 @@ Tachikoma.jl and [Ratatui](https://ratatui.rs/) share the immediate-mode renderi
 | BarChart | `BarChart` with `BarEntry` | `BarChart` with `Bar` |
 | Chart | `Chart` with `DataSeries` (line/scatter) | `Chart` with `Dataset` |
 | Calendar | `Calendar` | `Monthly` (ratatui-widgets) |
-| Canvas | `Canvas`, `BlockCanvas`, `PixelCanvas` | `Canvas` |
+| Canvas | `Canvas`, `BlockCanvas`, `OctantCanvas`, `PixelCanvas` | `Canvas` |
 | Scrollbar | `Scrollbar`, `ScrollPane` | `Scrollbar` |
 | BigText | `BigText` | `BigText` (ratatui-widgets) |
 | Modal | `Modal` | Not built-in |

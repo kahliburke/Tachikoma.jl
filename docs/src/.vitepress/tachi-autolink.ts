@@ -111,6 +111,7 @@ const API_LINKS: Record<string, string> = {
   // ── Canvas & graphics ──
   'Canvas':         '/canvas#Canvas-Braille',
   'BlockCanvas':    '/canvas#BlockCanvas-Quadrant-Blocks',
+  'OctantCanvas':   '/canvas#OctantCanvas-Octant-Blocks',
   'PixelImage':     '/api#Tachikoma.PixelImage-Tuple{Int64, Int64}',
   'PixelCanvas':    '/canvas#PixelCanvas-Pixel-Drawing-Surface',
 

@@ -412,7 +412,7 @@ function _adjust_setting!(idx::Int, dir::Int)
     d = DECAY[]
     step = 0.05
     if idx == 1
-        # Cycle backend: braille → block → sixel (← →)
+        # Cycle backend: braille → block → octant (← →)
         cycle_render_backend!(dir)
     elseif idx == 2
         d.decay = clamp(d.decay + dir * step, 0.0, 1.0)
@@ -437,7 +437,7 @@ end
 function _settings_value_str(idx::Int)
     if idx == 1
         rb = RENDER_BACKEND[]
-        rb == sixel_backend ? "sixel" : rb == block_backend ? "block" : "braille"
+        rb == sixel_backend ? "sixel" : rb == octant_backend ? "octant" : rb == block_backend ? "block" : "braille"
     elseif idx == 2
         _pct_bar(DECAY[].decay)
     elseif idx == 3
