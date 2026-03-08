@@ -254,6 +254,7 @@ APP_REGISTRY["window_manager_minimal_demo"] = function (tach_file, w, h, frames,
 end
 
 # ─── Window Opacity Demo (window-manager.md) ─────────────────────
+# Noise field requires animations_enabled()=true (enforced in generate_assets.jl)
 @kwdef mutable struct _WMOpacityDemo <: Model
     wm::Tachikoma.WindowManager = Tachikoma.WindowManager()
     tick::Int = 0
@@ -263,35 +264,43 @@ Tachikoma.should_quit(::_WMOpacityDemo) = false
 
 function Tachikoma.view(m::_WMOpacityDemo, f::Frame)
     m.tick += 1
+    w, h = f.area.width, f.area.height
 
     if isempty(m.wm.windows)
-        # Back window: animated noise field rendered via on_render
+        # Back: animated noise field spanning most of the area
         push!(m.wm, Tachikoma.FloatingWindow(id=:noise, title="Noise Field",
-            x=2, y=2, width=36, height=14, opacity=1.0,
-            border_color=ColorRGB(0x60, 0x90, 0xc0),
+            x=1, y=1, width=w, height=h - 1, opacity=1.0,
+            border_color=ColorRGB(0x60, 0x90, 0xc0), resizable=false,
             on_render=(area, buf, focused) -> begin
                 c1 = ColorRGB(0x20, 0x30, 0x50)
                 c2 = ColorRGB(0x40, 0xa0, 0xe0)
                 fill_noise!(buf, area, c1, c2, m.tick; scale=0.25, speed=0.04)
             end))
-        # Middle window: pulsing opacity overlapping the noise
+        # Middle: pulsing opacity overlapping the noise
         push!(m.wm, Tachikoma.FloatingWindow(id=:overlay, title="opacity: pulse",
-            x=12, y=5, width=28, height=10, opacity=0.8,
+            x=3, y=3, width=28, height=h - 6, opacity=0.8,
             border_color=ColorRGB(0xd0, 0xa0, 0xff),
             content=ScrollPane(["Log entry $i" for i in 1:30]; following=true)))
-        # Front window: fully opaque for contrast
+        # Front: fully opaque for contrast
         push!(m.wm, Tachikoma.FloatingWindow(id=:solid, title="opacity: 1.0",
-            x=30, y=3, width=26, height=9, opacity=1.0,
+            x=w ÷ 2 - 2, y=2, width=w ÷ 2, height=h - 4, opacity=1.0,
             border_color=ColorRGB(0x90, 0xd0, 0x80),
             content=ScrollPane(["Event $i" for i in 1:20]; following=true)))
     end
 
     # Animate middle window opacity between 0.3 and 0.95
-    m.wm.windows[2].opacity = pulse(m.tick; period=90, lo=0.3, hi=0.95)
-    m.wm.windows[2].title = "opacity: $(round(m.wm.windows[2].opacity; digits=2))"
+    overlay = m.wm.windows[2]
+    overlay.opacity = pulse(m.tick; period=90, lo=0.3, hi=0.95)
+    overlay.title = "opacity: $(round(overlay.opacity; digits=2))"
 
+    # Cycle focus between overlay and solid only (skip noise backdrop)
     if mod(m.tick, 60) == 1
-        Tachikoma.focus_next!(m.wm)
+        fw = Tachikoma.focused_window(m.wm)
+        if fw !== nothing && fw.id === :overlay
+            Tachikoma.bring_to_front!(m.wm, findfirst(w -> w.id === :solid, m.wm.windows))
+        else
+            Tachikoma.bring_to_front!(m.wm, findfirst(w -> w.id === :overlay, m.wm.windows))
+        end
     end
     render(m.wm, f.area, f.buffer; tick=m.tick)
 end

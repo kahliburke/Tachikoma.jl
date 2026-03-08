@@ -17,6 +17,7 @@ The launcher presents a menu of all available demos. Use arrow keys to navigate 
 
 To run a specific demo directly:
 
+<!-- tachi:noeval -->
 ```julia
 using TachikomaDemos
 dashboard()
@@ -55,3 +56,4 @@ dashboard()
 | **Sixel Gallery** | `sixel_gallery()` | CPU heatmap, latency distribution, memory page map, flame graph |
 | **Async Tasks** | `async_demo()` | Background task system: spawn tasks, trigger failures, repeating timers |
 | **Markdown Viewer** | `markdown_demo()` | README viewer, live split-pane editor, style preset picker |
+| **Terminal Emulator** | `terminal_demo()` | Embedded shell in a FloatingWindow with PTY, ANSI colors, Ctrl+N for multiple terminals |

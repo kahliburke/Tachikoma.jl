@@ -53,6 +53,7 @@ end
 
 Window focus is managed by `WindowManager` itself.
 
+<!-- tachi:noeval -->
 ```julia
 focus_next!(wm)                  # cycle forward
 focus_prev!(wm)                  # cycle backward
@@ -61,7 +62,7 @@ bring_to_front!(wm, idx)         # promote a window index
 window_rect(wm.windows[idx])     # query geometry if needed
 ```
 
-By default, `Ctrl+]` / `Ctrl+[` cycle focus. Pass `focus_shortcuts=false` to disable them and handle focus yourself.
+By default, `Ctrl+J` / `Ctrl+K` cycle focus forward/backward. Pass `focus_shortcuts=false` to disable them and handle focus yourself.
 
 ## Mouse and input forwarding
 
@@ -86,7 +87,7 @@ These commands compute new geometry for all managed windows in a deterministic o
 
 ## Opacity
 
-Windows support semi-transparency via the `opacity` parameter (0.0 = fully transparent, 1.0 = fully opaque). When a window overlaps other content, its background blends with what's behind it.
+Windows support semi-transparency via the `opacity` parameter (0.0 = fully transparent, 1.0 = fully opaque). When a window overlaps other content, both its background and the underlying foreground text are composited: the background blends toward the window's color and the foreground fades proportionally, so content behind the window becomes progressively less visible as opacity increases.
 
 <!-- tachi:app window_opacity_demo w=60 h=18 frames=180 fps=15 -->
 
@@ -97,8 +98,6 @@ The global default is 95% and applies to all new windows. Adjust it at runtime o
 Tachikoma.set_window_opacity!(0.85)   # set and persist
 Tachikoma.window_opacity()             # read current value
 ```
-
-Per-window `opacity` overrides the global default when specified explicitly.
 
 Per-window `opacity` overrides the global default when specified explicitly.
 

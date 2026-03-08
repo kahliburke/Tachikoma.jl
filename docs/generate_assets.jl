@@ -970,6 +970,10 @@ function main()
     mkpath(EXAMPLES_DIR)
     cache = load_cache()
 
+    # Ensure animations are always enabled for doc asset generation,
+    # regardless of user preferences, so noise/shimmer/pulse render correctly.
+    Tachikoma.ANIMATIONS_ENABLED[] = true
+
     println("=" ^ 60)
     println("Generating Tachikoma.jl doc assets")
     force && println("  (--force: regenerating all)")

@@ -460,10 +460,11 @@
     end
 
     @testset "Settings overlay BG items" begin
-        @test length(T.SETTINGS_ITEMS) == 9
+        @test length(T.SETTINGS_ITEMS) == 10
         @test T.SETTINGS_ITEMS[7] == "BG Brightness"
         @test T.SETTINGS_ITEMS[8] == "BG Saturation"
         @test T.SETTINGS_ITEMS[9] == "BG Speed"
+        @test T.SETTINGS_ITEMS[10] == "Reload App"
     end
 
     @testset "Settings BG adjust" begin

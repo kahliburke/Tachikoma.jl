@@ -470,6 +470,7 @@ function view(m::_M, f::Frame)
 end
 app(_M())
 -->
+<!-- tachi:noeval -->
 ```julia
 Sparkline(data; style=tstyle(:accent))
 ```
@@ -493,6 +494,7 @@ function view(m::_M, f::Frame)
 end
 app(_M())
 -->
+<!-- tachi:noeval -->
 ```julia
 Gauge(progress;
     filled_style=tstyle(:primary),

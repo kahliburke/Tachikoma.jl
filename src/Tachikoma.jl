@@ -7,6 +7,7 @@ include("buffer.jl")
 include("layout.jl")
 include("cast_recorder.jl")     # CastRecorder struct (before terminal.jl)
 include("terminal.jl")
+include("pty.jl")
 include("events.jl")
 include("scripting.jl")
 include("async.jl")
@@ -45,7 +46,7 @@ export # Core types
        KeyAction, key_press, key_repeat, key_release,
        MouseEvent, MouseButton, MouseAction,
        mouse_left, mouse_middle, mouse_right, mouse_none,
-       mouse_scroll_up, mouse_scroll_down,
+       mouse_scroll_up, mouse_scroll_down, mouse_scroll_left, mouse_scroll_right,
        mouse_press, mouse_release, mouse_drag, mouse_move,
        Block, StatusBar, Span,
        # Layout
@@ -56,6 +57,7 @@ export # Core types
        ResizableLayout, handle_resize!, reset_layout!, render_resize_handles!,
        # App framework
        app, @tachikoma_app,
+       tty_path,
        prepare_for_exec!,
        clipboard_copy!, buffer_to_text,
        # Async tasks
@@ -133,7 +135,13 @@ export # Core types
        FloatingWindow, WindowManager,
        window_rect, focused_window, bring_to_front!,
        focus_next!, focus_prev!, tile!, cascade!,
+       handle_event!, step!, tick,
        window_opacity, set_window_opacity!, WINDOW_OPACITY,
+       recording_enabled,
+       # Terminal widget
+       TerminalWidget, TermScreen, PTY, REPLWidget,
+       pty_spawn, pty_pair, pty_close!, pty_resize!, pty_alive, poll!,
+       route_output!,
        # Canvas
        Canvas, set_point!, line!, clear!, unset_point!, in_bounds,
        rect!, circle!, arc!,
@@ -181,6 +189,6 @@ export # Core types
        MarkdownPane, set_markdown!,
        markdown_to_spans, enable_markdown, markdown_extension_loaded,
        # .tach format
-       write_tach, load_tach
+       write_tach, load_tach, compress_dead_space
 
 end

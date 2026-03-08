@@ -140,15 +140,16 @@ struct Style
     dim::Bool
     italic::Bool
     underline::Bool
+    strikethrough::Bool
     hyperlink::String
 end
 
 function Style(;
     fg::AbstractColor=NoColor(), bg::AbstractColor=NoColor(),
     bold=false, dim=false, italic=false, underline=false,
-    hyperlink::String="",
+    strikethrough=false, hyperlink::String="",
 )
-    Style(fg, bg, bold, dim, italic, underline, hyperlink)
+    Style(fg, bg, bold, dim, italic, underline, strikethrough, hyperlink)
 end
 
 const RESET = Style()
@@ -156,7 +157,8 @@ const RESET = Style()
 Base.:(==)(a::Style, b::Style) = (
     a.fg == b.fg && a.bg == b.bg && a.bold == b.bold &&
     a.dim == b.dim && a.italic == b.italic &&
-    a.underline == b.underline && a.hyperlink == b.hyperlink
+    a.underline == b.underline && a.strikethrough == b.strikethrough &&
+    a.hyperlink == b.hyperlink
 )
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -515,9 +517,10 @@ tstyle(:primary, bold=true)  # bold text in the theme's primary color
 ```
 """
 function tstyle(field::Symbol; bold=false, dim=false,
-                italic=false, underline=false, hyperlink::String="")
+                italic=false, underline=false, strikethrough=false,
+                hyperlink::String="")
     color = getfield(theme(), field)
-    Style(; fg=color, bold, dim, italic, underline, hyperlink)
+    Style(; fg=color, bold, dim, italic, underline, strikethrough, hyperlink)
 end
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -550,6 +553,7 @@ function write_style(io::IO, s::Style)
     s.dim && write(io, "\e[2m")
     s.italic && write(io, "\e[3m")
     s.underline && write(io, "\e[4m")
+    s.strikethrough && write(io, "\e[9m")
     nothing
 end
 
