@@ -11,7 +11,7 @@ Manages a stack of `FloatingWindow`s with z-order (last = topmost),
 focus cycling, and mouse-based title-bar dragging.
 
     By default, focus shortcuts are enabled so the manager consumes
-    Ctrl+] / Ctrl+[ for next/previous focus. Set `focus_shortcuts=false`
+    Ctrl+J / Ctrl+K for next/previous focus. Set `focus_shortcuts=false`
     to keep all focus keys in content widgets.
 """
 mutable struct WindowManager
@@ -40,6 +40,7 @@ mutable struct WindowManager
     _content_win::Int
     focus_shortcuts::Bool
     _tick::Int
+    last_area::Rect
 end
 
 function WindowManager(; windows::Vector{FloatingWindow}=FloatingWindow[], focus_shortcuts::Bool=true)
@@ -47,7 +48,7 @@ function WindowManager(; windows::Vector{FloatingWindow}=FloatingWindow[], focus
     WindowManager(windows, n > 0 ? n : 0, false, 0, 0, 0,
                   false, 0, :br, 0, 0, 0, 0, 0, 0,
                   NTuple{4, Tween}[], false,
-                  false, 0, focus_shortcuts, 0)
+                  false, 0, focus_shortcuts, 0, Rect())
 end
 
 """Current internal tick counter for per-frame/window-manager updates."""
@@ -135,12 +136,13 @@ end
 # ── Render ────────────────────────────────────────────────────────────
 
 """
-    render(wm::WindowManager, area::Rect, buf::Buffer; tick::Int=nothing)
+    render(wm::WindowManager, area::Rect, buf::Buffer; tick=nothing)
 
 Render all windows back-to-front within the given area.
 If omitted, `tick` defaults to the manager's internal tick counter.
 """
 function render(wm::WindowManager, area::Rect, buf::Buffer; tick::Union{Int, Nothing}=nothing)
+    wm.last_area = area
     advance_layout!(wm)
     tick = tick === nothing ? wm._tick : tick
     for (i, w) in enumerate(wm.windows)
@@ -256,6 +258,10 @@ function cascade!(wm::WindowManager, area::Rect; animate::Bool=true, duration::I
     end
 end
 
+# Convenience methods using last_area (no-op if render hasn't run yet)
+tile!(wm::WindowManager; kwargs...) = wm.last_area.width > 0 && tile!(wm, wm.last_area; kwargs...)
+cascade!(wm::WindowManager; kwargs...) = wm.last_area.width > 0 && cascade!(wm, wm.last_area; kwargs...)
+
 # ── Keyboard ──────────────────────────────────────────────────────────
 
 """
@@ -272,18 +278,16 @@ end
 """
     handle_key!(wm::WindowManager, evt::KeyEvent) → Bool
 
-    Ctrl+] → next window, Ctrl+[ → previous. Some terminals emit these as
-    raw control characters (\\x1d / \\x1b) instead; both forms are accepted.
-    These bindings are only consumed when `focus_shortcuts=true`;
-    otherwise keys pass through to focused content.
+    Ctrl+J cycles focus to the next window, Ctrl+K to the previous.
+    Works on all terminals — no Kitty protocol required.
+    Only consumed when `focus_shortcuts=true`; otherwise passes through.
 """
 function handle_key!(wm::WindowManager, evt::KeyEvent)::Bool
-    if wm.focus_shortcuts && evt.key == :ctrl &&
-       evt.char in (']', '\x1d')
+    if wm.focus_shortcuts && evt.key == :ctrl && evt.char == 'j'
         focus_next!(wm)
         return true
-    elseif wm.focus_shortcuts && evt.key == :ctrl &&
-           evt.char in ('[', '\x1b')
+    end
+    if wm.focus_shortcuts && evt.key == :ctrl && evt.char == 'k'
         focus_prev!(wm)
         return true
     end

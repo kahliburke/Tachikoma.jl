@@ -29,7 +29,8 @@ import Tachikoma: view, update!, should_quit, init!, cleanup!,
 macro tachikoma_app()
     esc(quote
         import Tachikoma: view, update!, should_quit, init!, cleanup!,
-                          handle_all_key_actions, copy_rect, task_queue
+                          handle_all_key_actions, copy_rect, task_queue,
+                          recording_enabled, has_pending_output
     end)
 end
 
@@ -72,6 +73,30 @@ Return `nothing` to copy the full screen (default).
 copy_rect(::Model) = nothing
 
 """
+    recording_enabled(model::Model) → Bool
+
+Override to return `false` to disable the Ctrl+R recording shortcut.
+Useful for apps with embedded terminals or REPLs where Ctrl+R should
+be forwarded to the content instead.
+"""
+recording_enabled(::Model) = true
+
+"""
+    has_pending_output(model::Model) → Bool
+
+Override to return `true` when the model has asynchronous data ready to
+process — for example, pending PTY output in terminal widgets.
+
+The app loop checks this after each frame. When `true`, the inter-frame
+sleep is skipped and the next frame is processed immediately. This
+dramatically reduces latency for data flowing through nested terminal
+widgets (from ~16ms per nesting layer down to ~1-2ms).
+
+Default: `false` (always sleep between frames).
+"""
+has_pending_output(::Model) = false
+
+"""
     task_queue(model::Model) → Union{TaskQueue, Nothing}
 
 Override to return a `TaskQueue` for background task integration.
@@ -101,11 +126,12 @@ mutable struct AppOverlay
     export_embed_font::Bool          # embed font in SVG via base64 @font-face
     pending_stop::Bool               # deferred stop_recording!
     pending_export::Bool             # deferred _do_exports!
+    restart::Bool                    # set by Settings → Reload App
 end
 AppOverlay() = AppOverlay(false, 1, false, false, 1, "", 0,
                           false, [false, false],
                           [true, true], 1, 1, 1,
-                          true, false, false)
+                          true, false, false, false)
 
 """
     clipboard_copy!(text::String)
@@ -201,7 +227,7 @@ function handle_default_binding!(t::Terminal, overlay::AppOverlay, model::Model,
         return true
     end
     # Ctrl+R → toggle .tach recording (byte 0x12 → Char(0x12 + 0x60) = 'r')
-    if evt.key == :ctrl && evt.char == 'r'
+    if evt.key == :ctrl && evt.char == 'r' && recording_enabled(model)
         rec = t.recorder
         if rec.active
             # Stop capturing immediately so no more frames are recorded,
@@ -389,6 +415,7 @@ const SETTINGS_ITEMS = [
     "BG Brightness",
     "BG Saturation",
     "BG Speed",
+    "Reload App",
 ]
 
 function _handle_settings_key!(overlay::AppOverlay, evt::KeyEvent)
@@ -403,10 +430,15 @@ function _handle_settings_key!(overlay::AppOverlay, evt::KeyEvent)
         dir = evt.key == :right ? 1 : -1
         _adjust_setting!(overlay.settings_idx, dir)
     elseif evt.key == :enter
-        save_decay_params!()
-        save_bg_config!()
-        save_window_opacity!()
-        overlay.show_settings = false
+        if overlay.settings_idx == n && SETTINGS_ITEMS[n] == "Reload App"
+            overlay.restart = true
+            overlay.show_settings = false
+        else
+            save_decay_params!()
+            save_bg_config!()
+            save_window_opacity!()
+            overlay.show_settings = false
+        end
     end
 end
 
@@ -417,7 +449,7 @@ function _adjust_setting!(idx::Int, dir::Int)
         # Cycle backend: braille → block → sixel (← →)
         cycle_render_backend!(dir)
     elseif idx == 2
-        WINDOW_OPACITY[] = clamp(WINDOW_OPACITY[] + dir * step, 0.0, 1.0)
+        WINDOW_OPACITY[] = clamp(WINDOW_OPACITY[] + dir * 0.01, 0.80, 1.0)
     elseif idx == 3
         d.decay = clamp(d.decay + dir * step, 0.0, 1.0)
     elseif idx == 4
@@ -458,6 +490,8 @@ function _settings_value_str(idx::Int)
         _pct_bar(BG_CONFIG[].saturation)
     elseif idx == 9
         _pct_bar(BG_CONFIG[].speed)
+    elseif idx == 10
+        "[Enter]"
     else
         ""
     end
@@ -896,6 +930,7 @@ Stdout and stderr are automatically redirected during TUI mode to prevent backgr
 receive captured lines (e.g., for an activity log). See [`with_terminal`](@ref).
 """
 function app(model::Model; fps=60, default_bindings=true, on_stdout=nothing, on_stderr=nothing, tty_out=nothing, tty_size=nothing)
+    _restarting = Ref(false)
     with_terminal(; on_stdout, on_stderr, tty_out, tty_size) do t
         init!(model, t)
         _load_layout_prefs!(model)
@@ -908,7 +943,7 @@ function app(model::Model; fps=60, default_bindings=true, on_stdout=nothing, on_
         frame_interval = 1.0 / fps
         next_frame = time()
         try
-            while !should_quit(model)
+            while !should_quit(model) && !overlay.restart
                 # Wait until next frame, processing events as they arrive.
                 # When rendering exceeds the frame budget, the poll loop below
                 # would be skipped entirely (now >= next_frame), starving input.
@@ -955,9 +990,17 @@ function app(model::Model; fps=60, default_bindings=true, on_stdout=nothing, on_
                         dispatch_event!(t, overlay, model, tevt, default_bindings)
                     end
                 end
-                next_frame += frame_interval
-                if next_frame < time()
+                # Fast-track: when model has pending async data (e.g. PTY
+                # output from terminal widgets), skip the inter-frame sleep
+                # and render again immediately.  This reduces per-layer
+                # latency from ~16ms to ~1-2ms for nested terminals.
+                if has_pending_output(model)
                     next_frame = time()
+                else
+                    next_frame += frame_interval
+                    if next_frame < time()
+                        next_frame = time()
+                    end
                 end
                 # Update recording countdown notification
                 if default_bindings
@@ -1013,6 +1056,7 @@ function app(model::Model; fps=60, default_bindings=true, on_stdout=nothing, on_
                 end
             end
         finally
+            _restarting[] = overlay.restart
             close(_framework_tasks.channel)
             _save_layout_prefs!(model)
         end
@@ -1020,4 +1064,5 @@ function app(model::Model; fps=60, default_bindings=true, on_stdout=nothing, on_
     # cleanup! runs after with_terminal returns — terminal is fully restored
     # (leave_tui!, raw mode off, alt screen off) before app teardown begins.
     cleanup!(model)
+    _restarting[] ? :restart : nothing
 end

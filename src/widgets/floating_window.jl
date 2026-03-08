@@ -110,34 +110,49 @@ focusable(::FloatingWindow) = true
 window_rect(w::FloatingWindow) = Rect(w.x, w.y, w.width, w.height)
 
 """
-    _blend_bg!(buf, rect, bg_color, opacity)
+    _apply_window_opacity!(buf, rect, window_bg, opacity)
 
-Blend background color with existing buffer content for transparency.
+Apply semi-transparent window compositing to a buffer region.
+
+Blends each cell's existing colors with the window's background color
+according to `opacity` (0.0 = fully transparent, 1.0 = fully opaque):
+
+- **Background**: lerps from existing bg toward `window_bg` by `opacity`.
+  At 0.95, the result is 95% window bg + 5% existing (barely see-through).
+- **Foreground**: lerps from existing fg toward the blended bg by `opacity`,
+  fading underlying text proportionally so it doesn't float at full brightness
+  against the composited background.
+
+Only called when `opacity < 1.0`; at full opacity the caller does a solid fill.
 """
-function _blend_bg!(buf::Buffer, rect::Rect, bg::ColorRGB, opacity::Float64)
+function _apply_window_opacity!(buf::Buffer, rect::Rect, window_bg::ColorRGB, opacity::Float64)
     for row in rect.y:bottom(rect)
         for col in rect.x:right(rect)
             in_bounds(buf, col, row) || continue
             i = buf_index(buf, col, row)
             cell = @inbounds buf.content[i]
             old_s = cell.style
+
+            # Composite background: blend existing → window_bg by opacity
             existing_bg = old_s.bg
-            blended_bg = if existing_bg isa ColorRGB
-                color_lerp(existing_bg, bg, opacity)
+            composited_bg = if existing_bg isa ColorRGB
+                color_lerp(existing_bg, window_bg, opacity)
             elseif existing_bg isa Color256
-                color_lerp(to_rgb(existing_bg), bg, opacity)
+                color_lerp(to_rgb(existing_bg), window_bg, opacity)
             else
-                bg  # NoColor — just use our bg
+                window_bg  # NoColor — just use window bg
             end
-            # Dim foreground toward blended bg so underlying content fades
-            blended_fg = if old_s.fg isa ColorRGB
-                color_lerp(old_s.fg, blended_bg, opacity)
+
+            # Fade foreground: dim underlying text toward composited bg
+            composited_fg = if old_s.fg isa ColorRGB
+                color_lerp(old_s.fg, composited_bg, opacity)
             elseif old_s.fg isa Color256
-                color_lerp(to_rgb(old_s.fg), blended_bg, opacity)
+                color_lerp(to_rgb(old_s.fg), composited_bg, opacity)
             else
                 old_s.fg
             end
-            new_s = Style(fg=blended_fg, bg=blended_bg, bold=old_s.bold, dim=old_s.dim,
+
+            new_s = Style(fg=composited_fg, bg=composited_bg, bold=old_s.bold, dim=old_s.dim,
                           italic=old_s.italic, underline=old_s.underline)
             @inbounds buf.content[i] = Cell(cell.char, new_s)
         end
@@ -153,7 +168,7 @@ function render(w::FloatingWindow, buf::Buffer;
     theme_bg = to_rgb(theme().bg)
     bg = something(w.bg_color, theme_bg)
     if w.opacity < 1.0
-        _blend_bg!(buf, wr, bg, w.opacity)
+        _apply_window_opacity!(buf, wr, bg, w.opacity)
     else
         bg_s = Style(bg=bg)
         for row in wr.y:bottom(wr)

@@ -91,6 +91,7 @@ end
 
 A few rendering helpers — ASCII die art and a color function based on face value:
 
+<!-- tachi:noeval -->
 ```julia
 const DIE_ART = Dict(
     1 => ["┌─────┐","│     │","│  ●  │","│     │","└─────┘"],
@@ -114,6 +115,7 @@ end
 
 Start by drawing the outer border and dividing the inner area into rows:
 
+<!-- tachi:noeval -->
 ```julia
 function view(m::PigGame, f::Frame)
     m.tick += 1
@@ -135,6 +137,7 @@ function view(m::PigGame, f::Frame)
 
 ### Scores and progress
 
+<!-- tachi:noeval -->
 ```julia
     # Row 1: score labels
     total = m.score + m.turn_total
@@ -161,6 +164,7 @@ function view(m::PigGame, f::Frame)
 
 ### Die face and history
 
+<!-- tachi:noeval -->
 ```julia
     # Row 3: large die face for the most recent roll
     if !isempty(m.rolls)

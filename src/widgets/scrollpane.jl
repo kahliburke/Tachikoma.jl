@@ -18,6 +18,7 @@ mutable struct ScrollPane
     tick::Union{Int, Nothing}
     word_wrap::Bool          # wrap long lines at content width
     _visual_total::Int       # cached visual line count (after word wrap)
+    _sb_state::ScrollbarState
 end
 
 # ── Constructors ─────────────────────────────────────────────────────
@@ -33,7 +34,7 @@ function ScrollPane(lines::Vector{String};
 )
     ScrollPane(lines, offset, following, reverse, block,
                show_scrollbar, scrollbar_style, scrollbar_thumb_style,
-               text_style, 0, Rect(), tick, word_wrap, 0)
+               text_style, 0, Rect(), tick, word_wrap, 0, ScrollbarState())
 end
 
 function ScrollPane(lines::Vector{Vector{Span}};
@@ -47,7 +48,7 @@ function ScrollPane(lines::Vector{Vector{Span}};
 )
     ScrollPane(lines, offset, following, reverse, block,
                show_scrollbar, scrollbar_style, scrollbar_thumb_style,
-               text_style, 0, Rect(), tick, word_wrap, 0)
+               text_style, 0, Rect(), tick, word_wrap, 0, ScrollbarState())
 end
 
 function ScrollPane(render_fn::Function, total_lines::Int;
@@ -61,7 +62,7 @@ function ScrollPane(render_fn::Function, total_lines::Int;
 )
     ScrollPane((render_fn, total_lines), offset, following, reverse, block,
                show_scrollbar, scrollbar_style, scrollbar_thumb_style,
-               text_style, 0, Rect(), tick, word_wrap, 0)
+               text_style, 0, Rect(), tick, word_wrap, 0, ScrollbarState())
 end
 
 focusable(::ScrollPane) = true
@@ -187,10 +188,13 @@ function render(sp::ScrollPane, rect::Rect, buf::Buffer)
         if needs_scrollbar && content_area.width > 1
             sb_rect = Rect(right(content_area), content_area.y,
                            1, content_area.height)
+            sp._sb_state.rect = sb_rect
             sb = Scrollbar(total, visible_h, sp.offset;
                            style=sp.scrollbar_style,
                            thumb_style=sp.scrollbar_thumb_style)
             render(sb, sb_rect, buf)
+        else
+            sp._sb_state.rect = Rect()
         end
         return
     end
@@ -223,10 +227,13 @@ function render(sp::ScrollPane, rect::Rect, buf::Buffer)
     if needs_scrollbar && content_area.width > 1
         sb_rect = Rect(right(content_area), content_area.y,
                        1, content_area.height)
+        sp._sb_state.rect = sb_rect
         sb = Scrollbar(total, visible_h, sp.offset;
                        style=sp.scrollbar_style,
                        thumb_style=sp.scrollbar_thumb_style)
         render(sb, sb_rect, buf)
+    else
+        sp._sb_state.rect = Rect()
     end
 end
 
@@ -446,9 +453,28 @@ end
 # ── Mouse handling ───────────────────────────────────────────────────
 
 function handle_mouse!(sp::ScrollPane, evt::MouseEvent)
-    Base.contains(sp.last_area, evt.x, evt.y) || return false
     visible_h = max(1, sp.last_area.height)
     total = _total_lines(sp)
+    max_off = _max_offset(sp, visible_h)
+
+    # ── Scrollbar click/drag ──
+    was_dragging = sp._sb_state.dragging
+    frac = handle_scrollbar_mouse!(sp._sb_state, evt)
+    if frac !== nothing
+        new_offset = round(Int, frac * max_off)
+        if new_offset != sp.offset
+            sp.offset = new_offset
+            sp.following = false
+            _clamp_offset!(sp, visible_h)
+            _check_reattach!(sp, visible_h)
+        end
+        return true
+    end
+    # Drag release: handle_scrollbar_mouse! cleared dragging, returned nothing
+    was_dragging && !sp._sb_state.dragging && return true
+
+    # ── Scroll wheel anywhere in the pane ──
+    Base.contains(sp.last_area, evt.x, evt.y) || return false
     new_offset = list_scroll(evt, sp.offset, total, visible_h)
     if new_offset != sp.offset
         sp.offset = new_offset

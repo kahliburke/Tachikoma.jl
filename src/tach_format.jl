@@ -36,7 +36,7 @@
 using CodecZstd
 
 const TACH_MAGIC = UInt8['T', 'A', 'C', 'H']
-const TACH_VERSION = 0x01
+const TACH_VERSION = 0x02  # v2: adds strikethrough bit
 
 # ── Color type tags ───────────────────────────────────────────────────
 
@@ -82,11 +82,14 @@ function _pack_cell(io::IO, cell::Cell)
             (UInt8(cell.style.italic)    << 6) |
             (UInt8(cell.style.underline) << 7)
     write(io, flags)
+    # v2: extended style flags
+    flags2 = UInt8(cell.style.strikethrough)
+    write(io, flags2)
     _pack_color(io, cell.style.fg)
     _pack_color(io, cell.style.bg)
 end
 
-function _unpack_cell(io::IO)
+function _unpack_cell(io::IO, version::UInt8=TACH_VERSION)
     ch = Char(ltoh(read(io, UInt32)))
     flags = read(io, UInt8)
     fg_tag = flags & 0x03
@@ -95,9 +98,16 @@ function _unpack_cell(io::IO)
     dim_flag  = (flags >> 5) & 0x01 != 0
     italic    = (flags >> 6) & 0x01 != 0
     underline = (flags >> 7) & 0x01 != 0
+    # v2: extended flags byte with strikethrough
+    strikethrough = if version >= 0x02
+        flags2 = read(io, UInt8)
+        flags2 & 0x01 != 0
+    else
+        false
+    end
     fg = _unpack_color(io, fg_tag)
     bg = _unpack_color(io, bg_tag)
-    Cell(ch, Style(fg, bg, bold, dim_flag, italic, underline, ""))
+    Cell(ch, Style(fg, bg, bold, dim_flag, italic, underline, strikethrough, ""))
 end
 
 # ── Write .tach file ──────────────────────────────────────────────────
@@ -170,7 +180,7 @@ function load_tach(filename::String)
         magic = read(f, 4)
         magic == TACH_MAGIC || error("Not a .tach file (bad magic: $(String(magic)))")
         version = read(f, UInt8)
-        version == TACH_VERSION || error("Unsupported .tach version: $version")
+        version in (0x01, 0x02) || error("Unsupported .tach version: $version")
         width  = Int(ltoh(read(f, UInt16)))
         height = Int(ltoh(read(f, UInt16)))
 
@@ -188,7 +198,7 @@ function load_tach(filename::String)
 
             cells = Vector{Cell}(undef, ncells)
             for j in 1:ncells
-                cells[j] = _unpack_cell(zstream)
+                cells[j] = _unpack_cell(zstream, version)
             end
             cell_snapshots[i] = cells
 

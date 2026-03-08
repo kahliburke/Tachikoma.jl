@@ -175,6 +175,12 @@ const DEMO_ENTRIES = DemoEntry[
     DemoEntry("Markdown Viewer",
         "Three-mode markdown demo: README viewer with rich formatting, live split-pane editor with real-time preview, and style preset picker. Uses the CommonMark.jl extension.",
         () -> markdown_demo()),
+    DemoEntry("Terminal Emulator",
+        "Shell terminals and Julia REPLs in floating windows. Ctrl+N spawns a terminal, Ctrl+R spawns a REPL, Ctrl+U goes recursive (turtles all the way down). Ctrl+T tiles them. Drag and resize windows freely.",
+        () -> terminal_demo()),
+    DemoEntry("Julia REPL",
+        "Multiple in-process Julia REPLs in floating windows. Each REPL shares the host's modules and variables. Ctrl+N spawns new REPLs, Ctrl+T tiles them.",
+        () -> repl_demo()),
 ]
 
 # ── Launcher model ───────────────────────────────────────────────────
@@ -334,7 +340,8 @@ function launcher(; theme_name=nothing)
     theme_name !== nothing && set_theme!(theme_name)
     while true
         model = LauncherModel()
-        app(model; fps=30)
+        result = app(model; fps=30)
+        result === :restart && continue
         model.launch_idx == 0 && break
         # Launch selected demo, return to menu on exit
         try

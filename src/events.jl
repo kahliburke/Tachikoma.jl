@@ -14,7 +14,7 @@ end
 
 # ── Mouse types ──────────────────────────────────────────────────────
 
-@enum MouseButton mouse_left mouse_middle mouse_right mouse_none mouse_scroll_up mouse_scroll_down
+@enum MouseButton mouse_left mouse_middle mouse_right mouse_none mouse_scroll_up mouse_scroll_down mouse_scroll_left mouse_scroll_right
 @enum MouseAction mouse_press mouse_release mouse_drag mouse_move
 
 struct MouseEvent <: Event
@@ -322,6 +322,12 @@ function parse_sgr_mouse(params::Vector{UInt8}, final::Char)
         action = mouse_press
     elseif base == 65
         btn = mouse_scroll_down
+        action = mouse_press
+    elseif base == 66
+        btn = mouse_scroll_left
+        action = mouse_press
+    elseif base == 67
+        btn = mouse_scroll_right
         action = mouse_press
     elseif base == 35
         btn = mouse_none

@@ -1012,6 +1012,27 @@ end
 const _DISCARD_LINE = (_::AbstractString) -> nothing
 
 """
+    tty_path() → Union{String, Nothing}
+
+Return the device path of the current terminal (e.g. `"/dev/ttys042"`).
+Tries `/dev/tty` first, then falls back to `ttyname(0)` (stdin's device).
+Returns `nothing` if no terminal is available (e.g. piped stdin).
+
+Useful for passing as `tty_out` when launching a Tachikoma app inside
+a PTY-spawned subprocess where `/dev/tty` may not be configured.
+"""
+function tty_path()
+    @static Sys.iswindows() && return nothing
+    try
+        open(io -> close(io), "/dev/tty", "w")
+        return "/dev/tty"
+    catch; end
+    # No controlling terminal — get the device path behind stdin
+    p = ccall(:ttyname, Cstring, (Cint,), Cint(0))
+    p != C_NULL ? unsafe_string(p) : nothing
+end
+
+"""
     with_terminal(f; tty_out=nothing, on_stdout=nothing, on_stderr=nothing)
 
 Run `f(terminal)` inside the TUI lifecycle (alt screen, raw mode, mouse).
@@ -1080,18 +1101,26 @@ function _start_capture(on_stdout, on_stderr)
     stdout_wr = nothing
     stderr_wr = nothing
 
-    if stdout isa Base.TTY
+    if on_stdout !== nothing || stdout isa Base.TTY
         orig_stdout = stdout
         rd, wr = redirect_stdout()
         stdout_wr = wr
-        stdout_task = @async _drain_lines(rd, on_stdout)
+        if on_stdout !== nothing
+            stdout_task = @async _drain_lines(rd, on_stdout)
+        else
+            stdout_task = @async _drain_lines(rd, _ -> nothing)
+        end
     end
 
-    if stderr isa Base.TTY
+    if on_stderr !== nothing || stderr isa Base.TTY
         orig_stderr = stderr
         rd, wr = redirect_stderr()
         stderr_wr = wr
-        stderr_task = @async _drain_lines(rd, on_stderr)
+        if on_stderr !== nothing
+            stderr_task = @async _drain_lines(rd, on_stderr)
+        else
+            stderr_task = @async _drain_lines(rd, _ -> nothing)
+        end
     end
 
     CaptureState(orig_stdout, orig_stderr, stdout_task, stderr_task,

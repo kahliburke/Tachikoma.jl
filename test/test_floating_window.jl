@@ -113,17 +113,19 @@
         push!(wm, T.FloatingWindow(id=:b, x=15, y=1, width=10, height=5))
 
         @test T.focused_window(wm).id == :b
-        @test T.handle_key!(wm, T.KeyEvent(:ctrl, ']'))
+        # Ctrl+J cycles focus to next window
+        @test T.handle_key!(wm, T.KeyEvent(:ctrl, 'j'))
         @test T.focused_window(wm).id == :a
 
         wm_no_shortcuts = T.WindowManager(focus_shortcuts=false)
         push!(wm_no_shortcuts, T.FloatingWindow(id=:a, x=1, y=1, width=10, height=5))
         push!(wm_no_shortcuts, T.FloatingWindow(id=:b, x=15, y=1, width=10, height=5))
         @test T.focused_window(wm_no_shortcuts).id == :b
-        @test !T.handle_key!(wm_no_shortcuts, T.KeyEvent(:ctrl, ']'))
+        @test !T.handle_key!(wm_no_shortcuts, T.KeyEvent(:ctrl, 'j'))
         @test T.focused_window(wm_no_shortcuts).id == :b
 
-        @test T.handle_key!(wm, T.KeyEvent(:ctrl, '['))
+        # Ctrl+K cycles focus to previous window
+        @test T.handle_key!(wm, T.KeyEvent(:ctrl, 'k'))
         @test T.focused_window(wm).id == :b
     end
 
