@@ -29,6 +29,7 @@ end
     terminals::Vector{Tachikoma.TerminalWidget} = Tachikoma.TerminalWidget[]
     repls::Vector{Tachikoma.REPLWidget} = Tachikoma.REPLWidget[]
     layout_mode::Symbol = :none   # :none, :tile, :cascade
+    _wake_fn::Union{Function, Nothing} = nothing
 end
 
 Tachikoma.should_quit(m::TerminalDemoModel) = m.quit
@@ -87,6 +88,7 @@ function _spawn_terminal!(m::TerminalDemoModel, area::Tachikoma.Rect)
     shell = get(ENV, "SHELL", "/bin/sh")
     tw = Tachikoma.TerminalWidget([shell];
         rows=h - 2, cols=w - 2, focused=true)
+    m._wake_fn !== nothing && Tachikoma.set_wake!(tw, m._wake_fn)
     push!(m.terminals, tw)
 
     win_id = Symbol("term_$n")
@@ -108,6 +110,7 @@ function _spawn_repl!(m::TerminalDemoModel, area::Tachikoma.Rect)
     x, y, w, h = _new_window_geometry(m.wm, area)
 
     rw = Tachikoma.REPLWidget(; rows=h - 2, cols=w - 2)
+    m._wake_fn !== nothing && Tachikoma.set_wake!(rw.tw, m._wake_fn)
     push!(m.repls, rw)
 
     win_id = Symbol("repl_$n")
@@ -155,6 +158,7 @@ function _spawn_recursive!(m::TerminalDemoModel, area::Tachikoma.Rect)
     cmd = [julia_bin, "--project=$_DEMOS_PROJECT", "-e", script]
     tw = Tachikoma.TerminalWidget(cmd;
         rows=h - 2, cols=w - 2, focused=true)
+    m._wake_fn !== nothing && Tachikoma.set_wake!(tw, m._wake_fn)
     push!(m.terminals, tw)
 
     win_id = Symbol("recurse_$n")
@@ -206,6 +210,16 @@ function Tachikoma.has_pending_output(m::TerminalDemoModel)
         isready(rw.tw.pty.output) && return true
     end
     false
+end
+
+function Tachikoma.set_wake!(m::TerminalDemoModel, notify::Function)
+    m._wake_fn = notify
+    for tw in m.terminals
+        Tachikoma.set_wake!(tw, notify)
+    end
+    for rw in m.repls
+        Tachikoma.set_wake!(rw.tw, notify)
+    end
 end
 
 # ── Event handling ────────────────────────────────────────────────────
@@ -271,14 +285,6 @@ function Tachikoma.view(m::TerminalDemoModel, f::Tachikoma.Frame)
     length(rows) < 2 && return
     content_area = rows[1]
     footer_area = rows[2]
-
-    # Poll all widgets for output
-    for tw in m.terminals
-        Tachikoma.poll!(tw)
-    end
-    for rw in m.repls
-        Tachikoma.poll!(rw)
-    end
 
     # Spawn first window automatically
     if isempty(m.wm.windows)

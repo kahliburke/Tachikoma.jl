@@ -16,6 +16,7 @@ using Infiltrator
     repl_count::Int = 0
     repls::Vector{Tachikoma.REPLWidget} = Tachikoma.REPLWidget[]
     layout_mode::Symbol = :none   # :none, :tile, :cascade
+    _wake_fn::Union{Function, Nothing} = nothing
 end
 
 Tachikoma.should_quit(m::REPLDemoModel) = m.quit
@@ -26,6 +27,13 @@ function Tachikoma.has_pending_output(m::REPLDemoModel)
         isready(rw.tw.pty.output) && return true
     end
     false
+end
+
+function Tachikoma.set_wake!(m::REPLDemoModel, notify::Function)
+    m._wake_fn = notify
+    for rw in m.repls
+        Tachikoma.set_wake!(rw.tw, notify)
+    end
 end
 
 function _close_repl_window!(m::REPLDemoModel, win_id::Symbol)
@@ -67,6 +75,7 @@ function _spawn_repl!(m::REPLDemoModel, area::Tachikoma.Rect)
     # Inner dimensions for the REPL (subtract 2 for window border)
     win_id = Symbol("repl_$n")
     rw = Tachikoma.REPLWidget(; rows=h - 2, cols=w - 2)
+    m._wake_fn !== nothing && Tachikoma.set_wake!(rw.tw, m._wake_fn)
     push!(m.repls, rw)
 
     win = Tachikoma.FloatingWindow(
@@ -148,11 +157,6 @@ function Tachikoma.view(m::REPLDemoModel, f::Tachikoma.Frame)
     length(rows) < 2 && return
     content_area = rows[1]
     footer_area = rows[2]
-
-    # Poll all REPLs for output
-    for rw in m.repls
-        Tachikoma.poll!(rw)
-    end
 
     # Spawn first REPL automatically if none exist
     if isempty(m.wm.windows)

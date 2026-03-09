@@ -131,8 +131,8 @@ function handle_mouse!(rw::REPLWidget, evt::MouseEvent)::Bool
     handle_mouse!(rw.tw, evt)
 end
 
-function poll!(rw::REPLWidget)::Bool
-    changed = poll!(rw.tw)
+function drain!(rw::REPLWidget)::Bool
+    changed = drain!(rw.tw)
     if !rw.exited && istaskdone(rw.repl_task)
         rw.exited = true
         rw.tw.exited = true  # prevent TerminalWidget's own exit detection

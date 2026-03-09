@@ -777,11 +777,11 @@ const _REMOTE_INPUT_TERMIOS  = Ref{Vector{UInt8}}(UInt8[])
 function _start_remote_input!(path::String)
     @static Sys.iswindows() && error("Remote TTY input is not supported on Windows")
     buf = Base.BufferStream()
-    # O_RDWR|O_NONBLOCK|O_NOCTTY: non-blocking so the reader @async task never
-    # stalls the Julia thread; O_NOCTTY prevents accidental controlling-terminal
-    # acquisition (our process already owns the REPL TTY).
-    o_nonblock = @static (Sys.isapple() || Sys.isbsd()) ? Cint(0x0004)   : Cint(0x0800)
-    o_noctty   = @static (Sys.isapple() || Sys.isbsd()) ? Cint(0x20000)  : Cint(0x0400)
+    # O_RDWR|O_NONBLOCK|O_NOCTTY: non-blocking so the @async reader never
+    # stalls the Julia thread; O_NOCTTY prevents accidental controlling-
+    # terminal acquisition (our process already owns the REPL TTY).
+    o_nonblock = @static (Sys.isapple() || Sys.isbsd()) ? Cint(0x0004) : Cint(0x0800)
+    o_noctty   = @static (Sys.isapple() || Sys.isbsd()) ? Cint(0x20000) : Cint(0x0400)
     fd = ccall(:open, Cint, (Cstring, Cint), path, Cint(2) | o_nonblock | o_noctty)
     fd == -1 && error("Cannot open remote TTY for input: $path")
 
@@ -798,15 +798,23 @@ function _start_remote_input!(path::String)
     _REMOTE_INPUT_STREAM[]  = buf
 
     # Pump bytes from the remote TTY fd into the BufferStream.
-    # The fd is O_NONBLOCK, so read() returns immediately with n<=0 when empty.
+    # Uses poll_fd (libuv event-driven) — same pattern as PTY reader.
+    eagain = @static Sys.isapple() ? Cint(35) : Cint(11)
     @async begin
         byte_buf = zeros(UInt8, 64)
+        raw_fd = RawFD(fd)
         while _REMOTE_INPUT_FD[] == fd && isopen(buf)
-            n = ccall(:read, Cssize_t, (Cint, Ptr{UInt8}, Csize_t), fd, byte_buf, 64)
-            if n > 0
-                write(buf, @view byte_buf[1:n])
-            else
-                sleep(0.002)
+            result = poll_fd(raw_fd, 1.0; readable=true, writable=false)
+            result.readable || continue
+            while true
+                n = ccall(:read, Cssize_t, (Cint, Ptr{UInt8}, Csize_t), fd, byte_buf, 64)
+                if n > 0
+                    write(buf, @view byte_buf[1:n])
+                elseif n < 0 && Base.Libc.errno() == eagain
+                    break  # no more data right now
+                else
+                    break  # fd closed or error
+                end
             end
         end
     end

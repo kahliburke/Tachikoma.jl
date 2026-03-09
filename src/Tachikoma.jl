@@ -1,6 +1,7 @@
 module Tachikoma
 
 using Preferences
+using FileWatching: poll_fd
 
 include("style.jl")
 include("buffer.jl")
@@ -56,7 +57,7 @@ export # Core types
        layout_space_between, layout_space_around, layout_space_evenly,
        ResizableLayout, handle_resize!, reset_layout!, render_resize_handles!,
        # App framework
-       app, @tachikoma_app,
+       app, @tachikoma_app, set_wake!,
        tty_path,
        prepare_for_exec!,
        clipboard_copy!, buffer_to_text,
@@ -140,7 +141,7 @@ export # Core types
        recording_enabled,
        # Terminal widget
        TerminalWidget, TermScreen, PTY, REPLWidget,
-       pty_spawn, pty_pair, pty_close!, pty_resize!, pty_alive, poll!,
+       pty_spawn, pty_pair, pty_close!, pty_resize!, pty_alive, drain!,
        route_output!,
        # Canvas
        Canvas, set_point!, line!, clear!, unset_point!, in_bounds,
