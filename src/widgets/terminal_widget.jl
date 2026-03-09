@@ -713,9 +713,9 @@ end
 
 # ── Input Encoding (KeyEvent → ANSI bytes) ───────────────────────────
 
-function _encode_key(evt::KeyEvent)::Vector{UInt8}
+function _encode_key(evt::KeyEvent; enter_as_lf::Bool=false)::Vector{UInt8}
     k = evt.key
-    k == :enter     && return UInt8[0x0d]
+    k == :enter     && return enter_as_lf ? UInt8[0x0a] : UInt8[0x0d]
     k == :backspace && return UInt8[0x7f]
     k == :tab       && return UInt8[0x09]
     k == :escape    && return UInt8[0x1b]
@@ -839,6 +839,7 @@ mutable struct TerminalWidget
     _last_rows::Int
     _sb_state::ScrollbarState
     _wake_fn::Union{Function, Nothing}   # called after data is VT-processed
+    enter_as_lf::Bool                    # send LF (not CR) for Enter — for in-process REPLs
 end
 
 function TerminalWidget(cmd::Vector{String};
@@ -856,7 +857,7 @@ function TerminalWidget(cmd::Vector{String};
                    0,
                    Rect(), show_scrollbar, focused, title_callback,
                    false, on_exit,
-                   cols, rows, ScrollbarState(), nothing)
+                   cols, rows, ScrollbarState(), nothing, false)
     _wire_push_data!(tw)
     tw
 end
@@ -878,6 +879,7 @@ function TerminalWidget(pty::PTY;
         title_callback::Union{Function, Nothing}=nothing,
         scrollback_limit::Int=1000,
         onlcr::Bool=false,
+        enter_as_lf::Bool=false,
         on_exit::Union{Function, Nothing}=nothing)
     screen = TermScreen(pty.rows, pty.cols; scrollback_limit, onlcr)
     tw = TerminalWidget(pty, screen,
@@ -885,7 +887,7 @@ function TerminalWidget(pty::PTY;
                    0,
                    Rect(), show_scrollbar, focused, title_callback,
                    false, on_exit,
-                   pty.cols, pty.rows, ScrollbarState(), nothing)
+                   pty.cols, pty.rows, ScrollbarState(), nothing, enter_as_lf)
     _wire_push_data!(tw)
     tw
 end
@@ -1052,6 +1054,12 @@ function handle_key!(tw::TerminalWidget, evt::KeyEvent)::Bool
         elseif evt.key == :pagedown
             tw.scroll_offset = max(0, tw.scroll_offset - tw.last_area.height)
             return true
+        elseif evt.key in (:left_shift, :right_shift, :left_ctrl, :right_ctrl,
+                           :left_alt, :right_alt, :left_super, :right_super,
+                           :left_hyper, :right_hyper, :left_meta, :right_meta,
+                           :caps_lock, :scroll_lock, :num_lock)
+            # Modifier-only keys: stay in scrollback (allows copy/paste)
+            return false
         else
             # Any other key returns to live view and forwards to PTY
             tw.scroll_offset = 0
@@ -1065,7 +1073,7 @@ function handle_key!(tw::TerminalWidget, evt::KeyEvent)::Bool
 
     # Forward to PTY
     tw.pty.alive || return false
-    encoded = _encode_key(evt)
+    encoded = _encode_key(evt; enter_as_lf=tw.enter_as_lf)
     if !isempty(encoded)
         pty_write(tw.pty, encoded)
         return true

@@ -34,10 +34,19 @@ end
 
 
 function terminal_size()
-    # Use stdout if it's a real TTY, otherwise fall back to stdin.
-    # This handles the case where an app (e.g. MCPRepl) redirects stdout
-    # to a pipe — stdin is still connected to the real terminal.
-    io = stdout isa Base.TTY ? stdout : stdin
+    # Use stdout if it's a real TTY, otherwise fall back to the saved
+    # INPUT_IO (real stdin before any redirects), then current stdin.
+    # This handles TUI mode where stdout is a capture pipe and stdin
+    # may be redirected to a REPL widget's PTY slave.
+    io = if stdout isa Base.TTY
+        stdout
+    elseif INPUT_IO[] isa Base.TTY
+        INPUT_IO[]
+    elseif stdin isa Base.TTY
+        stdin
+    else
+        stdin  # last resort — displaysize will use fallback
+    end
     sz = displaysize(io)
     (rows=sz[1], cols=sz[2])
 end
@@ -1017,7 +1026,7 @@ function prepare_for_exec!()
     nothing
 end
 
-const _DISCARD_LINE = (_::AbstractString) -> nothing
+const _DISCARD_OUTPUT = (_::AbstractString) -> nothing
 
 """
     tty_path() → Union{String, Nothing}
@@ -1077,8 +1086,8 @@ function with_terminal(f::Function; tty_out=nothing, tty_size=nothing, on_stdout
     else
         terminal_size()
     end
-    state = _start_capture(something(on_stdout, _DISCARD_LINE),
-                           something(on_stderr, _DISCARD_LINE))
+    state = _start_capture(something(on_stdout, _DISCARD_OUTPUT),
+                           something(on_stderr, _DISCARD_OUTPUT))
     t = Terminal(io = tty_io, size = sz, remote_tty_path = tty_out)
     enter_tui!(t; remote_tty = tty_out !== nothing)
     try
@@ -1113,10 +1122,15 @@ function _start_capture(on_stdout, on_stderr)
         orig_stdout = stdout
         rd, wr = redirect_stdout()
         stdout_wr = wr
-        if on_stdout !== nothing
-            stdout_task = @async _drain_lines(rd, on_stdout)
-        else
-            stdout_task = @async _drain_lines(rd, _ -> nothing)
+        # `let` captures rd by value — without it, the @async closure
+        # captures rd by reference, and the stderr block below would
+        # reassign rd, making the stdout drain task read the wrong pipe.
+        let rd = rd
+            if on_stdout !== nothing
+                stdout_task = @async _drain_output(rd, on_stdout)
+            else
+                stdout_task = @async _drain_output(rd, _ -> nothing)
+            end
         end
     end
 
@@ -1125,9 +1139,9 @@ function _start_capture(on_stdout, on_stderr)
         rd, wr = redirect_stderr()
         stderr_wr = wr
         if on_stderr !== nothing
-            stderr_task = @async _drain_lines(rd, on_stderr)
+            stderr_task = @async _drain_output(rd, on_stderr)
         else
-            stderr_task = @async _drain_lines(rd, _ -> nothing)
+            stderr_task = @async _drain_output(rd, _ -> nothing)
         end
     end
 
@@ -1135,10 +1149,12 @@ function _start_capture(on_stdout, on_stderr)
                  stdout_wr, stderr_wr)
 end
 
-function _drain_lines(rd, callback)
+function _drain_output(rd, callback)
     try
-        for line in eachline(rd)
-            callback(line)
+        while !eof(rd)
+            data = readavailable(rd)
+            isempty(data) && continue
+            callback(String(data))
         end
     catch e
         e isa EOFError || e isa Base.IOError || rethrow()
