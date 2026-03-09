@@ -813,7 +813,7 @@ Forward events in your `update!`:
 
 Render in your `view`:
 
-    render(tw, area, buf)   # polls PTY + renders screen
+    render(tw, area, buf)   # drains PTY output + renders screen
 """
 mutable struct TerminalWidget
     pty::PTY
@@ -838,6 +838,7 @@ mutable struct TerminalWidget
     _last_cols::Int
     _last_rows::Int
     _sb_state::ScrollbarState
+    _wake_fn::Union{Function, Nothing}   # called after data is VT-processed
 end
 
 function TerminalWidget(cmd::Vector{String};
@@ -850,12 +851,14 @@ function TerminalWidget(cmd::Vector{String};
         env::Union{Dict{String,String}, Nothing}=nothing)
     pty = pty_spawn(cmd; rows, cols, env)
     screen = TermScreen(rows, cols; scrollback_limit)
-    TerminalWidget(pty, screen,
+    tw = TerminalWidget(pty, screen,
                    _vt_ground, UInt8[], UInt8[], ' ', UInt8[],
                    0,
                    Rect(), show_scrollbar, focused, title_callback,
                    false, on_exit,
-                   cols, rows, ScrollbarState())
+                   cols, rows, ScrollbarState(), nothing)
+    _wire_push_data!(tw)
+    tw
 end
 
 function TerminalWidget(; on_exit::Union{Function, Nothing}=nothing, kwargs...)
@@ -877,24 +880,57 @@ function TerminalWidget(pty::PTY;
         onlcr::Bool=false,
         on_exit::Union{Function, Nothing}=nothing)
     screen = TermScreen(pty.rows, pty.cols; scrollback_limit, onlcr)
-    TerminalWidget(pty, screen,
+    tw = TerminalWidget(pty, screen,
                    _vt_ground, UInt8[], UInt8[], ' ', UInt8[],
                    0,
                    Rect(), show_scrollbar, focused, title_callback,
                    false, on_exit,
-                   pty.cols, pty.rows, ScrollbarState())
+                   pty.cols, pty.rows, ScrollbarState(), nothing)
+    _wire_push_data!(tw)
+    tw
+end
+
+"""
+    _wire_push_data!(tw::TerminalWidget)
+
+Set up the PTY `on_data` callback to immediately drain the output channel
+into the VT parser. This eliminates the pull-based delay where data sat in
+the channel until the next `render()` → `drain!()` cycle.
+"""
+function _wire_push_data!(tw::TerminalWidget)
+    tw.pty.on_data = let tw = tw
+        () -> begin
+            # Drain all available chunks from the channel right now
+            while isready(tw.pty.output)
+                data = try take!(tw.pty.output) catch; break end
+                _vt_feed!(tw, data)
+            end
+            # Signal the app loop to render the updated screen
+            tw._wake_fn !== nothing && tw._wake_fn()
+        end
+    end
+end
+
+"""
+    set_wake!(tw::TerminalWidget, notify::Function)
+
+Store the app-loop wake function. Called by model-level `set_wake!`.
+"""
+function set_wake!(tw::TerminalWidget, notify::Function)
+    tw._wake_fn = notify
 end
 
 focusable(::TerminalWidget) = true
 
 """
-    poll!(tw::TerminalWidget) → Bool
+    drain!(tw::TerminalWidget) → Bool
 
-Drain buffered output from the PTY channel and feed it through the VT
-parser. Called automatically by `render`, but can also be called
-explicitly. Returns `true` if data was processed.
+Drain any remaining buffered output from the PTY channel and feed it
+through the VT parser. Most data is already processed eagerly by the
+`on_data` callback; this handles stragglers and process exit detection.
+Called automatically by `render`.
 """
-function poll!(tw::TerminalWidget)::Bool
+function drain!(tw::TerminalWidget)::Bool
     tw.exited && return false
     total = 0
     while isready(tw.pty.output)
@@ -905,8 +941,6 @@ function poll!(tw::TerminalWidget)::Bool
         end
         _vt_feed!(tw, data)
         total += length(data)
-        # Cap per-frame processing to avoid blocking the event loop
-        total > 32768 && break
     end
     if total == 0 && !tw.pty.alive
         pty_alive(tw.pty)  # update alive status
@@ -935,8 +969,8 @@ function render(tw::TerminalWidget, rect::Rect, buf::Buffer)
         tw.pty.alive && pty_resize!(tw.pty, text_height, text_width)
     end
 
-    # Poll for new data
-    poll!(tw)
+    # Drain any remaining buffered data
+    drain!(tw)
 
     tw.last_area = rect
     screen = tw.screen

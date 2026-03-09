@@ -30,7 +30,7 @@ macro tachikoma_app()
     esc(quote
         import Tachikoma: view, update!, should_quit, init!, cleanup!,
                           handle_all_key_actions, copy_rect, task_queue,
-                          recording_enabled, has_pending_output
+                          recording_enabled, has_pending_output, set_wake!
     end)
 end
 
@@ -104,6 +104,16 @@ When non-`nothing`, completed tasks are drained each frame and dispatched
 to `update!(model, event)` as `TaskEvent`s. Default: `nothing` (no queue).
 """
 task_queue(::Model) = nothing
+
+"""
+    set_wake!(model::Model, notify::Function)
+
+Called by the app loop with a zero-arg notification function. Models that own
+async data sources (TerminalWidgets, REPLWidgets) should store this function
+and pass it to `set_wake!(tw::TerminalWidget, notify)` on existing and newly
+created widgets.
+"""
+set_wake!(::Model, ::Function) = nothing
 
 # ═══════════════════════════════════════════════════════════════════════
 # Default bindings ── framework-level key shortcuts
@@ -917,6 +927,21 @@ function dispatch_event!(t::Terminal, overlay::AppOverlay, model::Model,
 end
 
 """
+    _try_put!(ch::Channel{Nothing})
+
+Non-blocking signal to the wake channel.  If the channel already has
+a pending signal, skip — the main loop will wake anyway.  This
+prevents deadlock: `put!` on a full channel blocks, which can freeze
+a PTY reader inside its `on_data` callback while the main thread
+waits for that reader in `pty_close!`.
+"""
+function _try_put!(ch::Channel{Nothing})
+    isready(ch) && return nothing
+    try put!(ch, nothing) catch end
+    nothing
+end
+
+"""
     app(model::Model; fps=60, default_bindings=true, on_stdout=nothing, on_stderr=nothing)
 
 Run a TUI application with the Elm architecture loop: poll events → `update!` → `view`.
@@ -935,38 +960,54 @@ function app(model::Model; fps=60, default_bindings=true, on_stdout=nothing, on_
         init!(model, t)
         _load_layout_prefs!(model)
         overlay = AppOverlay()
-        _framework_tasks = TaskQueue()
+
+        # ── Wake channel (capacity 1) ──
+        # Binary signal: "something happened, process it."  The `isready`
+        # guard in `_try_put!` coalesces multiple signals into one, so
+        # capacity 1 is sufficient.  Sources: stdin, frame timer, TaskQueue
+        # on_ready, PTY on_data.
+        wake = Channel{Nothing}(1)
+        notify = let ch = wake
+            () -> _try_put!(ch)
+        end
+
+        _framework_tasks = TaskQueue(; on_ready=notify)
+
+        # Connect model's async sources (PTYs, etc.)
+        set_wake!(model, notify)
+
         # Sync overlay theme_idx with current theme
         for (i, th) in enumerate(ALL_THEMES)
             th === THEME[] && (overlay.theme_idx = i; break)
         end
         frame_interval = 1.0 / fps
-        next_frame = time()
-        try
-            while !should_quit(model) && !overlay.restart
-                # Wait until next frame, processing events as they arrive.
-                # When rendering exceeds the frame budget, the poll loop below
-                # would be skipped entirely (now >= next_frame), starving input.
-                # Guarantee at least one blocking poll per frame so keyboard
-                # events are never missed, even under heavy render load.
-                now = time()
-                if now >= next_frame
-                    # Behind schedule — still poll once with a short timeout
-                    # so the terminal can deliver buffered keystrokes.
-                    evt = poll_event(0.002)  # 2ms minimum event window
-                    if evt !== nothing
-                        dispatch_event!(t, overlay, model, evt, default_bindings)
-                    end
-                else
-                    while now < next_frame
-                        evt = poll_event(next_frame - now)
-                        if evt !== nothing
-                            dispatch_event!(t, overlay, model, evt, default_bindings)
-                        end
-                        now = time()
-                    end
+
+        # ── Stdin monitor: event-driven wake on input ──
+        stdin_monitor = @async begin
+            io = _input_io()
+            while INPUT_ACTIVE[]
+                if bytesavailable(io) == 0
+                    try wait(io) catch; break end
                 end
-                # Drain any remaining pending events
+                _try_put!(wake)
+                yield()
+            end
+        end
+
+        # ── Frame timer: ensures minimum fps for animations ──
+        frame_timer = Timer(0; interval=frame_interval) do _
+            _try_put!(wake)
+        end
+
+        try
+            frame_ns = round(UInt64, frame_interval * 1e9)
+            last_draw_ns = UInt64(0)
+
+            while !should_quit(model) && !overlay.restart
+                # Block until ANY source wakes us
+                take!(wake)
+
+                # Process all buffered stdin
                 while INPUT_ACTIVE[] && bytesavailable(_input_io()) > 0
                     evt = read_event()
                     evt isa KeyEvent && (evt = _track_key_state!(evt))
@@ -990,18 +1031,13 @@ function app(model::Model; fps=60, default_bindings=true, on_stdout=nothing, on_
                         dispatch_event!(t, overlay, model, tevt, default_bindings)
                     end
                 end
-                # Fast-track: when model has pending async data (e.g. PTY
-                # output from terminal widgets), skip the inter-frame sleep
-                # and render again immediately.  This reduces per-layer
-                # latency from ~16ms to ~1-2ms for nested terminals.
-                if has_pending_output(model)
-                    next_frame = time()
-                else
-                    next_frame += frame_interval
-                    if next_frame < time()
-                        next_frame = time()
-                    end
+
+                # Frame pacing: only render when the frame interval has elapsed.
+                now_ns = time_ns()
+                if now_ns - last_draw_ns < frame_ns
+                    continue
                 end
+
                 # Update recording countdown notification
                 if default_bindings
                     rec = t.recorder
@@ -1010,19 +1046,11 @@ function app(model::Model; fps=60, default_bindings=true, on_stdout=nothing, on_
                         overlay.notify_text = "Recording in $secs..."
                         overlay.notify_ttl = typemax(Int)
                     elseif rec.active && rec.countdown <= 0.0 && overlay.notify_ttl == typemax(Int)
-                        # Countdown just finished — clear notification so it
-                        # doesn't leak into the first recorded frames.
-                        # _draw_rec_badge! (drawn AFTER capture) provides the
-                        # on-screen "● REC" indicator instead.
                         overlay.notify_text = ""
                         overlay.notify_ttl = 0
                     end
                 end
                 draw!(t) do f
-                    # Skip expensive view() when an overlay modal is shown.
-                    # The overlay covers the full screen, so the model view
-                    # would be rendered and then immediately occluded — just
-                    # wasted computation (especially heavy for sixel content).
                     if default_bindings && overlay_active(overlay)
                         render_overlay!(overlay, f)
                     else
@@ -1030,6 +1058,7 @@ function app(model::Model; fps=60, default_bindings=true, on_stdout=nothing, on_
                         default_bindings && render_overlay!(overlay, f)
                     end
                 end
+                last_draw_ns = time_ns()
                 # Process deferred operations AFTER draw so status is visible
                 if default_bindings && overlay.pending_stop
                     overlay.pending_stop = false
@@ -1056,6 +1085,8 @@ function app(model::Model; fps=60, default_bindings=true, on_stdout=nothing, on_
                 end
             end
         finally
+            close(frame_timer)
+            close(wake)  # unblocks stdin_monitor + any pending take!
             _restarting[] = overlay.restart
             close(_framework_tasks.channel)
             _save_layout_prefs!(model)

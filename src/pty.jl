@@ -13,8 +13,6 @@
 # from the rendering loop and avoids blocking the main thread.
 # ═══════════════════════════════════════════════════════════════════════
 
-using FileWatching: poll_fd
-
 """
     PTY
 
@@ -32,6 +30,7 @@ mutable struct PTY
     alive::Bool              # false after child exits
     output::Channel{Vector{UInt8}}   # child → parent data
     reader_task::Task                # background reader
+    on_data::Union{Function, Nothing}  # called after data push to output
 end
 
 # ── TIOCSWINSZ ioctl constant (set terminal size) ────────────────────
@@ -108,6 +107,7 @@ function _start_pty_reader(pty::PTY)
                         pty.master_fd, pointer(buf), Csize_t(length(buf)))
                     if n > 0
                         put!(pty.output, buf[1:n])
+                        pty.on_data !== nothing && pty.on_data()
                     elseif n < 0
                         errno = Base.Libc.errno()
                         errno == _EAGAIN && break  # no more data right now
@@ -229,7 +229,7 @@ function pty_spawn(cmd::Vector{String}; rows::Int=24, cols::Int=80,
     end
 
     output = Channel{Vector{UInt8}}(64)
-    pty = PTY(master_fd[], pid[], rows, cols, true, output, @async nothing)
+    pty = PTY(master_fd[], pid[], rows, cols, true, output, (@async nothing), nothing)
     pty.reader_task = _start_pty_reader(pty)
     pty
 end
@@ -334,7 +334,7 @@ function pty_pair(; rows::Int=24, cols::Int=80)
     _set_nonblocking(master_fd[])
 
     output = Channel{Vector{UInt8}}(64)
-    pty = PTY(master_fd[], Cint(0), rows, cols, true, output, @async nothing)
+    pty = PTY(master_fd[], Cint(0), rows, cols, true, output, (@async nothing), nothing)
     pty.reader_task = _start_pty_reader(pty)
     (pty, slave_fd[])
 end
