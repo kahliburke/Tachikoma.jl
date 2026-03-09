@@ -955,6 +955,16 @@ Stdout and stderr are automatically redirected during TUI mode to prevent backgr
 receive captured lines (e.g., for an activity log). See [`with_terminal`](@ref).
 """
 function app(model::Model; fps=60, default_bindings=true, on_stdout=nothing, on_stderr=nothing, tty_out=nothing, tty_size=nothing)
+    # Preserve real stdin for the event loop before any REPL widget
+    # redirects Base.stdin to its PTY slave (for interactive prompts).
+    # We dup fd 0 to get an independent fd to the real terminal —
+    # redirect_stdin does dup2 which overwrites fd 0, so the original
+    # stdin Julia object would read from the wrong source.
+    _saved_input = INPUT_IO[] === nothing
+    if _saved_input
+        saved_fd = ccall(:dup, Cint, (Cint,), Cint(0))
+        INPUT_IO[] = Base.TTY(RawFD(saved_fd))
+    end
     _restarting = Ref(false)
     with_terminal(; on_stdout, on_stderr, tty_out, tty_size) do t
         init!(model, t)
@@ -1095,5 +1105,6 @@ function app(model::Model; fps=60, default_bindings=true, on_stdout=nothing, on_
     # cleanup! runs after with_terminal returns — terminal is fully restored
     # (leave_tui!, raw mode off, alt screen off) before app teardown begins.
     cleanup!(model)
+    _saved_input && (INPUT_IO[] = nothing)
     _restarting[] ? :restart : nothing
 end

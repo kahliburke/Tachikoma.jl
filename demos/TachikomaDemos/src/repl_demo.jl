@@ -178,7 +178,6 @@ function Tachikoma.view(m::REPLDemoModel, f::Tachikoma.Frame)
 end
 
 function _route_output(m::REPLDemoModel, line::String)
-    @infiltrate  # pause here to see if stderr drain reaches this callback
     isempty(m.repls) && return
     # Route to the focused REPL's widget, falling back to the last one
     fw = Tachikoma.focused_window(m.wm)

@@ -13,6 +13,7 @@
 
 using REPL
 using REPL.Terminals: TTYTerminal
+import Pkg
 
 """
     REPLWidget(; rows=24, cols=80, ...)
@@ -58,22 +59,32 @@ function REPLWidget(;
     # Create PTY pair (no subprocess)
     pty, slave_fd = pty_pair(; rows, cols)
 
-    # Pre-set slave to raw mode so LineEdit's raw!() is a no-op
-    # (prevents any possible blocking on tcsetattr)
-    _cfmakeraw!(slave_fd)
-
-    # Create Julia TTY objects from the slave fd.
+    # Create Julia TTY objects BEFORE cfmakeraw so libuv saves the
+    # default terminal state (ECHO + ICANON on). This way LineEdit's
+    # raw!(term, false) restores ECHO, letting interactive prompts
+    # (e.g., Pkg's "y/n") echo typed characters.
     # dup() so each stream has its own fd (libuv takes ownership).
     slave_in  = Base.TTY(RawFD(slave_fd))
     slave_out = Base.TTY(RawFD(ccall(:dup, Cint, (Cint,), slave_fd)))
     slave_err = Base.TTY(RawFD(ccall(:dup, Cint, (Cint,), slave_fd)))
+
+    # Now set raw mode — LineEdit expects raw mode for single-keypress
+    # input. cfmakeraw after TTY creation means libuv's "normal" state
+    # has ECHO enabled (good for prompts).
+    _cfmakeraw!(slave_fd)
+
+    # Redirect global stdin to this REPL's slave input so that
+    # interactive prompts (e.g., Pkg's "Install package? (y/n)")
+    # read keystrokes from the widget instead of the app's event loop.
+    # The app loop reads from INPUT_IO[] (saved in app()), not Base.stdin.
+    redirect_stdin(slave_in)
 
     # Build the terminal and REPL
     term = TTYTerminal("xterm-256color", slave_in, slave_out, slave_err)
     # onlcr: cfmakeraw disables OPOST on the PTY slave, so the kernel
     # won't translate \n → \r\n. The VT parser must do it instead,
     # otherwise LF only moves the cursor down without resetting to col 1.
-    tw = TerminalWidget(pty; show_scrollbar, focused, scrollback_limit, onlcr=true)
+    tw = TerminalWidget(pty; show_scrollbar, focused, scrollback_limit, onlcr=true, enter_as_lf=true)
 
     repl_task = Threads.@spawn begin
         try
@@ -84,6 +95,18 @@ function REPLWidget(;
             # output routes to a single widget.
             repl.specialdisplay = REPL.REPLDisplay(repl)
             repl.interface = REPL.setup_interface(repl)
+            # Initialize Pkg REPL mode on this widget's REPL.
+            # Pkg's REPLExt.__init__ calls repl_init on Base.active_repl
+            # (the main REPL) and never registers an atreplinit hook.
+            # We must call repl_init directly for our embedded REPL.
+            let ext = Base.get_extension(Pkg, :REPLExt)
+                ext !== nothing && ext.repl_init(repl)
+            end
+
+            # Route Pkg output to the REPL's PTY instead of captured stdout.
+            # Without this, Pkg writes to the broken capture pipe (EPIPE).
+            Pkg.DEFAULT_IO[] = IOContext(slave_out, :color => true,
+                                        :displaysize => (rows, cols))
 
             REPL.run_repl(repl; backend_on_current_task=false)
         catch e
@@ -96,9 +119,9 @@ function REPLWidget(;
 end
 
 """
-    route_output!(rw::REPLWidget, line::String)
+    route_output!(rw::REPLWidget, text::String)
 
-Inject a line of text into the REPL widget's display. Used by the
+Inject text into the REPL widget's display. Used by the
 `on_stdout`/`on_stderr` callbacks to route captured process output
 (e.g., from shell mode or Pkg operations) into the widget.
 
@@ -107,9 +130,9 @@ slave TTY handle. This avoids libuv threading issues when the REPL
 frontend is concurrently using the same underlying PTY (e.g., during
 Pkg operations triggered by `using SomePackage`).
 """
-function route_output!(rw::REPLWidget, line::String)
+function route_output!(rw::REPLWidget, text::String)
     try
-        data = Vector{UInt8}(codeunits(line * "\r\n"))
+        data = Vector{UInt8}(codeunits(text))
         put!(rw.tw.pty.output, data)
     catch
     end
