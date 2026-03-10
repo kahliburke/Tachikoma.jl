@@ -680,3 +680,159 @@ APP_REGISTRY["repl_widget_demo"] = function (tach_file, w, h, frames, fps, realt
     record_app(model, tach_file; width=w, height=h, frames, fps,
         events, realtime=true, warmup=max(warmup, fps * 3))
 end
+
+# ─── PTY Flow Diagram (terminal-repl.md) ──────────────────────────────────
+# Animated diagram showing data flow through the PTY architecture.
+# 4 boxes in a cycle with animated packets, same style as EventLoopViz.
+
+@kwdef mutable struct PTYFlowViz <: Model
+    quit::Bool = false
+    tick::Int = 0
+end
+
+Tachikoma.should_quit(m::PTYFlowViz) = m.quit
+
+function Tachikoma.view(m::PTYFlowViz, f::Frame)
+    m.tick += 1
+    buf = f.buffer
+    area = f.area
+
+    box_w = 18
+    box_h = 5
+    gap_x = 6
+    gap_y = 2
+
+    total_w = box_w * 2 + gap_x
+    total_h = box_h * 2 + gap_y
+    ox = area.x + max(0, (area.width - total_w) ÷ 2)
+    oy = area.y + 1 + max(0, (area.height - total_h - 2) ÷ 2)
+
+    boxes = [
+        (rect=Rect(ox, oy, box_w, box_h),
+            title="Widget", subtitle="handle_key!", color=:accent),
+        (rect=Rect(ox + box_w + gap_x, oy, box_w, box_h),
+            title="PTY Master", subtitle="encode → write", color=:primary),
+        (rect=Rect(ox + box_w + gap_x, oy + box_h + gap_y, box_w, box_h),
+            title="Process", subtitle="shell / REPL", color=:secondary),
+        (rect=Rect(ox, oy + box_h + gap_y, box_w, box_h),
+            title="VT Parser", subtitle="decode → render", color=:success),
+    ]
+
+    cycle = 120
+    t_cycle = mod(m.tick, cycle)
+    segment = div(t_cycle, cycle ÷ 4)
+    seg_t = mod(t_cycle, cycle ÷ 4) / (cycle ÷ 4)
+    seg_t_eased = seg_t < 0.5 ? 2.0 * seg_t * seg_t : 1.0 - (-2.0 * seg_t + 2.0)^2 / 2.0
+
+    arrow_color_dim = tstyle(:border, dim=true)
+    label_style = tstyle(:text_dim, dim=true, italic=true)
+
+    # Top arrow: Widget → PTY Master
+    arrow_y_top = oy + box_h ÷ 2
+    arrow_x1 = ox + box_w
+    arrow_x2 = ox + box_w + gap_x - 1
+    for x in arrow_x1:arrow_x2
+        set_char!(buf, x, arrow_y_top, '─', arrow_color_dim)
+    end
+    set_char!(buf, arrow_x2, arrow_y_top, '▸', tstyle(:text_dim))
+    mid_top = (arrow_x1 + arrow_x2) ÷ 2
+    set_string!(buf, mid_top - 1, arrow_y_top - 1, "key", label_style)
+
+    # Right arrow: PTY Master → Process
+    arrow_x_right = ox + box_w + gap_x + box_w ÷ 2
+    arrow_y1 = oy + box_h
+    arrow_y2 = oy + box_h + gap_y - 1
+    for y in arrow_y1:arrow_y2
+        set_char!(buf, arrow_x_right, y, '│', arrow_color_dim)
+    end
+    set_char!(buf, arrow_x_right, arrow_y2, '▾', tstyle(:text_dim))
+
+    # Bottom arrow: Process → VT Parser (reversed)
+    arrow_y_bot = oy + box_h + gap_y + box_h ÷ 2
+    for x in arrow_x1:arrow_x2
+        set_char!(buf, x, arrow_y_bot, '─', arrow_color_dim)
+    end
+    set_char!(buf, arrow_x1, arrow_y_bot, '◂', tstyle(:text_dim))
+    set_string!(buf, mid_top - 2, arrow_y_bot + 1, "bytes", label_style)
+
+    # Left arrow: VT Parser → Widget (reversed, upward)
+    arrow_x_left = ox + box_w ÷ 2
+    for y in arrow_y1:arrow_y2
+        set_char!(buf, arrow_x_left, y, '│', arrow_color_dim)
+    end
+    set_char!(buf, arrow_x_left, arrow_y1, '▴', tstyle(:text_dim))
+
+    # Animated packet
+    packet_style = tstyle(:accent, bold=true)
+    trail_style = tstyle(:accent, dim=true)
+
+    if segment == 0
+        px = arrow_x1 + round(Int, seg_t_eased * (arrow_x2 - arrow_x1))
+        set_char!(buf, px, arrow_y_top, '◆', packet_style)
+        px > arrow_x1 && set_char!(buf, px - 1, arrow_y_top, '◇', trail_style)
+        px > arrow_x1 + 1 && set_char!(buf, px - 2, arrow_y_top, '·', trail_style)
+    elseif segment == 1
+        py = arrow_y1 + round(Int, seg_t_eased * (arrow_y2 - arrow_y1))
+        set_char!(buf, arrow_x_right, py, '◆', packet_style)
+        py > arrow_y1 && set_char!(buf, arrow_x_right, py - 1, '◇', trail_style)
+    elseif segment == 2
+        px = arrow_x2 - round(Int, seg_t_eased * (arrow_x2 - arrow_x1))
+        set_char!(buf, px, arrow_y_bot, '◆', packet_style)
+        px < arrow_x2 && set_char!(buf, px + 1, arrow_y_bot, '◇', trail_style)
+        px < arrow_x2 - 1 && set_char!(buf, px + 2, arrow_y_bot, '·', trail_style)
+    else
+        py = arrow_y2 - round(Int, seg_t_eased * (arrow_y2 - arrow_y1))
+        set_char!(buf, arrow_x_left, py, '◆', packet_style)
+        py < arrow_y2 && set_char!(buf, arrow_x_left, py + 1, '◇', trail_style)
+    end
+
+    # Render boxes with glow on active segment
+    for (i, b) in enumerate(boxes)
+        active = (i - 1) == segment
+        leaving = (i - 1) == mod(segment - 1, 4)
+
+        if active
+            glow_amount = pulse(m.tick; period=30, lo=0.6, hi=1.0)
+            base = to_rgb(theme().accent)
+            c = brighten(base, glow_amount * 0.3)
+            border_shimmer!(buf, b.rect, c, m.tick; intensity=0.25)
+        elseif leaving
+            fade = 1.0 - seg_t_eased
+            base = to_rgb(getfield(theme(), b.color))
+            c = dim_color(base, 1.0 - fade * 0.4)
+            border_shimmer!(buf, b.rect, c, m.tick; intensity=fade * 0.15)
+        else
+            border_shimmer!(buf, b.rect, to_rgb(getfield(theme(), b.color)),
+                m.tick; intensity=0.05)
+        end
+
+        inner = Rect(b.rect.x + 1, b.rect.y + 1, b.rect.width - 2, b.rect.height - 2)
+        title_x = inner.x + max(0, (inner.width - length(b.title)) ÷ 2)
+        title_style = active ? tstyle(b.color, bold=true) : tstyle(b.color)
+        set_string!(buf, title_x, inner.y, strip(b.title), title_style)
+
+        sub_style = active ? tstyle(:text) : tstyle(:text_dim, dim=true)
+        sub_x = inner.x + max(0, (inner.width - length(b.subtitle)) ÷ 2)
+        set_string!(buf, sub_x, inner.y + 1, b.subtitle, sub_style)
+
+        if active
+            label = i == 1 ? "keystroke" :
+                    i == 2 ? "stdin →" :
+                    i == 3 ? "→ stdout" : "ANSI parse"
+            lab_x = inner.x + max(0, (inner.width - length(label)) ÷ 2)
+            set_string!(buf, lab_x, inner.y + 2, label, tstyle(:text_dim, italic=true))
+        end
+    end
+
+    title = "PTY Data Flow"
+    tx = area.x + max(0, (area.width - length(title)) ÷ 2)
+    set_string!(buf, tx, area.y, title, tstyle(:title, bold=true))
+
+    si = mod1(m.tick ÷ 4, length(SPINNER_BRAILLE))
+    set_char!(buf, area.x + 1, bottom(area), SPINNER_BRAILLE[si], tstyle(:text_dim, dim=true))
+end
+
+APP_REGISTRY["pty_flow"] = function (tach_file, w, h, frames, fps, realtime=false, warmup=0)
+    record_app(PTYFlowViz(), tach_file; width=w, height=h, frames=frames, fps=fps,
+        realtime=realtime, warmup=warmup)
+end
