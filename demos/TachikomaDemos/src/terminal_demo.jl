@@ -239,8 +239,8 @@ function Tachikoma.update!(m::TerminalDemoModel, evt::Tachikoma.Event)
             return
         end
 
-        # Ctrl+R: spawn new REPL
-        if evt.key == :ctrl && evt.char == 'r'
+        # Ctrl+E: spawn new REPL
+        if evt.key == :ctrl && evt.char == 'e'
             if m.wm.last_area.width > 0
                 _spawn_repl!(m, m.wm.last_area)
             end
@@ -306,7 +306,7 @@ function Tachikoma.view(m::TerminalDemoModel, f::Tachikoma.Frame)
     layout = m.layout_mode == :tile ? "tile" : m.layout_mode == :cascade ? "cascade" : "free"
     depth_str = _tachikoma_depth() > 0 ? " │ depth: $(_tachikoma_depth())" : ""
     down_hint = _tachikoma_depth() + 1 <= _TACHIKOMA_MAX_DEPTH ? " [Ctrl+U] recurse │" : ""
-    hint = "$down_hint [Ctrl+N] terminal │ [Ctrl+R] repl │ [Ctrl+T] $layout │ [Ctrl+J/K] focus │ [Esc] quit │ $n window$(n != 1 ? "s" : "")$depth_str │ focus: $focus_name "
+    hint = "$down_hint [Ctrl+N] terminal │ [Ctrl+E] repl │ [Ctrl+T] $layout │ [Ctrl+J/K] focus │ [Esc] quit │ $n window$(n != 1 ? "s" : "")$depth_str │ focus: $focus_name "
     Tachikoma.render(Tachikoma.StatusBar(
         left=[Tachikoma.Span(hint, Tachikoma.tstyle(:text_dim))],
     ), footer_area, buf)
