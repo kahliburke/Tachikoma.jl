@@ -1,8 +1,12 @@
 # Terminal & REPL Widgets
 
 ::: warning Experimental (v1.1)
-Terminal and REPL widgets are new in Tachikoma v1.1 and still under active development. APIs may change in future releases. The terminal widget requires Unix PTY support and **will not work on Windows** until a ConPTY backend is contributed. The REPL widget is more likely to work on Windows but has not been tested there yet.
+
+Terminal and REPL widgets are new in Tachikoma v1.1 and still under active development. APIs may change in future releases.
+
 :::
+
+**Platform support:** The terminal widget requires Unix PTY support and **will not work on Windows** until a ConPTY backend is contributed. The REPL widget is more likely to work on Windows but has not been tested there yet.
 
 `TerminalWidget` and `REPLWidget` embed full terminal emulators directly inside a Tachikoma application. `TerminalWidget` spawns an external process (a shell, Julia, or any command) in a pseudo-terminal. `REPLWidget` runs an in-process Julia REPL that shares all loaded modules, variables, and state with the host application.
 
@@ -14,21 +18,7 @@ Both widgets render through the same VT parser and PTY infrastructure. They work
 
 A pseudo-terminal (PTY) is a pair of virtual devices: a **master** and a **slave**. The subprocess (or in-process REPL) reads and writes the slave side as if it were a real terminal. The widget reads from the master side, feeds the bytes through a VT100/xterm escape sequence parser, and renders the resulting screen buffer into the Tachikoma frame. Keyboard input travels the reverse path: the widget encodes keystrokes as ANSI escape sequences and writes them to the master.
 
-```
-┌─────────────────┐     ┌─────────────┐     ┌──────────────┐
-│  Tachikoma App   │     │  PTY Master  │     │  PTY Slave   │
-│                  │     │              │     │              │
-│  render(tw,...)  │◄────│  pty.output  │◄────│  stdout/err  │
-│  handle_key!(tw) │────►│  pty_write   │────►│  stdin       │
-│                  │     │              │     │              │
-└─────────────────┘     └──────────────┘     └──────────────┘
-                                                    │
-                                              ┌─────┴──────┐
-                                              │ bash / zsh  │  TerminalWidget
-                                              │   or        │
-                                              │ Julia REPL  │  REPLWidget
-                                              └────────────┘
-```
+<!-- tachi:app pty_flow w=48 h=14 frames=240 fps=30 -->
 
 The VT parser handles:
 - **Cursor movement** — absolute, relative, save/restore
