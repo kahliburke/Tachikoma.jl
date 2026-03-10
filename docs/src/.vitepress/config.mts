@@ -73,6 +73,7 @@ export default defineConfig({
         items: [
           { text: 'Widgets', link: '/widgets' },
           { text: 'Window Manager', link: '/window-manager' },
+          { text: 'Terminal & REPL', link: '/terminal-repl' },
           { text: 'Graphics & Pixel Rendering', link: '/canvas' },
           { text: 'Animation', link: '/animation' },
           { text: 'Backgrounds', link: '/backgrounds' },
