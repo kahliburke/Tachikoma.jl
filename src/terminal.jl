@@ -412,13 +412,14 @@ end
 
 Query terminal for Kitty keyboard protocol support via `CSI ? u`.
 Writes query to `io` (should be the terminal output, e.g. /dev/tty),
-reads response from stdin. Returns true if terminal responds with
-`CSI ? flags u`. Must be called after raw mode and start_input!().
+reads response from the input stream. Returns true if terminal responds
+with `CSI ? flags u`. Must be called after raw mode and start_input!().
 """
 function _detect_kitty_keyboard!(io::IO)
+    inp = _input_io()
     # Drain stale bytes
-    while bytesavailable(stdin) > 0
-        read(stdin, UInt8)
+    while bytesavailable(inp) > 0
+        read(inp, UInt8)
     end
 
     print(io, KITTY_KEYBOARD_QUERY)
@@ -428,8 +429,8 @@ function _detect_kitty_keyboard!(io::IO)
     response = UInt8[]
     deadline = time() + 0.1
     while time() < deadline
-        if bytesavailable(stdin) > 0
-            b = read(stdin, UInt8)
+        if bytesavailable(inp) > 0
+            b = read(inp, UInt8)
             push!(response, b)
             b == UInt8('u') && break
         else
@@ -438,8 +439,8 @@ function _detect_kitty_keyboard!(io::IO)
     end
 
     # Drain any remaining response bytes
-    while bytesavailable(stdin) > 0
-        read(stdin, UInt8)
+    while bytesavailable(inp) > 0
+        read(inp, UInt8)
     end
 
     str = String(response)
@@ -457,9 +458,10 @@ Returns true if the terminal responds with `_G` and `i=31`.
 Must be called after raw mode and start_input!().
 """
 function _detect_kitty_graphics!(io::IO)
+    inp = _input_io()
     # Drain stale bytes
-    while bytesavailable(stdin) > 0
-        read(stdin, UInt8)
+    while bytesavailable(inp) > 0
+        read(inp, UInt8)
     end
 
     # Send query: 1×1 pixel, direct data, query action, suppress display
@@ -471,8 +473,8 @@ function _detect_kitty_graphics!(io::IO)
     response = UInt8[]
     deadline = time() + 0.1
     while time() < deadline
-        if bytesavailable(stdin) > 0
-            b = read(stdin, UInt8)
+        if bytesavailable(inp) > 0
+            b = read(inp, UInt8)
             push!(response, b)
             # Response ends with ESC \ (ST)
             if length(response) >= 2 &&
@@ -488,8 +490,8 @@ function _detect_kitty_graphics!(io::IO)
     # send multiple responses; wait briefly for stragglers to arrive
     drain_deadline = time() + 0.05
     while time() < drain_deadline
-        if bytesavailable(stdin) > 0
-            read(stdin, UInt8)
+        if bytesavailable(inp) > 0
+            read(inp, UInt8)
         else
             sleep(0.002)
         end
