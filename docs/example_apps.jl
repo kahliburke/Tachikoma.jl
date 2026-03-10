@@ -583,3 +583,100 @@ let fps_path = joinpath(@__DIR__, "..", "demos", "TachikomaDemos", "src", "fps_d
         end
     end
 end
+
+# ─── REPL Widget Demo (terminal-repl.md) ──────────────────────────────────
+# Shows an in-process REPL in a floating window, typing expressions and
+# seeing results. Uses realtime=true so the REPL task has wall-clock time
+# to start up and process input.
+
+import Tachikoma: REPLWidget, FloatingWindow, WindowManager, route_output!
+
+@kwdef mutable struct _REPLDemo <: Model
+    quit::Bool = false
+    wm::Tachikoma.WindowManager = Tachikoma.WindowManager()
+    repl::Union{Tachikoma.REPLWidget, Nothing} = nothing
+    _wake_fn::Union{Function, Nothing} = nothing
+end
+
+Tachikoma.should_quit(m::_REPLDemo) = m.quit
+Tachikoma.recording_enabled(::_REPLDemo) = false
+
+function Tachikoma.has_pending_output(m::_REPLDemo)
+    m.repl !== nothing && Tachikoma.drain!(m.repl)
+end
+
+function Tachikoma.set_wake!(m::_REPLDemo, notify::Function)
+    m._wake_fn = notify
+    m.repl !== nothing && Tachikoma.set_wake!(m.repl.tw, notify)
+end
+
+function Tachikoma.update!(m::_REPLDemo, evt::Tachikoma.Event)
+    if evt isa KeyEvent
+        Tachikoma.handle_event!(m.wm, evt)
+    end
+end
+
+function Tachikoma.view(m::_REPLDemo, f::Frame)
+    if m.repl === nothing
+        w, h = f.area.width, f.area.height
+        rw = Tachikoma.REPLWidget(; rows=h - 4, cols=w - 4)
+        m.repl = rw
+        m._wake_fn !== nothing && Tachikoma.set_wake!(rw.tw, m._wake_fn)
+        push!(m.wm, Tachikoma.FloatingWindow(
+            id = :repl,
+            title = "Julia REPL",
+            x = 1, y = 1, width = w, height = h - 1,
+            content = rw,
+            border_color = Tachikoma.ColorRGB(0x60, 0xc0, 0x90),
+        ))
+    end
+    Tachikoma.render(m.wm, f.area, f.buffer)
+
+    Tachikoma.render(Tachikoma.StatusBar(
+        left=[Tachikoma.Span(" In-process Julia REPL │ shared state │ tab completion │ ] pkg │ ; shell │ ? help ", Tachikoma.tstyle(:text_dim))],
+    ), Tachikoma.Rect(f.area.x, Tachikoma.bottom(f.area) - 1, f.area.width, 1), f.buffer)
+end
+
+function Tachikoma.cleanup!(m::_REPLDemo)
+    m.repl !== nothing && Tachikoma.close!(m.repl)
+end
+
+APP_EVENTS["repl_widget_demo"] = function (fps)
+    events = Tuple{Int,KeyEvent}[]
+    t = fps  # short wait for REPL to show prompt
+
+    # Type: 1 + 1
+    for (i, c) in enumerate("1 + 1")
+        push!(events, (t + i * 3, KeyEvent(c)))
+    end
+    t += length("1 + 1") * 3 + fps ÷ 3
+    push!(events, (t, KeyEvent(:enter)))
+
+    # Wait, then type: x = [1, 2, 3]
+    t += fps
+    for (i, c) in enumerate("x = [1, 2, 3]")
+        push!(events, (t + i * 3, KeyEvent(c)))
+    end
+    t += length("x = [1, 2, 3]") * 3 + fps ÷ 3
+    push!(events, (t, KeyEvent(:enter)))
+
+    # Wait, then type: sum(x)
+    t += fps
+    for (i, c) in enumerate("sum(x)")
+        push!(events, (t + i * 3, KeyEvent(c)))
+    end
+    t += length("sum(x)") * 3 + fps ÷ 3
+    push!(events, (t, KeyEvent(:enter)))
+
+    # Pause to show result
+    t += fps
+
+    events
+end
+
+APP_REGISTRY["repl_widget_demo"] = function (tach_file, w, h, frames, fps, realtime=false, warmup=0)
+    model = _REPLDemo()
+    events = APP_EVENTS["repl_widget_demo"](fps)
+    record_app(model, tach_file; width=w, height=h, frames, fps,
+        events, realtime=true, warmup=max(warmup, fps * 3))
+end
