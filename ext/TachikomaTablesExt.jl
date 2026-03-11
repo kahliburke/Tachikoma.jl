@@ -3,7 +3,7 @@ module TachikomaTablesExt
 using Tachikoma
 using Tables
 
-function Tachikoma.DataTable(source; kwargs...)
+function _datatable_from_table(source; kwargs...)
     Tables.istable(source) || throw(ArgumentError("source is not a Tables.jl-compatible table"))
     cols = Tables.columns(source)
     names = Tables.columnnames(cols)
@@ -16,6 +16,15 @@ function Tachikoma.DataTable(source; kwargs...)
         push!(datacols, Tachikoma.DataColumn(string(name), vals; align=al))
     end
     Tachikoma.DataTable(datacols; kwargs...)
+end
+
+function Tachikoma.DataTable(source; kwargs...)
+    _datatable_from_table(source; kwargs...)
+end
+
+function __init__()
+    Tachikoma._datatable_from_table[] = _datatable_from_table
+    @info "Tachikoma: Tables.jl integration enabled"
 end
 
 end

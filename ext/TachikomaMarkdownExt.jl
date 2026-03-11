@@ -369,4 +369,9 @@ function _wrap_spans(spans::Vector{Tachikoma.Span}, width::Int,
     isempty(lines) ? [Tachikoma.Span[]] : lines
 end
 
+function __init__()
+    Tachikoma._markdown_to_spans_fn[] = Tachikoma.markdown_to_spans
+    @info "Tachikoma: Markdown rendering enabled"
+end
+
 end # module
