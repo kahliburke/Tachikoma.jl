@@ -145,6 +145,21 @@ df = DataFrame(name=["Alice", "Bob", "Carol"], score=[95, 87, 92], grade=["A", "
 pdt = PagedDataTable(df)
 ```
 
+<!-- tachi:widget pdt_dataframe w=60 h=10 -->
+```julia
+using DataFrames
+using Tachikoma.Paged
+
+df = DataFrame(
+    Name   = ["Alice", "Bob", "Carol", "Dave", "Eve", "Frank"],
+    Score  = [95, 82, 91, 78, 99, 85],
+    Grade  = ["A", "B+", "A-", "C+", "A+", "B"],
+    Status = ["Active", "Active", "Alumni", "Active", "Alumni", "Active"],
+)
+pdt = PagedDataTable(df; page_size=6)
+render(pdt, area, buf)
+```
+
 Column types are inferred automatically — numeric columns get numeric filter operators, everything else gets text filters. Sorting, search, and filtering all work out of the box.
 
 This works with any Tables.jl source: DataFrames, CSV.File, TypedTables, Arrow tables, etc.
