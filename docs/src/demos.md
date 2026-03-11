@@ -47,6 +47,7 @@ dashboard()
 | **Effects Gallery** | `effects_demo()` | fill_gradient!, fill_noise!, glow, flicker, drift, shimmer, breathing, pulse |
 | **Chart** | `chart_demo()` | Interactive chart with dual sine, scatter cloud, and live streaming modes |
 | **DataTable** | `datatable_demo()` | Sortable, scrollable data table with column sort |
+| **Paged DataTable** | `paged_datatable_demo()` | Virtual data table with 1M rows, provider interface, sort/filter/search/pagination |
 | **Form** | `form_demo()` | TextInput, TextArea, Checkbox, RadioGroup, DropDown with live preview |
 | **Code Editor** | `editor_demo()` | Julia syntax highlighting, auto-indentation, Tab/Shift-Tab indent |
 | **FPS Stress Test** | `fps_demo()` | Interactive frame rate stress test with tunable complexity |
@@ -57,3 +58,4 @@ dashboard()
 | **Async Tasks** | `async_demo()` | Background task system: spawn tasks, trigger failures, repeating timers |
 | **Markdown Viewer** | `markdown_demo()` | README viewer, live split-pane editor, style preset picker |
 | **Terminal Emulator** | `terminal_demo()` | Embedded shell in a FloatingWindow with PTY, ANSI colors, Ctrl+N for multiple terminals |
+| **Julia REPL** | `repl_demo()` | In-process Julia REPL in a FloatingWindow, shared state, tab completion, Pkg mode |
