@@ -909,10 +909,12 @@ function enter_tui!(t::Terminal; remote_tty::Bool = false)
         elseif gfx_env == "none"
             t.graphics_protocol = gfx_none
         else
-            # WezTerm supports sixel but not Kitty graphics — skip the
-            # Kitty query to avoid misdetection (see #7).
-            is_wezterm = get(ENV, "TERM_PROGRAM", "") == "WezTerm"
-            kitty_gfx = !is_wezterm && _detect_kitty_graphics!(t.io)
+            # WezTerm and iTerm2 support sixel natively but have incomplete
+            # or slow Kitty graphics — skip the Kitty query to avoid
+            # misdetection and use their faster sixel path instead.
+            term_prog = get(ENV, "TERM_PROGRAM", "")
+            skip_kitty = term_prog == "WezTerm" || term_prog == "iTerm.app"
+            kitty_gfx = !skip_kitty && _detect_kitty_graphics!(t.io)
             if kitty_gfx
                 t.graphics_protocol = gfx_kitty
             elseif SIXEL_AREA_PX[].w > 0
