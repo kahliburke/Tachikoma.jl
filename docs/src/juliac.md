@@ -71,6 +71,7 @@ The `--trim` flag aggressively removes unused code for smaller binaries, but Tac
 
 Existing Tachikoma apps work with juliac without modification — the only thing needed is a thin entry point file. The [TachikomaDemos](https://github.com/kahliburke/Tachikoma.jl/tree/main/demos/TachikomaDemos) launcher includes a demo selection screen, animated logo, and multiple full apps (dashboard, FPS stress test, Game of Life, and more). The entire launcher compiles into a single binary with a two-line wrapper:
 
+<!-- tachi:noeval -->
 ```julia
 # launcher.jl
 using TachikomaDemos
@@ -87,6 +88,7 @@ The resulting `tachikoma-demos` binary launches instantly into the demo picker w
 
 Individual demos can be compiled the same way:
 
+<!-- tachi:noeval -->
 ```julia
 # fps.jl
 using TachikomaDemos
@@ -142,7 +144,7 @@ export_gif_from_snapshots("recording.gif", w, h, cells, ts;
 
 A monospace font is required to render text into the GIF. `discover_mono_fonts()` returns all monospace fonts found on your system — index 1 is "(none)", so index 2 onward are real fonts. You can also pass an explicit path like `font_path="/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf"`.
 
-See [Recording & Export](./recording) for full details on font selection, SVG export, and other options.
+See [Recording & Export](recording.md) for full details on font selection, SVG export, and other options.
 
 ## What Works
 

@@ -148,6 +148,9 @@ const DEMO_ENTRIES = DemoEntry[
     DemoEntry("DataTable",
         "Sortable, scrollable data table with cyberpunk-themed roster. Arrow keys navigate, number keys [1-4] sort by column.",
         () -> datatable_demo()),
+    DemoEntry("Paged DataTable",
+        "Virtual data table with 1M rows generated on the fly — zero pre-allocation. Demonstrates the provider interface for out-of-memory data with sort, filter, search, and pagination.",
+        () -> paged_datatable_demo()),
     DemoEntry("Form",
         "Form with TextInput, TextArea, Checkbox, RadioGroup, and DropDown. Live preview panel shows values and validation state.",
         () -> form_demo()),
@@ -175,6 +178,12 @@ const DEMO_ENTRIES = DemoEntry[
     DemoEntry("Markdown Viewer",
         "Three-mode markdown demo: README viewer with rich formatting, live split-pane editor with real-time preview, and style preset picker. Uses the CommonMark.jl extension.",
         () -> markdown_demo()),
+    DemoEntry("Terminal Emulator",
+        "Shell terminals and Julia REPLs in floating windows. Ctrl+N spawns a terminal, Ctrl+E spawns a REPL, Ctrl+U goes recursive (turtles all the way down). Ctrl+T tiles them. Drag and resize windows freely.",
+        () -> terminal_demo()),
+    DemoEntry("Julia REPL",
+        "Multiple in-process Julia REPLs in floating windows. Each REPL shares the host's modules and variables. Ctrl+N spawns new REPLs, Ctrl+T tiles them.",
+        () -> repl_demo()),
 ]
 
 # ── Launcher model ───────────────────────────────────────────────────
@@ -334,7 +343,8 @@ function launcher(; theme_name=nothing)
     theme_name !== nothing && set_theme!(theme_name)
     while true
         model = LauncherModel()
-        app(model; fps=30)
+        result = app(model; fps=30)
+        result === :restart && continue
         model.launch_idx == 0 && break
         # Launch selected demo, return to menu on exit
         try

@@ -279,7 +279,7 @@ mutable struct CodeEditor
     tick::Union{Int, Nothing}
 
     # Modal editing
-    mode::Symbol                          # :insert, :normal, :search
+    mode::Symbol                          # :insert, :normal, :search, :command
     pending_key::Union{Char, Nothing}     # multi-key: d, g, y, c, r
 
     # Undo/Redo
@@ -295,6 +295,10 @@ mutable struct CodeEditor
     search_query::Vector{Char}
     search_matches::Vector{Tuple{Int, Int}}  # (row, col) 1-based
     search_match_idx::Int
+
+    # Command-line mode (:wq, :w, :q, etc.)
+    command_buffer::Vector{Char}
+    last_command::String               # set on Enter; consumed by host via pending_command!()
 end
 
 """
@@ -327,15 +331,24 @@ function CodeEditor(;
                Tuple{Vector{Vector{Char}}, Int, Int}[],
                false,
                Vector{Char}[], false,
-               Char[], Tuple{Int, Int}[], 0)
+               Char[], Tuple{Int, Int}[], 0,
+               Char[], "")
 end
 
 focusable(::CodeEditor) = true
 value(w::CodeEditor) = text(w)
 set_value!(w::CodeEditor, s::String) = set_text!(w, s)
 
-"""Return the current editor mode (`:insert`, `:normal`, or `:search`)."""
+"""Return the current editor mode (`:insert`, `:normal`, `:search`, or `:command`)."""
 editor_mode(ce::CodeEditor) = ce.mode
+
+"""Consume and return the last completed `:command` (e.g. `"wq"`, `"w"`, `"q"`).
+Returns `""` if no command is pending. Call after `handle_key!` to dispatch commands."""
+function pending_command!(ce::CodeEditor)
+    cmd = ce.last_command
+    ce.last_command = ""
+    cmd
+end
 
 # ── Helpers ────────────────────────────────────────────────────────
 
@@ -483,6 +496,7 @@ end
 # ── Word Motion Helpers ───────────────────────────────────────────
 
 _is_word_char(c::Char) = isletter(c) || isdigit(c) || c == '_'
+_is_space(c::Char) = c == ' ' || c == '\t'
 
 function _next_word_start(ce::CodeEditor)
     row, col = ce.cursor_row, ce.cursor_col
@@ -494,18 +508,18 @@ function _next_word_start(ce::CodeEditor)
         # Skip current word class
         if _is_word_char(line[pos])
             while pos <= n && _is_word_char(line[pos]); pos += 1; end
-        elseif line[pos] != ' ' && line[pos] != '\t'
-            while pos <= n && !_is_word_char(line[pos]) && line[pos] != ' ' && line[pos] != '\t'; pos += 1; end
+        elseif !_is_space(line[pos])
+            while pos <= n && !_is_word_char(line[pos]) && !_is_space(line[pos]); pos += 1; end
         end
         # Skip whitespace
-        while pos <= n && (line[pos] == ' ' || line[pos] == '\t'); pos += 1; end
+        while pos <= n && _is_space(line[pos]); pos += 1; end
     end
     if pos > n && row < length(ce.lines)
         # Wrap to next line, first non-space
         ce.cursor_row = row + 1
         next_line = ce.lines[ce.cursor_row]
         pos2 = 1
-        while pos2 <= length(next_line) && (next_line[pos2] == ' ' || next_line[pos2] == '\t'); pos2 += 1; end
+        while pos2 <= length(next_line) && _is_space(next_line[pos2]); pos2 += 1; end
         ce.cursor_col = pos2 - 1
     else
         ce.cursor_col = min(pos - 1, max(n - 1, 0))
@@ -522,7 +536,7 @@ function _prev_word_start(ce::CodeEditor)
         return
     end
     # Skip whitespace backwards
-    while pos > 0 && (line[pos] == ' ' || line[pos] == '\t'); pos -= 1; end
+    while pos > 0 && _is_space(line[pos]); pos -= 1; end
     if pos <= 0
         ce.cursor_col = 0
         return
@@ -531,7 +545,7 @@ function _prev_word_start(ce::CodeEditor)
     if _is_word_char(line[pos])
         while pos > 1 && _is_word_char(line[pos - 1]); pos -= 1; end
     else
-        while pos > 1 && !_is_word_char(line[pos - 1]) && line[pos - 1] != ' ' && line[pos - 1] != '\t'; pos -= 1; end
+        while pos > 1 && !_is_word_char(line[pos - 1]) && !_is_space(line[pos - 1]); pos -= 1; end
     end
     ce.cursor_col = pos - 1
 end
@@ -548,13 +562,13 @@ function _end_of_word(ce::CodeEditor)
         pos = 1
     end
     # Skip whitespace
-    while pos <= n && (line[pos] == ' ' || line[pos] == '\t'); pos += 1; end
+    while pos <= n && _is_space(line[pos]); pos += 1; end
     # Skip through word class
     if pos <= n
         if _is_word_char(line[pos])
             while pos + 1 <= n && _is_word_char(line[pos + 1]); pos += 1; end
         else
-            while pos + 1 <= n && !_is_word_char(line[pos + 1]) && line[pos + 1] != ' ' && line[pos + 1] != '\t'; pos += 1; end
+            while pos + 1 <= n && !_is_word_char(line[pos + 1]) && !_is_space(line[pos + 1]); pos += 1; end
         end
     end
     ce.cursor_col = min(pos - 1, max(n - 1, 0))
@@ -592,6 +606,8 @@ function handle_key!(ce::CodeEditor, evt::KeyEvent)::Bool
         return _handle_normal_key!(ce, evt)
     elseif ce.mode == :search
         return _handle_search_key!(ce, evt)
+    elseif ce.mode == :command
+        return _handle_command_key!(ce, evt)
     end
     false
 end
@@ -1064,6 +1080,13 @@ function _handle_normal_key!(ce::CodeEditor, evt::KeyEvent)::Bool
         empty!(ce.search_matches)
         ce.search_match_idx = 0
         return true
+
+    # Command-line mode
+    elseif c == ':'
+        ce.mode = :command
+        empty!(ce.command_buffer)
+        ce.last_command = ""
+        return true
     elseif c == 'n'
         # Next search match
         if !isempty(ce.search_matches)
@@ -1151,6 +1174,32 @@ function _handle_search_key!(ce::CodeEditor, evt::KeyEvent)::Bool
     false
 end
 
+# ── Command-line mode (:wq, :w, :q, etc.) ────────────────────────
+
+function _handle_command_key!(ce::CodeEditor, evt::KeyEvent)::Bool
+    if evt.key == :escape
+        ce.mode = :normal
+        empty!(ce.command_buffer)
+        return true
+    elseif evt.key == :enter
+        ce.last_command = strip(String(ce.command_buffer))
+        ce.mode = :normal
+        empty!(ce.command_buffer)
+        return true
+    elseif evt.key == :backspace
+        if isempty(ce.command_buffer)
+            ce.mode = :normal
+        else
+            pop!(ce.command_buffer)
+        end
+        return true
+    elseif evt.key == :char
+        push!(ce.command_buffer, evt.char)
+        return true
+    end
+    false
+end
+
 function _in_search_match(ce::CodeEditor, row::Int, col::Int)
     qlen = length(ce.search_query)
     qlen == 0 && return false
@@ -1192,9 +1241,9 @@ function render(ce::CodeEditor, rect::Rect, buf::Buffer)
     code_width = area.width - gw
     code_width < 1 && return
 
-    # Reserve bottom row for search bar when in search mode
-    search_bar = ce.mode == :search && area.height >= 2
-    vis_height = search_bar ? area.height - 1 : area.height
+    # Reserve bottom row for search/command bar
+    bottom_bar = (ce.mode == :search || ce.mode == :command) && area.height >= 2
+    vis_height = bottom_bar ? area.height - 1 : area.height
 
     # Auto-scroll vertically
     if ce.cursor_row - 1 < ce.scroll_offset
@@ -1291,31 +1340,44 @@ function render(ce::CodeEditor, rect::Rect, buf::Buffer)
         end
     end
 
-    # Search bar
-    if search_bar
+    # Bottom bar (search or command)
+    if bottom_bar
         sy = area.y + vis_height
         sx = area.x
         bar_style = tstyle(:warning)
-        set_char!(buf, sx, sy, '/', bar_style)
-        qstr = String(ce.search_query)
-        for (i, ch) in enumerate(qstr)
-            xi = sx + i
-            xi > right(area) && break
-            set_char!(buf, xi, sy, ch, bar_style)
-        end
-        # Cursor block after query
-        cursor_x = sx + length(qstr) + 1
-        if cursor_x <= right(area)
-            set_char!(buf, cursor_x, sy, ' ', cur_style)
-        end
-        # Match count
-        if !isempty(ce.search_matches)
-            info = " [$(ce.search_match_idx)/$(length(ce.search_matches))]"
-            info_x = cursor_x + 1
-            for (i, ch) in enumerate(info)
-                xi = info_x + i - 1
+
+        if ce.mode == :search
+            set_char!(buf, sx, sy, '/', bar_style)
+            qstr = String(ce.search_query)
+            for (i, ch) in enumerate(qstr)
+                xi = sx + i
                 xi > right(area) && break
-                set_char!(buf, xi, sy, ch, tstyle(:text_dim))
+                set_char!(buf, xi, sy, ch, bar_style)
+            end
+            cursor_x = sx + length(qstr) + 1
+            if cursor_x <= right(area)
+                set_char!(buf, cursor_x, sy, ' ', cur_style)
+            end
+            if !isempty(ce.search_matches)
+                info = " [$(ce.search_match_idx)/$(length(ce.search_matches))]"
+                info_x = cursor_x + 1
+                for (i, ch) in enumerate(info)
+                    xi = info_x + i - 1
+                    xi > right(area) && break
+                    set_char!(buf, xi, sy, ch, tstyle(:text_dim))
+                end
+            end
+        elseif ce.mode == :command
+            set_char!(buf, sx, sy, ':', bar_style)
+            cstr = String(ce.command_buffer)
+            for (i, ch) in enumerate(cstr)
+                xi = sx + i
+                xi > right(area) && break
+                set_char!(buf, xi, sy, ch, bar_style)
+            end
+            cursor_x = sx + length(cstr) + 1
+            if cursor_x <= right(area)
+                set_char!(buf, cursor_x, sy, ' ', cur_style)
             end
         end
     end

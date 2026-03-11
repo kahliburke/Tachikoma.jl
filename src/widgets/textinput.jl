@@ -14,6 +14,7 @@ mutable struct TextInput
     validator::Union{Function, Nothing}  # (String) -> Union{String, Nothing}
     error_msg::String
     error_style::Style
+    last_area::Rect               # cached from last render for mouse hit testing
 end
 
 """
@@ -36,7 +37,7 @@ function TextInput(;
 )
     chars = collect(text)
     TextInput(chars, length(chars), label, style, label_style,
-              cursor_style, focused, tick, validator, "", error_style)
+              cursor_style, focused, tick, validator, "", error_style, Rect())
 end
 
 # ── Helpers ──
@@ -103,10 +104,25 @@ value(w::TextInput) = text(w)
 set_value!(w::TextInput, s::String) = set_text!(w, s)
 valid(w::TextInput) = isempty(w.error_msg)
 
+function handle_mouse!(input::TextInput, evt::MouseEvent)::Bool
+    if evt.button == mouse_left && evt.action == mouse_press
+        r = input.last_area
+        if r.width > 0 && contains(r, evt.x, evt.y)
+            input.focused = true
+            # Place cursor at click position (approximate)
+            click_offset = evt.x - r.x
+            input.cursor = clamp(click_offset, 0, length(input.buffer))
+            return true
+        end
+    end
+    false
+end
+
 # ── Render ──
 
 function render(input::TextInput, rect::Rect, buf::Buffer)
     (rect.width < 1 || rect.height < 1) && return
+    input.last_area = rect
     y = rect.y
 
     # Render label

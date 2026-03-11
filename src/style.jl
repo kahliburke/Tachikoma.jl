@@ -140,15 +140,16 @@ struct Style
     dim::Bool
     italic::Bool
     underline::Bool
+    strikethrough::Bool
     hyperlink::String
 end
 
 function Style(;
     fg::AbstractColor=NoColor(), bg::AbstractColor=NoColor(),
     bold=false, dim=false, italic=false, underline=false,
-    hyperlink::String="",
+    strikethrough=false, hyperlink::String="",
 )
-    Style(fg, bg, bold, dim, italic, underline, hyperlink)
+    Style(fg, bg, bold, dim, italic, underline, strikethrough, hyperlink)
 end
 
 const RESET = Style()
@@ -156,7 +157,8 @@ const RESET = Style()
 Base.:(==)(a::Style, b::Style) = (
     a.fg == b.fg && a.bg == b.bg && a.bold == b.bold &&
     a.dim == b.dim && a.italic == b.italic &&
-    a.underline == b.underline && a.hyperlink == b.hyperlink
+    a.underline == b.underline && a.strikethrough == b.strikethrough &&
+    a.hyperlink == b.hyperlink
 )
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -165,6 +167,7 @@ Base.:(==)(a::Style, b::Style) = (
 
 struct Theme
     name::String
+    bg::Color256
     border::Color256
     border_focus::Color256
     text::Color256
@@ -183,6 +186,7 @@ end
 #  Cool, electric, precise. Digital rain on glass.
 const KOKAKU = Theme(
     "kokaku",
+    Color256(234),  # bg: very dark blue-gray
     Color256(66),   # border: dark cyan
     Color256(75),   # border_focus: steel blue
     Color256(252),  # text: light gray
@@ -201,6 +205,7 @@ const KOKAKU = Theme(
 #  Warm, worn, atmospheric. Amber glow in the rain.
 const ESPER = Theme(
     "esper",
+    Color256(234),  # bg: very dark warm gray
     Color256(94),   # border: dark amber
     Color256(136),  # border_focus: amber
     Color256(223),  # text: warm white
@@ -219,6 +224,7 @@ const ESPER = Theme(
 #  Deep, confident, electric. Neon signs in the rain.
 const MOTOKO = Theme(
     "motoko",
+    Color256(234),  # bg: very dark purple-gray
     Color256(97),   # border: dusty violet
     Color256(135),  # border_focus: medium purple
     Color256(253),  # text: near-white
@@ -237,6 +243,7 @@ const MOTOKO = Theme(
 #  Aggressive, fast, loud. Motorcycle tail-lights at 200mph.
 const KANEDA = Theme(
     "kaneda",
+    Color256(233),  # bg: near-black
     Color256(88),   # border: dark red
     Color256(196),  # border_focus: bright red
     Color256(224),  # text: warm pink-white
@@ -255,6 +262,7 @@ const KANEDA = Theme(
 #  The original. Monochrome green on black. The matrix before The Matrix.
 const NEUROMANCER = Theme(
     "neuromancer",
+    Color256(232),  # bg: pure black
     Color256(22),   # border: dark green
     Color256(34),   # border_focus: green
     Color256(120),  # text: light green
@@ -273,6 +281,7 @@ const NEUROMANCER = Theme(
 #  Soft, cozy, readable. Late-night coding without the strain.
 const CATPPUCCIN = Theme(
     "catppuccin",
+    Color256(235),  # bg: dark mocha base
     Color256(60),   # border: muted mauve
     Color256(103),  # border_focus: light mauve
     Color256(189),  # text: lavender
@@ -291,6 +300,7 @@ const CATPPUCCIN = Theme(
 #  Balanced, deliberate, timeless. Lab-tuned for readability.
 const SOLARIZED = Theme(
     "solarized",
+    Color256(234),  # bg: base03
     Color256(66),   # border: cyan-ish base
     Color256(37),   # border_focus: cyan
     Color256(254),  # text: base3
@@ -309,6 +319,7 @@ const SOLARIZED = Theme(
 #  Night owl. Velvet darkness with candy-colored highlights.
 const DRACULA = Theme(
     "dracula",
+    Color256(235),  # bg: dracula background
     Color256(61),   # border: comment purple
     Color256(141),  # border_focus: purple
     Color256(253),  # text: foreground
@@ -327,6 +338,7 @@ const DRACULA = Theme(
 #  Chrome, neon, sunset. VHS tracking lines on a Miami highway.
 const OUTRUN = Theme(
     "outrun",
+    Color256(233),  # bg: dark night
     Color256(54),   # border: deep purple
     Color256(129),  # border_focus: bright magenta
     Color256(225),  # text: light pink
@@ -345,6 +357,7 @@ const OUTRUN = Theme(
 #  Quiet, earthy, restful. A fireplace in a cabin at midnight.
 const ZENBURN = Theme(
     "zenburn",
+    Color256(235),  # bg: dark charcoal
     Color256(239),  # border: dark gray-brown
     Color256(108),  # border_focus: sage
     Color256(187),  # text: warm beige
@@ -363,6 +376,7 @@ const ZENBURN = Theme(
 #  Still, frozen, sharp. Blue light on snow at 4 AM.
 const ICEBERG = Theme(
     "iceberg",
+    Color256(234),  # bg: dark slate
     Color256(60),   # border: slate blue
     Color256(110),  # border_focus: steel blue
     Color256(189),  # text: pale blue-white
@@ -503,9 +517,10 @@ tstyle(:primary, bold=true)  # bold text in the theme's primary color
 ```
 """
 function tstyle(field::Symbol; bold=false, dim=false,
-                italic=false, underline=false, hyperlink::String="")
+                italic=false, underline=false, strikethrough=false,
+                hyperlink::String="")
     color = getfield(theme(), field)
-    Style(; fg=color, bold, dim, italic, underline, hyperlink)
+    Style(; fg=color, bold, dim, italic, underline, strikethrough, hyperlink)
 end
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -538,6 +553,7 @@ function write_style(io::IO, s::Style)
     s.dim && write(io, "\e[2m")
     s.italic && write(io, "\e[3m")
     s.underline && write(io, "\e[4m")
+    s.strikethrough && write(io, "\e[9m")
     nothing
 end
 

@@ -37,7 +37,7 @@ end
 # Step 1: Generate markdown only (skip VitePress build)
 makedocs(;
     sitename = "Tachikoma.jl",
-    modules = [Tachikoma],
+    modules = [Tachikoma, Tachikoma.Paged],
     remotes = nothing,
     format = DocumenterVitepress.MarkdownVitepress(;
         repo = "https://github.com/kahliburke/Tachikoma.jl",

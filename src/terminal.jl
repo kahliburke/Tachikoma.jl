@@ -34,10 +34,19 @@ end
 
 
 function terminal_size()
-    # Use stdout if it's a real TTY, otherwise fall back to stdin.
-    # This handles the case where an app (e.g. MCPRepl) redirects stdout
-    # to a pipe — stdin is still connected to the real terminal.
-    io = stdout isa Base.TTY ? stdout : stdin
+    # Use stdout if it's a real TTY, otherwise fall back to the saved
+    # INPUT_IO (real stdin before any redirects), then current stdin.
+    # This handles TUI mode where stdout is a capture pipe and stdin
+    # may be redirected to a REPL widget's PTY slave.
+    io = if stdout isa Base.TTY
+        stdout
+    elseif INPUT_IO[] isa Base.TTY
+        INPUT_IO[]
+    elseif stdin isa Base.TTY
+        stdin
+    else
+        stdin  # last resort — displaysize will use fallback
+    end
     sz = displaysize(io)
     (rows=sz[1], cols=sz[2])
 end
@@ -403,13 +412,14 @@ end
 
 Query terminal for Kitty keyboard protocol support via `CSI ? u`.
 Writes query to `io` (should be the terminal output, e.g. /dev/tty),
-reads response from stdin. Returns true if terminal responds with
-`CSI ? flags u`. Must be called after raw mode and start_input!().
+reads response from the input stream. Returns true if terminal responds
+with `CSI ? flags u`. Must be called after raw mode and start_input!().
 """
 function _detect_kitty_keyboard!(io::IO)
+    inp = _input_io()
     # Drain stale bytes
-    while bytesavailable(stdin) > 0
-        read(stdin, UInt8)
+    while bytesavailable(inp) > 0
+        read(inp, UInt8)
     end
 
     print(io, KITTY_KEYBOARD_QUERY)
@@ -419,8 +429,8 @@ function _detect_kitty_keyboard!(io::IO)
     response = UInt8[]
     deadline = time() + 0.1
     while time() < deadline
-        if bytesavailable(stdin) > 0
-            b = read(stdin, UInt8)
+        if bytesavailable(inp) > 0
+            b = read(inp, UInt8)
             push!(response, b)
             b == UInt8('u') && break
         else
@@ -429,8 +439,8 @@ function _detect_kitty_keyboard!(io::IO)
     end
 
     # Drain any remaining response bytes
-    while bytesavailable(stdin) > 0
-        read(stdin, UInt8)
+    while bytesavailable(inp) > 0
+        read(inp, UInt8)
     end
 
     str = String(response)
@@ -448,9 +458,10 @@ Returns true if the terminal responds with `_G` and `i=31`.
 Must be called after raw mode and start_input!().
 """
 function _detect_kitty_graphics!(io::IO)
+    inp = _input_io()
     # Drain stale bytes
-    while bytesavailable(stdin) > 0
-        read(stdin, UInt8)
+    while bytesavailable(inp) > 0
+        read(inp, UInt8)
     end
 
     # Send query: 1×1 pixel, direct data, query action, suppress display
@@ -462,8 +473,8 @@ function _detect_kitty_graphics!(io::IO)
     response = UInt8[]
     deadline = time() + 0.1
     while time() < deadline
-        if bytesavailable(stdin) > 0
-            b = read(stdin, UInt8)
+        if bytesavailable(inp) > 0
+            b = read(inp, UInt8)
             push!(response, b)
             # Response ends with ESC \ (ST)
             if length(response) >= 2 &&
@@ -479,8 +490,8 @@ function _detect_kitty_graphics!(io::IO)
     # send multiple responses; wait briefly for stragglers to arrive
     drain_deadline = time() + 0.05
     while time() < drain_deadline
-        if bytesavailable(stdin) > 0
-            read(stdin, UInt8)
+        if bytesavailable(inp) > 0
+            read(inp, UInt8)
         else
             sleep(0.002)
         end
@@ -777,11 +788,11 @@ const _REMOTE_INPUT_TERMIOS  = Ref{Vector{UInt8}}(UInt8[])
 function _start_remote_input!(path::String)
     @static Sys.iswindows() && error("Remote TTY input is not supported on Windows")
     buf = Base.BufferStream()
-    # O_RDWR|O_NONBLOCK|O_NOCTTY: non-blocking so the reader @async task never
-    # stalls the Julia thread; O_NOCTTY prevents accidental controlling-terminal
-    # acquisition (our process already owns the REPL TTY).
-    o_nonblock = @static (Sys.isapple() || Sys.isbsd()) ? Cint(0x0004)   : Cint(0x0800)
-    o_noctty   = @static (Sys.isapple() || Sys.isbsd()) ? Cint(0x20000)  : Cint(0x0400)
+    # O_RDWR|O_NONBLOCK|O_NOCTTY: non-blocking so the @async reader never
+    # stalls the Julia thread; O_NOCTTY prevents accidental controlling-
+    # terminal acquisition (our process already owns the REPL TTY).
+    o_nonblock = @static (Sys.isapple() || Sys.isbsd()) ? Cint(0x0004) : Cint(0x0800)
+    o_noctty   = @static (Sys.isapple() || Sys.isbsd()) ? Cint(0x20000) : Cint(0x0400)
     fd = ccall(:open, Cint, (Cstring, Cint), path, Cint(2) | o_nonblock | o_noctty)
     fd == -1 && error("Cannot open remote TTY for input: $path")
 
@@ -798,15 +809,23 @@ function _start_remote_input!(path::String)
     _REMOTE_INPUT_STREAM[]  = buf
 
     # Pump bytes from the remote TTY fd into the BufferStream.
-    # The fd is O_NONBLOCK, so read() returns immediately with n<=0 when empty.
+    # Uses poll_fd (libuv event-driven) — same pattern as PTY reader.
+    eagain = @static Sys.isapple() ? Cint(35) : Cint(11)
     @async begin
         byte_buf = zeros(UInt8, 64)
+        raw_fd = RawFD(fd)
         while _REMOTE_INPUT_FD[] == fd && isopen(buf)
-            n = ccall(:read, Cssize_t, (Cint, Ptr{UInt8}, Csize_t), fd, byte_buf, 64)
-            if n > 0
-                write(buf, @view byte_buf[1:n])
-            else
-                sleep(0.002)
+            result = poll_fd(raw_fd, 1.0; readable=true, writable=false)
+            result.readable || continue
+            while true
+                n = ccall(:read, Cssize_t, (Cint, Ptr{UInt8}, Csize_t), fd, byte_buf, 64)
+                if n > 0
+                    write(buf, @view byte_buf[1:n])
+                elseif n < 0 && Base.Libc.errno() == eagain
+                    break  # no more data right now
+                else
+                    break  # fd closed or error
+                end
             end
         end
     end
@@ -890,10 +909,12 @@ function enter_tui!(t::Terminal; remote_tty::Bool = false)
         elseif gfx_env == "none"
             t.graphics_protocol = gfx_none
         else
-            # WezTerm supports sixel but not Kitty graphics — skip the
-            # Kitty query to avoid misdetection (see #7).
-            is_wezterm = get(ENV, "TERM_PROGRAM", "") == "WezTerm"
-            kitty_gfx = !is_wezterm && _detect_kitty_graphics!(t.io)
+            # WezTerm and iTerm2 support sixel natively but have incomplete
+            # or slow Kitty graphics — skip the Kitty query to avoid
+            # misdetection and use their faster sixel path instead.
+            term_prog = get(ENV, "TERM_PROGRAM", "")
+            skip_kitty = term_prog == "WezTerm" || term_prog == "iTerm.app"
+            kitty_gfx = !skip_kitty && _detect_kitty_graphics!(t.io)
             if kitty_gfx
                 t.graphics_protocol = gfx_kitty
             elseif SIXEL_AREA_PX[].w > 0
@@ -1009,7 +1030,28 @@ function prepare_for_exec!()
     nothing
 end
 
-const _DISCARD_LINE = (_::AbstractString) -> nothing
+const _DISCARD_OUTPUT = (_::AbstractString) -> nothing
+
+"""
+    tty_path() → Union{String, Nothing}
+
+Return the device path of the current terminal (e.g. `"/dev/ttys042"`).
+Tries `/dev/tty` first, then falls back to `ttyname(0)` (stdin's device).
+Returns `nothing` if no terminal is available (e.g. piped stdin).
+
+Useful for passing as `tty_out` when launching a Tachikoma app inside
+a PTY-spawned subprocess where `/dev/tty` may not be configured.
+"""
+function tty_path()
+    @static Sys.iswindows() && return nothing
+    try
+        open(io -> close(io), "/dev/tty", "w")
+        return "/dev/tty"
+    catch; end
+    # No controlling terminal — get the device path behind stdin
+    p = ccall(:ttyname, Cstring, (Cint,), Cint(0))
+    p != C_NULL ? unsafe_string(p) : nothing
+end
 
 """
     with_terminal(f; tty_out=nothing, on_stdout=nothing, on_stderr=nothing)
@@ -1048,8 +1090,8 @@ function with_terminal(f::Function; tty_out=nothing, tty_size=nothing, on_stdout
     else
         terminal_size()
     end
-    state = _start_capture(something(on_stdout, _DISCARD_LINE),
-                           something(on_stderr, _DISCARD_LINE))
+    state = _start_capture(something(on_stdout, _DISCARD_OUTPUT),
+                           something(on_stderr, _DISCARD_OUTPUT))
     t = Terminal(io = tty_io, size = sz, remote_tty_path = tty_out)
     enter_tui!(t; remote_tty = tty_out !== nothing)
     try
@@ -1080,28 +1122,43 @@ function _start_capture(on_stdout, on_stderr)
     stdout_wr = nothing
     stderr_wr = nothing
 
-    if stdout isa Base.TTY
+    if on_stdout !== nothing || stdout isa Base.TTY
         orig_stdout = stdout
         rd, wr = redirect_stdout()
         stdout_wr = wr
-        stdout_task = @async _drain_lines(rd, on_stdout)
+        # `let` captures rd by value — without it, the @async closure
+        # captures rd by reference, and the stderr block below would
+        # reassign rd, making the stdout drain task read the wrong pipe.
+        let rd = rd
+            if on_stdout !== nothing
+                stdout_task = @async _drain_output(rd, on_stdout)
+            else
+                stdout_task = @async _drain_output(rd, _ -> nothing)
+            end
+        end
     end
 
-    if stderr isa Base.TTY
+    if on_stderr !== nothing || stderr isa Base.TTY
         orig_stderr = stderr
         rd, wr = redirect_stderr()
         stderr_wr = wr
-        stderr_task = @async _drain_lines(rd, on_stderr)
+        if on_stderr !== nothing
+            stderr_task = @async _drain_output(rd, on_stderr)
+        else
+            stderr_task = @async _drain_output(rd, _ -> nothing)
+        end
     end
 
     CaptureState(orig_stdout, orig_stderr, stdout_task, stderr_task,
                  stdout_wr, stderr_wr)
 end
 
-function _drain_lines(rd, callback)
+function _drain_output(rd, callback)
     try
-        for line in eachline(rd)
-            callback(line)
+        while !eof(rd)
+            data = readavailable(rd)
+            isempty(data) && continue
+            callback(String(data))
         end
     catch e
         e isa EOFError || e isa Base.IOError || rethrow()

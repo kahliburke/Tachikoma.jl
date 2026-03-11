@@ -20,8 +20,10 @@ is_cancelled(t::CancelToken) = t.cancelled[]
 mutable struct TaskQueue
     channel::Channel{Event}
     active::Threads.Atomic{Int}
+    on_ready::Union{Function, Nothing}
 end
-TaskQueue(; capacity::Int=256) = TaskQueue(Channel{Event}(capacity), Threads.Atomic{Int}(0))
+TaskQueue(; capacity::Int=256, on_ready::Union{Function, Nothing}=nothing) =
+    TaskQueue(Channel{Event}(capacity), Threads.Atomic{Int}(0), on_ready)
 
 # ── spawn_task! ──────────────────────────────────────────────────────
 
@@ -31,8 +33,10 @@ function spawn_task!(f::Function, queue::TaskQueue, id::Symbol)
         try
             result = f()
             put!(queue.channel, TaskEvent(id, result))
+            queue.on_ready !== nothing && queue.on_ready()
         catch e
             put!(queue.channel, TaskEvent(id, e))
+            queue.on_ready !== nothing && queue.on_ready()
         finally
             Threads.atomic_sub!(queue.active, 1)
         end
@@ -51,6 +55,7 @@ function spawn_timer!(queue::TaskQueue, id::Symbol, interval_s::Float64;
                 sleep(interval_s)
                 is_cancelled(token) && break
                 put!(queue.channel, TaskEvent(id, time()))
+                queue.on_ready !== nothing && queue.on_ready()
                 repeat || break
             end
         finally
