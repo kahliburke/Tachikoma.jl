@@ -47,7 +47,7 @@ end
 function __init__()
     Tachikoma._datatable_from_table[] = _datatable_from_table
     Tachikoma._paged_provider_from_table[] = _paged_provider_from_table
-    @info "Tachikoma: Tables.jl integration enabled"
+    @debug "Tachikoma: Tables.jl integration enabled"
 end
 
 end

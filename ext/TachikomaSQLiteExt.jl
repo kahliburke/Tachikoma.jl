@@ -161,7 +161,7 @@ end
 function __init__()
     Tachikoma.Paged._create_sqlite_provider[] = (db, table_name; kwargs...) ->
         SQLitePagedProvider(db, table_name; kwargs...)
-    @info "Tachikoma: SQLite database provider enabled"
+    @debug "Tachikoma: SQLite database provider enabled"
 end
 
 end # module

@@ -868,7 +868,7 @@ end
 function __init__()
     Tachikoma._gif_export_fn[]  = Tachikoma.export_gif_from_snapshots
     Tachikoma._apng_export_fn[] = Tachikoma.export_apng_from_snapshots
-    @info "Tachikoma: GIF/APNG export enabled"
+    @debug "Tachikoma: GIF/APNG export enabled"
 end
 
 end # module
