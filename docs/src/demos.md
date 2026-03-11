@@ -17,6 +17,7 @@ The launcher presents a menu of all available demos. Use arrow keys to navigate 
 
 To run a specific demo directly:
 
+<!-- tachi:noeval -->
 ```julia
 using TachikomaDemos
 dashboard()
@@ -42,9 +43,11 @@ dashboard()
 | **Backend Compare** | `backend_demo()` | Split-screen: same animation in braille, block, and PixelImage rendering |
 | **Resize Panes** | `resize_demo()` | Drag pane borders to resize, demonstrating ResizableLayout |
 | **ScrollPane Log** | `scrollpane_demo()` | Live log viewer with auto-follow, reverse mode, mouse wheel scrolling |
+| **Overlapping Windows** | `windows_demo()` | Draggable/resizable floating windows with z-order, opacity, and wheel-driven content scrolling |
 | **Effects Gallery** | `effects_demo()` | fill_gradient!, fill_noise!, glow, flicker, drift, shimmer, breathing, pulse |
 | **Chart** | `chart_demo()` | Interactive chart with dual sine, scatter cloud, and live streaming modes |
 | **DataTable** | `datatable_demo()` | Sortable, scrollable data table with column sort |
+| **Paged DataTable** | `paged_datatable_demo()` | Virtual data table with 1M rows, provider interface, sort/filter/search/pagination |
 | **Form** | `form_demo()` | TextInput, TextArea, Checkbox, RadioGroup, DropDown with live preview |
 | **Code Editor** | `editor_demo()` | Julia syntax highlighting, auto-indentation, Tab/Shift-Tab indent |
 | **FPS Stress Test** | `fps_demo()` | Interactive frame rate stress test with tunable complexity |
@@ -54,3 +57,5 @@ dashboard()
 | **Sixel Gallery** | `sixel_gallery()` | CPU heatmap, latency distribution, memory page map, flame graph |
 | **Async Tasks** | `async_demo()` | Background task system: spawn tasks, trigger failures, repeating timers |
 | **Markdown Viewer** | `markdown_demo()` | README viewer, live split-pane editor, style preset picker |
+| **Terminal Emulator** | `terminal_demo()` | Embedded shell in a FloatingWindow with PTY, ANSI colors, Ctrl+N for multiple terminals |
+| **Julia REPL** | `repl_demo()` | In-process Julia REPL in a FloatingWindow, shared state, tab completion, Pkg mode |

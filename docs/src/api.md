@@ -7,7 +7,7 @@ Functions and types that have docstrings are listed below. As docstring coverage
 ## All Documented Symbols
 
 ```@autodocs
-Modules = [Tachikoma]
+Modules = [Tachikoma, Tachikoma.Paged]
 ```
 
 ## Index

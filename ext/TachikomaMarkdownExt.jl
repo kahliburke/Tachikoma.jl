@@ -115,9 +115,7 @@ end
 function _handle_heading!(ctx::WalkContext, node)
     level = node.t.level
     style = level == 1 ? ctx.h1 : level == 2 ? ctx.h2 : ctx.h3
-    prefix = "#"^min(level, 3) * " "
     spans = _collect_inlines(ctx, node, style)
-    pushfirst!(spans, Tachikoma.Span(prefix, style))
     _push_line!(ctx, spans)
     _push_blank!(ctx)
 end
@@ -177,11 +175,6 @@ function _handle_codeblock!(ctx::WalkContext, node)
     info = node.t.info
     lang = lowercase(strip(string(info)))
 
-    if !isempty(info)
-        _push_line!(ctx, [Tachikoma.Span("```$info", ctx.code)])
-    else
-        _push_line!(ctx, [Tachikoma.Span("```", ctx.code)])
-    end
     code_text = node.literal
     code_text === nothing && (code_text = "")
     code_bg = ctx.code.bg
@@ -193,7 +186,6 @@ function _handle_codeblock!(ctx::WalkContext, node)
             _push_line!(ctx, [Tachikoma.Span(string(line), ctx.code)])
         end
     end
-    _push_line!(ctx, [Tachikoma.Span("```", ctx.code)])
     _push_blank!(ctx)
 end
 
@@ -327,7 +319,13 @@ function _wrap_spans(spans::Vector{Tachikoma.Span}, width::Int,
     col = 0
 
     for span in spans
-        words = split(span.content, ' '; keepempty=false)
+        content = span.content
+        # Preserve leading/trailing spaces from the original span content.
+        # CommonMark places spaces as separate Text nodes or within the text,
+        # so we must not blindly insert spaces between every span.
+        has_leading_space = !isempty(content) && content[1] == ' '
+        has_trailing_space = !isempty(content) && length(content) > 1 && content[end] == ' '
+        words = split(content, ' '; keepempty=false)
         if isempty(words)
             # Span was whitespace-only — treat as a single space
             if col > 0
@@ -338,7 +336,14 @@ function _wrap_spans(spans::Vector{Tachikoma.Span}, width::Int,
         end
         for (i, word) in enumerate(words)
             w = length(word)
-            need_space = col > 0
+            # Only insert a space if the original content had a space before
+            # this word (inter-word space), or if this is not the first word.
+            # For the first word, only add space if the span had leading whitespace.
+            need_space = if i == 1
+                has_leading_space && col > 0
+            else
+                col > 0
+            end
             if need_space && col + 1 + w > width
                 # Wrap
                 push!(lines, current)
@@ -354,9 +359,19 @@ function _wrap_spans(spans::Vector{Tachikoma.Span}, width::Int,
             push!(current, Tachikoma.Span(string(word), span.style))
             col += w
         end
+        # If span had trailing space, emit it so the next span starts after a space
+        if has_trailing_space && col > 0
+            push!(current, Tachikoma.Span(" ", space_style))
+            col += 1
+        end
     end
     !isempty(current) && push!(lines, current)
     isempty(lines) ? [Tachikoma.Span[]] : lines
+end
+
+function __init__()
+    Tachikoma._markdown_to_spans_fn[] = Tachikoma.markdown_to_spans
+    @info "Tachikoma: Markdown rendering enabled"
 end
 
 end # module

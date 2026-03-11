@@ -77,14 +77,14 @@ function makeImageHtml(ann: TachiAnnotation, base: string): string {
     return (
       `<div class="tachi-example-container">\n` +
       `<TerminalWindow title="${ann.id.replace(/_/g, ' ')}">\n` +
-      `<img src="${path}" alt="${alt}" style="width: ${cssWidth}px; max-width: 100%;" />\n` +
+      `<img :src="'${path}'" alt="${alt}" style="width: ${cssWidth}px; max-width: 100%;" />\n` +
       `</TerminalWindow>\n` +
       `</div>\n`
     )
   }
   return (
     `<div class="tachi-example-container">\n` +
-    `<img src="${path}" alt="${alt}" style="width: ${cssWidth}px; max-width: 100%;" />\n` +
+    `<img :src="'${path}'" alt="${alt}" style="width: ${cssWidth}px; max-width: 100%;" />\n` +
     `</div>\n`
   )
 }
@@ -94,6 +94,25 @@ export function tachiExamplesPlugin(md: MarkdownIt, base: string = '/Tachikoma.j
     const src = state.tokens
     const out: typeof src = []
     let pendingAnnotation: TachiAnnotation | null = null
+
+    // Check if a code fence follows before the next section boundary
+    function fenceFollows(fromIdx: number): boolean {
+      for (let j = fromIdx; j < src.length; j++) {
+        const t = src[j]
+        if (t.type === 'fence') return true
+        if (t.type === 'heading_open') return false
+        if (t.type === 'html_block' && parseAnnotation(t.content)) return false
+        if (t.type === 'paragraph_open' && j + 1 < src.length &&
+            src[j + 1].type === 'inline' && parseAnnotation(src[j + 1].content)) return false
+      }
+      return false
+    }
+
+    function injectImage(ann: TachiAnnotation): void {
+      const imgToken = new state.Token('html_block', '', 0)
+      imgToken.content = makeImageHtml(ann, base)
+      out.push(imgToken)
+    }
 
     let i = 0
     while (i < src.length) {
@@ -105,6 +124,11 @@ export function tachiExamplesPlugin(md: MarkdownIt, base: string = '/Tachikoma.j
         if (ann) {
           pendingAnnotation = ann
           i++ // skip this token
+          // No code fence follows → inject image immediately (hidden app)
+          if (!fenceFollows(i)) {
+            injectImage(pendingAnnotation)
+            pendingAnnotation = null
+          }
           continue
         }
         // Strip tachi:noeval raw comments
@@ -123,6 +147,10 @@ export function tachiExamplesPlugin(md: MarkdownIt, base: string = '/Tachikoma.j
         if (ann) {
           pendingAnnotation = ann
           i += 3 // skip all three tokens
+          if (!fenceFollows(i)) {
+            injectImage(pendingAnnotation)
+            pendingAnnotation = null
+          }
           continue
         }
         // Strip tachi:noeval escaped comments
@@ -137,9 +165,7 @@ export function tachiExamplesPlugin(md: MarkdownIt, base: string = '/Tachikoma.j
 
       // --- After a fence, inject image if we have a pending annotation ---
       if (token.type === 'fence' && pendingAnnotation) {
-        const imgToken = new state.Token('html_block', '', 0)
-        imgToken.content = makeImageHtml(pendingAnnotation, base)
-        out.push(imgToken)
+        injectImage(pendingAnnotation)
         pendingAnnotation = null
       }
 

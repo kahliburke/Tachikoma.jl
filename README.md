@@ -100,7 +100,7 @@ using TachikomaDemos
 launcher()  # interactive menu
 ```
 
-Or run individual demos directly: `dashboard()`, `snake()`, `life()`, `sysmon()`, `anim_demo()`, `chart_demo()`, `form_demo()`, `effects_demo()`, and more.
+Or run individual demos directly: `dashboard()`, `snake()`, `life()`, `sysmon()`, `anim_demo()`, `windows_demo()`, `chart_demo()`, `form_demo()`, `effects_demo()`, and more.
 
 ## Gallery
 
@@ -131,7 +131,7 @@ Or run individual demos directly: `dashboard()`, `snake()`, `life()`, `sysmon()`
 | **Input** | `TextInput`, `TextArea`, `CodeEditor`, `Checkbox`, `RadioGroup`, `DropDown`, `Button` |
 | **Selection & Lists** | `SelectableList`, `TabBar`, `TreeView`, `Calendar` |
 | **Data** | `DataTable`, `Chart`, `BarChart`, `Sparkline`, `Gauge`, `ProgressList` |
-| **Layout** | `Container`, `ScrollPane`, `Scrollbar`, `Modal`, `Form` |
+| **Layout** | `Container`, `ScrollPane`, `Scrollbar`, `Modal`, `Form`, `FloatingWindow`, `WindowManager` |
 | **Graphics** | `Canvas`, `BlockCanvas`, `PixelImage` |
 
 ## Backgrounds

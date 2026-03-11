@@ -33,9 +33,9 @@ end
         md = "# H1\n\n## H2\n\n### H3"
         lines = T.markdown_to_spans(md, 80)
         text = _spans_text(lines)
-        @test occursin("# H1", text)
-        @test occursin("## H2", text)
-        @test occursin("### H3", text)
+        @test occursin("H1", text)
+        @test occursin("H2", text)
+        @test occursin("H3", text)
     end
 
     @testset "Heading style applied" begin
@@ -66,7 +66,7 @@ end
         text = _spans_text(lines)
         @test occursin("foo()", text)
         @test occursin("bar()", text)
-        @test occursin("julia", text)
+        # Language label is not rendered as text — it's used for syntax highlighting
     end
 
     @testset "Blockquote" begin

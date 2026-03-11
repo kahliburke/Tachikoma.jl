@@ -202,12 +202,113 @@ APP_EVENTS["mouse_draw_demo"] = function (fps)
     events
 end
 
+# ─── Window Manager Demo (window-manager.md) ────────────────────────
+APP_EVENTS["window_manager_demo"] = EventScript(
+    (2.0, key('t')),        # tile layout
+    (1.0, key('f')),        # focus next
+    (2.0, key('c')),        # cascade layout
+    (1.0, key('f')),        # focus next
+    (2.0, key('t')),        # tile again
+    (1.0, key('f')),        # focus next
+    (2.0, key('c')),        # cascade again
+)
 
 # ═══════════════════════════════════════════════════════════════════════
 # APP_REGISTRY — only for apps NOT rendered via tachi:app annotations
 # ═══════════════════════════════════════════════════════════════════════
 
 const APP_REGISTRY = Dict{String,Function}()
+
+# ─── Window Manager Minimal Demo (window-manager.md) ─────────────
+@kwdef mutable struct _WMMinDemo <: Model
+    wm::Tachikoma.WindowManager = Tachikoma.WindowManager()
+    tick::Int = 0
+end
+
+Tachikoma.should_quit(::_WMMinDemo) = false
+
+function Tachikoma.view(m::_WMMinDemo, f::Frame)
+    m.tick += 1
+    if isempty(m.wm.windows)
+        push!(m.wm, Tachikoma.FloatingWindow(id=:notes, title="Notes",
+            x=3, y=2, width=24, height=9,
+            content=ScrollPane(["Line $i" for i in 1:20]; following=true)))
+        push!(m.wm, Tachikoma.FloatingWindow(id=:log, title="Log",
+            x=16, y=8, width=26, height=9, box=BOX_HEAVY,
+            content=ScrollPane(["Log entry $i" for i in 1:15]; following=true)))
+    end
+    if mod(m.tick, 45) == 1
+        Tachikoma.tile!(m.wm, f.area; animate=true, duration=12)
+    elseif mod(m.tick, 45) == 23
+        Tachikoma.cascade!(m.wm, f.area; animate=true, duration=12)
+    end
+    if mod(m.tick, 50) == 1
+        Tachikoma.focus_next!(m.wm)
+    end
+    render(m.wm, f.area, f.buffer; tick=m.tick)
+end
+
+APP_REGISTRY["window_manager_minimal_demo"] = function (tach_file, w, h, frames, fps, realtime=false, warmup=0)
+    record_app(_WMMinDemo(), tach_file; width=w, height=h, frames, fps,
+        realtime=realtime, warmup=warmup)
+end
+
+# ─── Window Opacity Demo (window-manager.md) ─────────────────────
+# Noise field requires animations_enabled()=true (enforced in generate_assets.jl)
+@kwdef mutable struct _WMOpacityDemo <: Model
+    wm::Tachikoma.WindowManager = Tachikoma.WindowManager()
+    tick::Int = 0
+end
+
+Tachikoma.should_quit(::_WMOpacityDemo) = false
+
+function Tachikoma.view(m::_WMOpacityDemo, f::Frame)
+    m.tick += 1
+    w, h = f.area.width, f.area.height
+
+    if isempty(m.wm.windows)
+        # Back: animated noise field spanning most of the area
+        push!(m.wm, Tachikoma.FloatingWindow(id=:noise, title="Noise Field",
+            x=1, y=1, width=w, height=h - 1, opacity=1.0,
+            border_color=ColorRGB(0x60, 0x90, 0xc0), resizable=false,
+            on_render=(area, buf, focused) -> begin
+                c1 = ColorRGB(0x20, 0x30, 0x50)
+                c2 = ColorRGB(0x40, 0xa0, 0xe0)
+                fill_noise!(buf, area, c1, c2, m.tick; scale=0.25, speed=0.04)
+            end))
+        # Middle: pulsing opacity overlapping the noise
+        push!(m.wm, Tachikoma.FloatingWindow(id=:overlay, title="opacity: pulse",
+            x=3, y=3, width=28, height=h - 6, opacity=0.8,
+            border_color=ColorRGB(0xd0, 0xa0, 0xff),
+            content=ScrollPane(["Log entry $i" for i in 1:30]; following=true)))
+        # Front: fully opaque for contrast
+        push!(m.wm, Tachikoma.FloatingWindow(id=:solid, title="opacity: 1.0",
+            x=w ÷ 2 - 2, y=2, width=w ÷ 2, height=h - 4, opacity=1.0,
+            border_color=ColorRGB(0x90, 0xd0, 0x80),
+            content=ScrollPane(["Event $i" for i in 1:20]; following=true)))
+    end
+
+    # Animate middle window opacity between 0.3 and 0.95
+    overlay = m.wm.windows[2]
+    overlay.opacity = pulse(m.tick; period=90, lo=0.3, hi=0.95)
+    overlay.title = "opacity: $(round(overlay.opacity; digits=2))"
+
+    # Cycle focus between overlay and solid only (skip noise backdrop)
+    if mod(m.tick, 60) == 1
+        fw = Tachikoma.focused_window(m.wm)
+        if fw !== nothing && fw.id === :overlay
+            Tachikoma.bring_to_front!(m.wm, findfirst(w -> w.id === :solid, m.wm.windows))
+        else
+            Tachikoma.bring_to_front!(m.wm, findfirst(w -> w.id === :overlay, m.wm.windows))
+        end
+    end
+    render(m.wm, f.area, f.buffer; tick=m.tick)
+end
+
+APP_REGISTRY["window_opacity_demo"] = function (tach_file, w, h, frames, fps, realtime=false, warmup=0)
+    record_app(_WMOpacityDemo(), tach_file; width=w, height=h, frames, fps,
+        realtime=realtime, warmup=warmup)
+end
 
 # ─── Quick Start Game of Life (index.md) ──────────────────────────
 # Rendered by _generate_quickstart in hero_assets.jl, NOT via tachi:app.
@@ -481,4 +582,371 @@ let fps_path = joinpath(@__DIR__, "..", "demos", "TachikomaDemos", "src", "fps_d
             Tachikoma.CELL_PX[] = orig_cell_px
         end
     end
+end
+
+# ─── PagedDataTable Demo (paged-datatable.md) ─────────────────────────────
+# Self-contained demo with InMemoryPagedProvider — no SQLite dependency.
+
+import Tachikoma.Paged: PagedDataTable, PagedColumn, InMemoryPagedProvider,
+    PagedDataProvider, pdt_fetch!, pdt_set_page_size!
+
+@kwdef mutable struct PDTDemo <: Model
+    quit::Bool = false
+    tick::Int = 0
+    pdt::PagedDataTable = PagedDataTable(pdt_demo_data(); page_size=50)
+end
+
+function pdt_demo_data()
+    n = 500
+    names  = ["Planet-$(lpad(i, 4, '0'))" for i in 1:n]
+    masses = [round(0.1 + 13.0 * (sin(i * 0.7) + 1) / 2; digits=2) for i in 1:n]
+    dists  = [round(1.0 + 100.0 * abs(cos(i * 0.3)); digits=1) for i in 1:n]
+    types  = [["Rocky", "Terrestrial", "Sub-Neptune", "Super-Earth", "Hot Jupiter", "Ice World", "Gas Giant", "Lava"][mod1(i * 3, 8)] for i in 1:n]
+    cols = [
+        PagedColumn("Name"),
+        PagedColumn("Mass (Mⱼ)"; col_type=:numeric, width=10),
+        PagedColumn("Distance (ly)"; col_type=:numeric, width=14),
+        PagedColumn("Type"),
+    ]
+    data = Vector{Any}[names, masses, dists, types]
+    InMemoryPagedProvider(cols, data)
+end
+
+Tachikoma.should_quit(m::PDTDemo) = m.quit
+
+function Tachikoma.update!(m::PDTDemo, evt::KeyEvent)
+    evt.key == :escape && (m.quit = true; return)
+    handle_key!(m.pdt, evt)
+end
+
+function Tachikoma.update!(m::PDTDemo, evt::MouseEvent)
+    handle_mouse!(m.pdt, evt)
+end
+
+function Tachikoma.view(m::PDTDemo, f::Frame)
+    m.tick += 1
+    m.pdt.tick = m.tick
+    rows = split_layout(Layout(Vertical, [Fill(), Fixed(1)]), f.area)
+    render(m.pdt, rows[1], f.buffer)
+    render(StatusBar(
+        left=[Span(" PagedDataTable │ 500 planets │ [↑↓] navigate  [1-4] sort  [/] search  [f] filter  [d] detail ", tstyle(:text_dim))],
+    ), rows[2], f.buffer)
+end
+
+APP_EVENTS["paged_datatable_demo"] = function (fps)
+    events = Vector{Tuple{Int,Event}}()
+    t = fps
+
+    # Navigate down a few rows
+    for i in 1:5
+        push!(events, (t + i * 4, KeyEvent(:down)))
+    end
+    t += 30
+
+    # Sort by column 2 (Mass)
+    push!(events, (t, KeyEvent('2')))
+    t += fps
+
+    # Navigate to see sorted results
+    for i in 1:3
+        push!(events, (t + i * 4, KeyEvent(:down)))
+    end
+    t += fps
+
+    # Open search, type "Lava"
+    push!(events, (t, KeyEvent('/')))
+    t += fps ÷ 2
+    for (i, c) in enumerate("Lava")
+        push!(events, (t + i * 3, KeyEvent(c)))
+    end
+    t += length("Lava") * 3 + fps ÷ 2
+    push!(events, (t, KeyEvent(:enter)))
+    t += fps
+
+    # Navigate in search results
+    for i in 1:3
+        push!(events, (t + i * 5, KeyEvent(:down)))
+    end
+    t += fps
+
+    # Close search
+    push!(events, (t, KeyEvent('/')))
+    t += fps ÷ 2
+
+    # Open detail view
+    push!(events, (t, KeyEvent('d')))
+    t += fps * 2
+
+    # Close detail
+    push!(events, (t, KeyEvent(:escape)))
+    t += fps
+
+    # Open filter modal
+    push!(events, (t, KeyEvent('f')))
+    t += fps * 2
+
+    # Close filter
+    push!(events, (t, KeyEvent(:escape)))
+    t += fps
+
+    events
+end
+
+APP_REGISTRY["paged_datatable_demo"] = function (tach_file, w, h, frames, fps, realtime=false, warmup=0)
+    events = APP_EVENTS["paged_datatable_demo"](fps)
+    record_app(PDTDemo(), tach_file; width=w, height=h, frames, fps,
+        events=events, realtime=realtime, warmup=warmup)
+end
+
+# ─── REPL Widget Demo (terminal-repl.md) ──────────────────────────────────
+# Shows an in-process REPL in a floating window, typing expressions and
+# seeing results. Uses realtime=true so the REPL task has wall-clock time
+# to start up and process input.
+
+import Tachikoma: REPLWidget, FloatingWindow, WindowManager, route_output!
+
+@kwdef mutable struct _REPLDemo <: Model
+    quit::Bool = false
+    wm::Tachikoma.WindowManager = Tachikoma.WindowManager()
+    repl::Union{Tachikoma.REPLWidget, Nothing} = nothing
+    _wake_fn::Union{Function, Nothing} = nothing
+end
+
+Tachikoma.should_quit(m::_REPLDemo) = m.quit
+Tachikoma.recording_enabled(::_REPLDemo) = false
+
+function Tachikoma.has_pending_output(m::_REPLDemo)
+    m.repl !== nothing && Tachikoma.drain!(m.repl)
+end
+
+function Tachikoma.set_wake!(m::_REPLDemo, notify::Function)
+    m._wake_fn = notify
+    m.repl !== nothing && Tachikoma.set_wake!(m.repl.tw, notify)
+end
+
+function Tachikoma.update!(m::_REPLDemo, evt::Tachikoma.Event)
+    if evt isa KeyEvent
+        Tachikoma.handle_event!(m.wm, evt)
+    end
+end
+
+function Tachikoma.view(m::_REPLDemo, f::Frame)
+    if m.repl === nothing
+        w, h = f.area.width, f.area.height
+        rw = Tachikoma.REPLWidget(; rows=h - 4, cols=w - 4)
+        m.repl = rw
+        m._wake_fn !== nothing && Tachikoma.set_wake!(rw.tw, m._wake_fn)
+        push!(m.wm, Tachikoma.FloatingWindow(
+            id = :repl,
+            title = "Julia REPL",
+            x = 1, y = 1, width = w, height = h - 1,
+            content = rw,
+            border_color = Tachikoma.ColorRGB(0x60, 0xc0, 0x90),
+        ))
+    end
+    Tachikoma.render(m.wm, f.area, f.buffer)
+
+    Tachikoma.render(Tachikoma.StatusBar(
+        left=[Tachikoma.Span(" In-process Julia REPL │ shared state │ tab completion │ ] pkg │ ; shell │ ? help ", Tachikoma.tstyle(:text_dim))],
+    ), Tachikoma.Rect(f.area.x, Tachikoma.bottom(f.area) - 1, f.area.width, 1), f.buffer)
+end
+
+function Tachikoma.cleanup!(m::_REPLDemo)
+    m.repl !== nothing && Tachikoma.close!(m.repl)
+end
+
+APP_EVENTS["repl_widget_demo"] = function (fps)
+    events = Tuple{Int,KeyEvent}[]
+    t = fps  # short wait for REPL to show prompt
+
+    # Type: 1 + 1
+    for (i, c) in enumerate("1 + 1")
+        push!(events, (t + i * 3, KeyEvent(c)))
+    end
+    t += length("1 + 1") * 3 + fps ÷ 3
+    push!(events, (t, KeyEvent(:enter)))
+
+    # Wait, then type: x = [1, 2, 3]
+    t += fps
+    for (i, c) in enumerate("x = [1, 2, 3]")
+        push!(events, (t + i * 3, KeyEvent(c)))
+    end
+    t += length("x = [1, 2, 3]") * 3 + fps ÷ 3
+    push!(events, (t, KeyEvent(:enter)))
+
+    # Wait, then type: sum(x)
+    t += fps
+    for (i, c) in enumerate("sum(x)")
+        push!(events, (t + i * 3, KeyEvent(c)))
+    end
+    t += length("sum(x)") * 3 + fps ÷ 3
+    push!(events, (t, KeyEvent(:enter)))
+
+    # Pause to show result
+    t += fps
+
+    events
+end
+
+APP_REGISTRY["repl_widget_demo"] = function (tach_file, w, h, frames, fps, realtime=false, warmup=0)
+    model = _REPLDemo()
+    events = APP_EVENTS["repl_widget_demo"](fps)
+    record_app(model, tach_file; width=w, height=h, frames, fps,
+        events, realtime=true, warmup=max(warmup, fps * 3))
+end
+
+# ─── PTY Flow Diagram (terminal-repl.md) ──────────────────────────────────
+# Animated diagram showing data flow through the PTY architecture.
+# 4 boxes in a cycle with animated packets, same style as EventLoopViz.
+
+@kwdef mutable struct PTYFlowViz <: Model
+    quit::Bool = false
+    tick::Int = 0
+end
+
+Tachikoma.should_quit(m::PTYFlowViz) = m.quit
+
+function Tachikoma.view(m::PTYFlowViz, f::Frame)
+    m.tick += 1
+    buf = f.buffer
+    area = f.area
+
+    box_w = 18
+    box_h = 5
+    gap_x = 6
+    gap_y = 2
+
+    total_w = box_w * 2 + gap_x
+    total_h = box_h * 2 + gap_y
+    ox = area.x + max(0, (area.width - total_w) ÷ 2)
+    oy = area.y + 1 + max(0, (area.height - total_h - 2) ÷ 2)
+
+    boxes = [
+        (rect=Rect(ox, oy, box_w, box_h),
+            title="Widget", subtitle="handle_key!", color=:accent),
+        (rect=Rect(ox + box_w + gap_x, oy, box_w, box_h),
+            title="PTY Master", subtitle="encode → write", color=:primary),
+        (rect=Rect(ox + box_w + gap_x, oy + box_h + gap_y, box_w, box_h),
+            title="Process", subtitle="shell / REPL", color=:secondary),
+        (rect=Rect(ox, oy + box_h + gap_y, box_w, box_h),
+            title="VT Parser", subtitle="decode → render", color=:success),
+    ]
+
+    cycle = 120
+    t_cycle = mod(m.tick, cycle)
+    segment = div(t_cycle, cycle ÷ 4)
+    seg_t = mod(t_cycle, cycle ÷ 4) / (cycle ÷ 4)
+    seg_t_eased = seg_t < 0.5 ? 2.0 * seg_t * seg_t : 1.0 - (-2.0 * seg_t + 2.0)^2 / 2.0
+
+    arrow_color_dim = tstyle(:border, dim=true)
+    label_style = tstyle(:text_dim, dim=true, italic=true)
+
+    # Top arrow: Widget → PTY Master
+    arrow_y_top = oy + box_h ÷ 2
+    arrow_x1 = ox + box_w
+    arrow_x2 = ox + box_w + gap_x - 1
+    for x in arrow_x1:arrow_x2
+        set_char!(buf, x, arrow_y_top, '─', arrow_color_dim)
+    end
+    set_char!(buf, arrow_x2, arrow_y_top, '▸', tstyle(:text_dim))
+    mid_top = (arrow_x1 + arrow_x2) ÷ 2
+    set_string!(buf, mid_top - 1, arrow_y_top - 1, "key", label_style)
+
+    # Right arrow: PTY Master → Process
+    arrow_x_right = ox + box_w + gap_x + box_w ÷ 2
+    arrow_y1 = oy + box_h
+    arrow_y2 = oy + box_h + gap_y - 1
+    for y in arrow_y1:arrow_y2
+        set_char!(buf, arrow_x_right, y, '│', arrow_color_dim)
+    end
+    set_char!(buf, arrow_x_right, arrow_y2, '▾', tstyle(:text_dim))
+
+    # Bottom arrow: Process → VT Parser (reversed)
+    arrow_y_bot = oy + box_h + gap_y + box_h ÷ 2
+    for x in arrow_x1:arrow_x2
+        set_char!(buf, x, arrow_y_bot, '─', arrow_color_dim)
+    end
+    set_char!(buf, arrow_x1, arrow_y_bot, '◂', tstyle(:text_dim))
+    set_string!(buf, mid_top - 2, arrow_y_bot + 1, "bytes", label_style)
+
+    # Left arrow: VT Parser → Widget (reversed, upward)
+    arrow_x_left = ox + box_w ÷ 2
+    for y in arrow_y1:arrow_y2
+        set_char!(buf, arrow_x_left, y, '│', arrow_color_dim)
+    end
+    set_char!(buf, arrow_x_left, arrow_y1, '▴', tstyle(:text_dim))
+
+    # Animated packet
+    packet_style = tstyle(:accent, bold=true)
+    trail_style = tstyle(:accent, dim=true)
+
+    if segment == 0
+        px = arrow_x1 + round(Int, seg_t_eased * (arrow_x2 - arrow_x1))
+        set_char!(buf, px, arrow_y_top, '◆', packet_style)
+        px > arrow_x1 && set_char!(buf, px - 1, arrow_y_top, '◇', trail_style)
+        px > arrow_x1 + 1 && set_char!(buf, px - 2, arrow_y_top, '·', trail_style)
+    elseif segment == 1
+        py = arrow_y1 + round(Int, seg_t_eased * (arrow_y2 - arrow_y1))
+        set_char!(buf, arrow_x_right, py, '◆', packet_style)
+        py > arrow_y1 && set_char!(buf, arrow_x_right, py - 1, '◇', trail_style)
+    elseif segment == 2
+        px = arrow_x2 - round(Int, seg_t_eased * (arrow_x2 - arrow_x1))
+        set_char!(buf, px, arrow_y_bot, '◆', packet_style)
+        px < arrow_x2 && set_char!(buf, px + 1, arrow_y_bot, '◇', trail_style)
+        px < arrow_x2 - 1 && set_char!(buf, px + 2, arrow_y_bot, '·', trail_style)
+    else
+        py = arrow_y2 - round(Int, seg_t_eased * (arrow_y2 - arrow_y1))
+        set_char!(buf, arrow_x_left, py, '◆', packet_style)
+        py < arrow_y2 && set_char!(buf, arrow_x_left, py + 1, '◇', trail_style)
+    end
+
+    # Render boxes with glow on active segment
+    for (i, b) in enumerate(boxes)
+        active = (i - 1) == segment
+        leaving = (i - 1) == mod(segment - 1, 4)
+
+        if active
+            glow_amount = pulse(m.tick; period=30, lo=0.6, hi=1.0)
+            base = to_rgb(theme().accent)
+            c = brighten(base, glow_amount * 0.3)
+            border_shimmer!(buf, b.rect, c, m.tick; intensity=0.25)
+        elseif leaving
+            fade = 1.0 - seg_t_eased
+            base = to_rgb(getfield(theme(), b.color))
+            c = dim_color(base, 1.0 - fade * 0.4)
+            border_shimmer!(buf, b.rect, c, m.tick; intensity=fade * 0.15)
+        else
+            border_shimmer!(buf, b.rect, to_rgb(getfield(theme(), b.color)),
+                m.tick; intensity=0.05)
+        end
+
+        inner = Rect(b.rect.x + 1, b.rect.y + 1, b.rect.width - 2, b.rect.height - 2)
+        title_x = inner.x + max(0, (inner.width - length(b.title)) ÷ 2)
+        title_style = active ? tstyle(b.color, bold=true) : tstyle(b.color)
+        set_string!(buf, title_x, inner.y, strip(b.title), title_style)
+
+        sub_style = active ? tstyle(:text) : tstyle(:text_dim, dim=true)
+        sub_x = inner.x + max(0, (inner.width - length(b.subtitle)) ÷ 2)
+        set_string!(buf, sub_x, inner.y + 1, b.subtitle, sub_style)
+
+        if active
+            label = i == 1 ? "keystroke" :
+                    i == 2 ? "stdin →" :
+                    i == 3 ? "→ stdout" : "ANSI parse"
+            lab_x = inner.x + max(0, (inner.width - length(label)) ÷ 2)
+            set_string!(buf, lab_x, inner.y + 2, label, tstyle(:text_dim, italic=true))
+        end
+    end
+
+    title = "PTY Data Flow"
+    tx = area.x + max(0, (area.width - length(title)) ÷ 2)
+    set_string!(buf, tx, area.y, title, tstyle(:title, bold=true))
+
+    si = mod1(m.tick ÷ 4, length(SPINNER_BRAILLE))
+    set_char!(buf, area.x + 1, bottom(area), SPINNER_BRAILLE[si], tstyle(:text_dim, dim=true))
+end
+
+APP_REGISTRY["pty_flow"] = function (tach_file, w, h, frames, fps, realtime=false, warmup=0)
+    record_app(PTYFlowViz(), tach_file; width=w, height=h, frames=frames, fps=fps,
+        realtime=realtime, warmup=warmup)
 end

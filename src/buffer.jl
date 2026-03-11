@@ -49,10 +49,16 @@ end
 function set_char!(buf::Buffer, x::Int, y::Int, ch::Char,
                    style::Style=RESET)
     in_bounds(buf, x, y) || return
-    # Clean up adjacent wide-char state before overwriting
     @inbounds begin
         i = buf_index(buf, x, y)
         old = buf.content[i]
+        # Preserve existing cell bg when new style has no bg (NoColor).
+        # Prevents "black fringe" inside semi-transparent FloatingWindows.
+        if style.bg isa NoColor && !(old.style.bg isa NoColor)
+            style = Style(fg=style.fg, bg=old.style.bg, bold=style.bold, dim=style.dim,
+                          italic=style.italic, underline=style.underline)
+        end
+        # Clean up adjacent wide-char state before overwriting
         if old.char != WIDE_CHAR_PAD && textwidth(old.char) == 2
             # Overwriting the leading cell of a wide char → orphaned pad at x+1
             if in_bounds(buf, x + 1, y)

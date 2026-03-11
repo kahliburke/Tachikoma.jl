@@ -5,8 +5,8 @@ import TerminalWindow from './TerminalWindow.vue'
 import './style.css'
 import './docstrings.css'
 
-// Asset base URL — resolved at build time via Vite define in config.mts
-// Local dev: /Tachikoma.jl/assets/  |  CI: GitHub release download URL
+// Asset base URL — resolved at build time via Vite define in config.mts.
+// Local dev: /assets/  |  Docs build: /Tachikoma.jl/assets/  |  CI overrides: GitHub release URL
 declare const __ASSET_BASE__: string
 const heroLogoGif = __ASSET_BASE__ + 'hero_logo.gif'
 const heroDemoGif = __ASSET_BASE__ + 'hero_demo.gif'

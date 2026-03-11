@@ -13,6 +13,9 @@ Requires the CommonMark.jl extension — call `enable_markdown()` first.
 """
 function markdown_to_spans end
 
+# Ref hook — set by TachikomaMarkdownExt.__init__()
+const _markdown_to_spans_fn = Ref{Union{Function, Nothing}}(nothing)
+
 const _COMMONMARK_UUID = Base.UUID("a80b9123-70ca-4bc0-993e-6e3bcb318db6")
 
 """
@@ -21,8 +24,7 @@ const _COMMONMARK_UUID = Base.UUID("a80b9123-70ca-4bc0-993e-6e3bcb318db6")
 Return `true` if the CommonMark.jl extension has been loaded.
 """
 function markdown_extension_loaded()
-    hasmethod(markdown_to_spans, Tuple{AbstractString, Int};
-              world=Base.get_world_counter())
+    _markdown_to_spans_fn[] !== nothing
 end
 
 """

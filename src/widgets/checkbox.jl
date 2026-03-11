@@ -11,6 +11,7 @@ mutable struct Checkbox
     check_char::Char
     uncheck_char::Char
     tick::Union{Int, Nothing}
+    last_area::Rect               # cached from last render for mouse hit testing
 end
 
 """
@@ -27,7 +28,7 @@ function Checkbox(label::String;
     uncheck_char::Char='☐',
     tick::Union{Int, Nothing}=nothing,
 )
-    Checkbox(label, checked, focused, style, focused_style, check_char, uncheck_char, tick)
+    Checkbox(label, checked, focused, style, focused_style, check_char, uncheck_char, tick, Rect())
 end
 
 focusable(::Checkbox) = true
@@ -42,8 +43,21 @@ function handle_key!(cb::Checkbox, evt::KeyEvent)::Bool
     false
 end
 
+function handle_mouse!(cb::Checkbox, evt::MouseEvent)::Bool
+    if evt.button == mouse_left && evt.action == mouse_press
+        r = cb.last_area
+        if r.width > 0 && contains(r, evt.x, evt.y)
+            cb.checked = !cb.checked
+            cb.focused = true
+            return true
+        end
+    end
+    false
+end
+
 function render(cb::Checkbox, rect::Rect, buf::Buffer)
     (rect.width < 1 || rect.height < 1) && return
+    cb.last_area = rect
     y = rect.y
     s = cb.focused ? cb.focused_style : cb.style
     mark = cb.checked ? cb.check_char : cb.uncheck_char
@@ -70,6 +84,7 @@ mutable struct RadioGroup
     selected_char::Char
     unselected_char::Char
     tick::Union{Int, Nothing}
+    last_area::Rect               # cached from last render for mouse hit testing
 end
 
 """
@@ -90,7 +105,7 @@ function RadioGroup(labels::Vector{String};
     sel = clamp(selected, 1, max(1, length(labels)))
     cur = clamp(cursor, 1, max(1, length(labels)))
     RadioGroup(labels, sel, focused, cur, style, focused_style,
-               selected_char, unselected_char, tick)
+               selected_char, unselected_char, tick, Rect())
 end
 
 focusable(::RadioGroup) = true
@@ -113,8 +128,26 @@ function handle_key!(rg::RadioGroup, evt::KeyEvent)::Bool
     false
 end
 
+function handle_mouse!(rg::RadioGroup, evt::MouseEvent)::Bool
+    if evt.button == mouse_left && evt.action == mouse_press
+        r = rg.last_area
+        if r.width > 0 && contains(r, evt.x, evt.y)
+            # Determine which row was clicked
+            row_idx = evt.y - r.y + 1
+            if 1 <= row_idx <= length(rg.labels)
+                rg.cursor = row_idx
+                rg.selected = row_idx
+                rg.focused = true
+                return true
+            end
+        end
+    end
+    false
+end
+
 function render(rg::RadioGroup, rect::Rect, buf::Buffer)
     (rect.width < 1 || rect.height < 1) && return
+    rg.last_area = rect
     for (i, label) in enumerate(rg.labels)
         i > rect.height && break
         y = rect.y + i - 1
