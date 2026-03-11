@@ -133,25 +133,21 @@ data = Vector{Any}[names_vec, scores_vec, statuses_vec]
 provider = InMemoryPagedProvider(cols, data)
 ```
 
-### DataFrames
+### DataFrames / Tables.jl
 
-`InMemoryPagedProvider` accepts column-major vectors, so connecting a `DataFrame` is straightforward:
+With the `TachikomaTablesExt` extension (loaded automatically when `Tables.jl` is available), you can pass any Tables.jl-compatible source directly to `PagedDataTable`:
 
 ```julia
 using DataFrames
 using Tachikoma.Paged
 
 df = DataFrame(name=["Alice", "Bob", "Carol"], score=[95, 87, 92], grade=["A", "B+", "A-"])
-
-cols = [PagedColumn(string(n); col_type=eltype(df[!, n]) <: Number ? :numeric : :text)
-        for n in names(df)]
-data = Vector{Any}[Vector{Any}(df[!, n]) for n in names(df)]
-provider = InMemoryPagedProvider(cols, data)
-
-pdt = PagedDataTable(provider)
+pdt = PagedDataTable(df)
 ```
 
-Sorting, search, and filtering all work automatically since `InMemoryPagedProvider` handles them in-process.
+Column types are inferred automatically — numeric columns get numeric filter operators, everything else gets text filters. Sorting, search, and filtering all work out of the box.
+
+This works with any Tables.jl source: DataFrames, CSV.File, TypedTables, Arrow tables, etc.
 
 ### SQLitePagedProvider (Extension)
 
