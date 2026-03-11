@@ -152,9 +152,8 @@ function _apply_window_opacity!(buf::Buffer, rect::Rect, window_bg::ColorRGB, op
                 old_s.fg
             end
 
-            new_s = Style(fg=composited_fg, bg=composited_bg, bold=old_s.bold, dim=old_s.dim,
-                          italic=old_s.italic, underline=old_s.underline)
-            @inbounds buf.content[i] = Cell(cell.char, new_s)
+            new_s = Style(fg=composited_fg, bg=composited_bg)
+            @inbounds buf.content[i] = Cell(' ', new_s)
         end
     end
 end
