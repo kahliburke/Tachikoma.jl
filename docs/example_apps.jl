@@ -693,8 +693,9 @@ APP_EVENTS["paged_datatable_demo"] = function (fps)
 end
 
 APP_REGISTRY["paged_datatable_demo"] = function (tach_file, w, h, frames, fps, realtime=false, warmup=0)
+    events = APP_EVENTS["paged_datatable_demo"](fps)
     record_app(PDTDemo(), tach_file; width=w, height=h, frames, fps,
-        realtime=realtime, warmup=warmup)
+        events=events, realtime=realtime, warmup=warmup)
 end
 
 # ─── REPL Widget Demo (terminal-repl.md) ──────────────────────────────────
