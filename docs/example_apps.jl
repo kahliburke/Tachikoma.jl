@@ -590,13 +590,13 @@ end
 import Tachikoma.Paged: PagedDataTable, PagedColumn, InMemoryPagedProvider,
     PagedDataProvider, pdt_fetch!, pdt_set_page_size!
 
-@kwdef mutable struct _PDTDemo <: Model
+@kwdef mutable struct PDTDemo <: Model
     quit::Bool = false
     tick::Int = 0
-    pdt::PagedDataTable = PagedDataTable(_pdt_demo_make(); page_size=50)
+    pdt::PagedDataTable = PagedDataTable(pdt_demo_data(); page_size=50)
 end
 
-function _pdt_demo_make()
+function pdt_demo_data()
     n = 500
     names  = ["Planet-$(lpad(i, 4, '0'))" for i in 1:n]
     masses = [round(0.1 + 13.0 * (sin(i * 0.7) + 1) / 2; digits=2) for i in 1:n]
@@ -612,18 +612,18 @@ function _pdt_demo_make()
     InMemoryPagedProvider(cols, data)
 end
 
-Tachikoma.should_quit(m::_PDTDemo) = m.quit
+Tachikoma.should_quit(m::PDTDemo) = m.quit
 
-function Tachikoma.update!(m::_PDTDemo, evt::KeyEvent)
+function Tachikoma.update!(m::PDTDemo, evt::KeyEvent)
     evt.key == :escape && (m.quit = true; return)
     handle_key!(m.pdt, evt)
 end
 
-function Tachikoma.update!(m::_PDTDemo, evt::MouseEvent)
+function Tachikoma.update!(m::PDTDemo, evt::MouseEvent)
     handle_mouse!(m.pdt, evt)
 end
 
-function Tachikoma.view(m::_PDTDemo, f::Frame)
+function Tachikoma.view(m::PDTDemo, f::Frame)
     m.tick += 1
     m.pdt.tick = m.tick
     rows = split_layout(Layout(Vertical, [Fill(), Fixed(1)]), f.area)
@@ -693,7 +693,7 @@ APP_EVENTS["paged_datatable_demo"] = function (fps)
 end
 
 APP_REGISTRY["paged_datatable_demo"] = function (tach_file, w, h, frames, fps, realtime=false, warmup=0)
-    record_app(_PDTDemo(), tach_file; width=w, height=h, frames, fps,
+    record_app(PDTDemo(), tach_file; width=w, height=h, frames, fps,
         realtime=realtime, warmup=warmup)
 end
 
