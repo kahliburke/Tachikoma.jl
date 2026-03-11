@@ -22,7 +22,13 @@ include("sixel_image.jl")
 include("widgets/blockcanvas.jl")
 include("app.jl")
 include("test_backend.jl")
-include("recording.jl")         # recording functions (after app.jl + test_backend.jl)
+include("paged/Paged.jl")       # PagedDataTable submodule
+using .Paged                    # re-export all Paged symbols
+include("font_discovery.jl")    # font scanning (before export_svg.jl)
+include("export_stubs.jl")      # extension dispatch stubs + loaders (after widgets)
+include("recording.jl")         # core recording functions (after app.jl + test_backend.jl)
+include("export_svg.jl")        # SVG export (after font_discovery.jl)
+include("export_prefs.jl")      # export preferences
 include("tach_format.jl")       # .tach binary format (after recording.jl)
 include("dotwave_terrain.jl")
 include("phylo_tree.jl")
@@ -122,13 +128,14 @@ export # Core types
        Button,
        DropDown,
        TextArea,
-       CodeEditor, tokenize_line, TokenKind, Token, editor_mode,
+       CodeEditor, tokenize_line, TokenKind, Token, editor_mode, pending_command!,
        tokenize_python, tokenize_shell, tokenize_typescript,
        tokenize_code, token_style,
        Chart, DataSeries, ChartType, chart_line, chart_scatter,
        DataTable, DataColumn, ColumnAlign, col_left, col_right, col_center,
        SortDir, sort_none, sort_asc, sort_desc, sort_by!,
        datatable_detail,
+       PagedDataTable, pdt_set_provider!,
        Form, FormField,
        ProgressList, ProgressItem, TaskStatus,
        task_pending, task_running, task_done, task_error, task_skipped,
@@ -184,8 +191,9 @@ export # Core types
        record_app, record_widget, record_gif,
        start_recording!, stop_recording!, clear_recording!,
        export_svg, export_gif_from_snapshots, export_apng_from_snapshots,
-       gif_extension_loaded, tables_extension_loaded,
-       enable_gif, enable_tables, discover_mono_fonts, find_font_variant, find_bold_variant,
+       gif_extension_loaded, tables_extension_loaded, sqlite_extension_loaded,
+       enable_gif, enable_tables, enable_sqlite, create_sqlite_provider,
+       discover_mono_fonts, find_font_variant, find_bold_variant,
        # Markdown extension
        MarkdownPane, set_markdown!,
        markdown_to_spans, enable_markdown, markdown_extension_loaded,
