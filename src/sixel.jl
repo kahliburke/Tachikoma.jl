@@ -234,12 +234,14 @@ end
 
 # ── Two-pass color quantization ───────────────────────────────────
 
-# Reverse a color key (shift=2) back to a quantized ColorRGB.
-@inline function _key_to_color(key::Int)
+# Reverse a color key back to a quantized ColorRGB.
+@inline function _key_to_color(key::Int, shift::Int=2)
     key -= 1  # back to 0-based
-    b = UInt8((key & 0x3f) << 2)
-    g = UInt8(((key >> 6) & 0x3f) << 2)
-    r = UInt8(((key >> 12) & 0x3f) << 2)
+    bits = 8 - shift
+    mask = (1 << bits) - 1
+    b = UInt8((key & mask) << shift)
+    g = UInt8(((key >> bits) & mask) << shift)
+    r = UInt8(((key >> (2 * bits)) & mask) << shift)
     ColorRGB(r, g, b)
 end
 
@@ -249,7 +251,7 @@ end
 const _UNIQUE_KEYS = Ref(Vector{Int}(undef, 0))
 
 function _collect_unique_colors!(src::Matrix{ColorRGB}, lut::Vector{UInt16},
-                                  dirty::Vector{Int})
+                                  dirty::Vector{Int}, shift::Int=2)
     unique_keys = _UNIQUE_KEYS[]
     if length(unique_keys) < 262144
         unique_keys = Vector{Int}(undef, 262144)
@@ -260,8 +262,8 @@ function _collect_unique_colors!(src::Matrix{ColorRGB}, lut::Vector{UInt16},
     @inbounds for i in eachindex(src)
         px = src[i]
         px == BLACK && continue
-        qpx = _quantize(px, 2)
-        key = _color_key(qpx, 2)
+        qpx = _quantize(px, shift)
+        key = _color_key(qpx, shift)
         if lut[key] == 0
             lut[key] = UInt16(1)  # mark as seen
             nd += 1
@@ -281,11 +283,11 @@ end
 # Strategy: sort keys (which distributes colors evenly in RGB space
 # due to r-g-b bit packing), then pick 255 evenly spaced entries.
 # Returns palette::Vector{ColorRGB} of at most 255 entries.
-function _select_palette(unique_keys::Vector{Int}, n_unique::Int)
+function _select_palette(unique_keys::Vector{Int}, n_unique::Int, shift::Int=2)
     if n_unique <= 255
         palette = Vector{ColorRGB}(undef, n_unique)
         @inbounds for i in 1:n_unique
-            palette[i] = _key_to_color(unique_keys[i])
+            palette[i] = _key_to_color(unique_keys[i], shift)
         end
         return palette
     end
@@ -297,7 +299,7 @@ function _select_palette(unique_keys::Vector{Int}, n_unique::Int)
     @inbounds for i in 1:255
         # Map i ∈ [1,255] to index in [1,n_unique] evenly
         idx = round(Int, (i - 1) * (n_unique - 1) / 254) + 1
-        palette[i] = _key_to_color(unique_keys[idx])
+        palette[i] = _key_to_color(unique_keys[idx], shift)
     end
     palette
 end
@@ -358,20 +360,27 @@ function encode_sixel(pixels::Matrix{ColorRGB};
 
     has_any = false
 
-    # Two-pass color quantization at shift=2 (64 levels/channel, high quality).
-    # Pass 1: discover all unique quantized colors in the image.
-    # Pass 2: if > 255, select 255 evenly distributed representatives,
-    #          then map every pixel to its nearest palette entry via LUT cache.
-    n_unique = _collect_unique_colors!(src, lut, dirty)
+    # Adaptive color quantization: start at shift=2 (64 levels/channel,
+    # high quality). If there are more than 255 unique colors, coarsen
+    # to shift=3 (32 levels) then shift=4 (16 levels). This avoids the
+    # expensive _nearest_palette_color linear search entirely when
+    # coarsening brings the count under 255, and also reduces the number
+    # of band passes (fewer colors = smaller output).
+    shift = 2
+    n_unique = _collect_unique_colors!(src, lut, dirty, shift)
+    while n_unique > 255 && shift < 4
+        shift += 1
+        n_unique = _collect_unique_colors!(src, lut, dirty, shift)
+    end
     unique_keys = _UNIQUE_KEYS[]
-    palette = _select_palette(unique_keys, n_unique)
+    palette = _select_palette(unique_keys, n_unique, shift)
     n_palette = length(palette)
 
-    # Build LUT: for palette colors, direct map. For non-palette colors
-    # (when n_unique > 255), nearest-color search is cached in LUT.
-    # First, register all palette colors in the LUT.
+    # Build LUT: for palette colors, direct map. When n_unique ≤ 255
+    # (the common case after adaptive shift), every pixel maps directly
+    # with no nearest-color search needed.
     for ci in 1:n_palette
-        key = _color_key(palette[ci], 2)
+        key = _color_key(palette[ci], shift)
         lut[key] = UInt16(ci)
         n_dirty += 1
         if n_dirty <= length(dirty)
@@ -383,8 +392,8 @@ function encode_sixel(pixels::Matrix{ColorRGB};
     @inbounds for i in eachindex(src)
         px = src[i]
         px == BLACK && continue
-        qpx = _quantize(px, 2)
-        key = _color_key(qpx, 2)
+        qpx = _quantize(px, shift)
+        key = _color_key(qpx, shift)
         ci = lut[key]
         if ci == 0
             # Not a palette color — find nearest and cache
