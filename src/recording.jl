@@ -303,10 +303,12 @@ find_bold_variant(font_path::String) = find_font_variant(font_path, "Bold")
 function export_gif_from_snapshots end
 function export_apng_from_snapshots end
 
+# Ref hooks — set by TachikomaGifExt.__init__()
+const _gif_export_fn  = Ref{Union{Function, Nothing}}(nothing)
+const _apng_export_fn = Ref{Union{Function, Nothing}}(nothing)
+
 function gif_extension_loaded()
-    hasmethod(export_gif_from_snapshots,
-              Tuple{String, Int, Int, Vector{Vector{Cell}}, Vector{Float64}};
-              world=Base.get_world_counter())
+    _gif_export_fn[] !== nothing
 end
 
 # ── Extension convenience loaders ─────────────────────────────────
@@ -344,6 +346,9 @@ function enable_gif()
     nothing
 end
 
+# Ref hook — set by TachikomaTablesExt.__init__()
+const _datatable_from_table = Ref{Union{Function, Nothing}}(nothing)
+
 """
     tables_extension_loaded() → Bool
 
@@ -351,7 +356,7 @@ Return `true` if the Tables.jl extension has been loaded (i.e. `DataTable`
 accepts a Tables.jl-compatible source).
 """
 function tables_extension_loaded()
-    hasmethod(DataTable, Tuple{Any}; world=Base.get_world_counter())
+    _datatable_from_table[] !== nothing
 end
 
 """
@@ -368,6 +373,41 @@ function enable_tables()
     end
     Base.require(Main, :Tables)
     tables_extension_loaded() || @warn "TachikomaTablesExt did not activate — possible version incompatibility."
+    nothing
+end
+
+const _SQLITE_UUID      = Base.UUID("0aa819cd-b072-5ff4-a722-6bc24af294d9")
+const _DBINTERFACE_UUID = Base.UUID("a10d1c49-ce27-4219-8d33-6db1a4562965")
+
+"""
+    sqlite_extension_loaded() → Bool
+
+Return `true` if the SQLite extension has been loaded (i.e. `SQLitePagedProvider`
+is available).
+"""
+function sqlite_extension_loaded()
+    _create_sqlite_provider[] !== nothing
+end
+
+"""
+    enable_sqlite()
+
+Ensure the SQLite extension is loaded. If `SQLite` and `DBInterface` are
+installed but not yet imported, this triggers their loading so
+`TachikomaSQLiteExt` activates.
+"""
+function enable_sqlite()
+    sqlite_extension_loaded() && return nothing
+    missing_pkgs = String[]
+    _pkg_available("SQLite", _SQLITE_UUID) || push!(missing_pkgs, "SQLite")
+    _pkg_available("DBInterface", _DBINTERFACE_UUID) || push!(missing_pkgs, "DBInterface")
+    if !isempty(missing_pkgs)
+        add_cmd = join(["\"$p\"" for p in missing_pkgs], ", ")
+        error("SQLite provider requires $(join(missing_pkgs, ", ")).\n  Install with: using Pkg; Pkg.add([$add_cmd])")
+    end
+    Base.require(Main, :SQLite)
+    Base.require(Main, :DBInterface)
+    sqlite_extension_loaded() || @warn "TachikomaSQLiteExt did not activate — possible version incompatibility."
     nothing
 end
 
