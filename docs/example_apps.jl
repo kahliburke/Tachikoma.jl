@@ -593,7 +593,7 @@ import Tachikoma.Paged: PagedDataTable, PagedColumn, InMemoryPagedProvider,
 @kwdef mutable struct _PDTDemo <: Model
     quit::Bool = false
     tick::Int = 0
-    pdt::PagedDataTable = _pdt_demo_make()
+    pdt::PagedDataTable = PagedDataTable(_pdt_demo_make(); page_size=50)
 end
 
 function _pdt_demo_make()
