@@ -71,6 +71,10 @@ should_quit(m::EditorModel) = m.quit
 
 function update!(m::EditorModel, evt::KeyEvent)
     handle_key!(m.editor, evt)
+    cmd = pending_command!(m.editor)
+    if cmd in ("q", "q!", "wq", "wq!", "qa", "qa!")
+        m.quit = true
+    end
 end
 
 function view(m::EditorModel, f::Frame)
@@ -98,6 +102,8 @@ function view(m::EditorModel, f::Frame)
         Span(" NORMAL ", tstyle(:accent, bold=true))
     elseif mode == :search
         Span(" SEARCH ", tstyle(:warning, bold=true))
+    elseif mode == :command
+        Span(" COMMAND ", tstyle(:warning, bold=true))
     else
         Span(" INSERT ", tstyle(:success, bold=true))
     end
@@ -106,7 +112,7 @@ function view(m::EditorModel, f::Frame)
     col = m.editor.cursor_col + 1
     pos = "Ln $(ln), Col $(col)"
     render(StatusBar(
-        left=[mode_span, Span("  [i]insert [Esc]normal [/]search [Ctrl+C]quit ", tstyle(:text_dim))],
+        left=[mode_span, Span("  [i]insert [Esc]normal [/]search [:q]quit ", tstyle(:text_dim))],
         right=[Span("$(pos) ", tstyle(:text_dim))],
     ), footer_area, buf)
 end
