@@ -47,6 +47,7 @@ mutable struct REPLWidget
     repl_task::Task            # background task running the REPL frontend
     exited::Bool              # true after REPL task finishes (e.g. Ctrl+D)
     on_exit::Union{Function,Nothing}  # called once when REPL exits
+    saved_stdin::IO           # original stdin before redirect (restored on close!)
 end
 
 function REPLWidget(;
@@ -73,6 +74,8 @@ function REPLWidget(;
     # has ECHO enabled (good for prompts).
     _cfmakeraw!(slave_fd)
 
+    # Save original stdin so we can restore it on close!.
+    saved_stdin = stdin
     # Redirect global stdin to this REPL's slave input so that
     # interactive prompts (e.g., Pkg's "Install package? (y/n)")
     # read keystrokes from the widget instead of the app's event loop.
@@ -115,7 +118,7 @@ function REPLWidget(;
         end
     end
 
-    REPLWidget(tw, slave_in, slave_out, slave_err, repl_task, false, on_exit)
+    REPLWidget(tw, slave_in, slave_out, slave_err, repl_task, false, on_exit, saved_stdin)
 end
 
 """
@@ -175,6 +178,9 @@ end
 Shut down the in-process REPL and clean up the PTY.
 """
 function close!(rw::REPLWidget)
+    # Restore original stdin before closing slave streams — redirect_stdin
+    # overwrote fd 0 via dup2, so the next app() call would dup a dead fd.
+    try redirect_stdin(rw.saved_stdin) catch end
     # Close slave streams (causes REPL reads/writes to fail → task exits)
     for io in (rw.slave_in, rw.slave_out, rw.slave_err)
         try close(io) catch end
