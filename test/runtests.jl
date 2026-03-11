@@ -1,5 +1,6 @@
 using Test
 using Tachikoma
+using Tachikoma.Paged
 using Base64: base64decode
 using Supposition, Supposition.Data
 
@@ -30,4 +31,5 @@ struct _DummyModel <: T.Model end
     include("test_ccall_safety.jl")
     include("test_floating_window.jl")
     include("test_terminal_widget.jl")
+    include("test_paged_datatable.jl")
 end

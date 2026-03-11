@@ -3,6 +3,8 @@ module TachikomaDemos
 using Dates
 using Match
 using Tachikoma
+using SQLite
+using DBInterface
 @tachikoma_app
 
 include("theme_demo.jl")
@@ -24,6 +26,7 @@ include("scrollpane_demo.jl")
 include("effects_demo.jl")
 include("chart_demo.jl")
 include("datatable_demo.jl")
+include("paged_datatable_demo.jl")
 include("form_demo.jl")
 include("editor_demo.jl")
 include("fps_demo.jl")
@@ -41,7 +44,8 @@ include("launcher.jl")
 export demo, rain, dashboard, life, snake, clock, waves, chaos,
        sysmon, anim_demo, mouse_demo, dotwave,
        showcase, backend_demo, resize_demo, scrollpane_demo,
-       effects_demo, chart_demo, datatable_demo, form_demo, editor_demo,
+       effects_demo, chart_demo, datatable_demo, paged_datatable_demo,
+       form_demo, editor_demo,
        fps_demo, phylo_demo, clado_demo, sixel_demo, sixel_gallery,
        async_demo, markdown_demo, windows_demo, terminal_demo, repl_demo,
        launcher
