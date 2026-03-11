@@ -153,16 +153,20 @@ pdt = PagedDataTable(df)
 
 <!-- tachi:widget pdt_dataframe w=60 h=10 -->
 ```julia
-using DataFrames
-using Tachikoma.Paged
-
-df = DataFrame(
-    Name   = ["Alice", "Bob", "Carol", "Dave", "Eve", "Frank"],
-    Score  = [95, 82, 91, 78, 99, 85],
-    Grade  = ["A", "B+", "A-", "C+", "A+", "B"],
-    Status = ["Active", "Active", "Alumni", "Active", "Alumni", "Active"],
-)
-pdt = PagedDataTable(df; page_size=6)
+cols = [
+    Tachikoma.Paged.PagedColumn("Name"),
+    Tachikoma.Paged.PagedColumn("Score"; col_type=:numeric),
+    Tachikoma.Paged.PagedColumn("Grade"),
+    Tachikoma.Paged.PagedColumn("Status"),
+]
+data = Vector{Any}[
+    Any["Alice", "Bob", "Carol", "Dave", "Eve", "Frank"],
+    Any[95, 82, 91, 78, 99, 85],
+    Any["A", "B+", "A-", "C+", "A+", "B"],
+    Any["Active", "Active", "Alumni", "Active", "Alumni", "Active"],
+]
+provider = Tachikoma.Paged.InMemoryPagedProvider(cols, data)
+pdt = PagedDataTable(provider; page_size=6)
 render(pdt, area, buf)
 ```
 
