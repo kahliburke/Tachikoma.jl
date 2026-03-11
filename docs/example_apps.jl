@@ -584,6 +584,119 @@ let fps_path = joinpath(@__DIR__, "..", "demos", "TachikomaDemos", "src", "fps_d
     end
 end
 
+# ─── PagedDataTable Demo (paged-datatable.md) ─────────────────────────────
+# Self-contained demo with InMemoryPagedProvider — no SQLite dependency.
+
+import Tachikoma.Paged: PagedDataTable, PagedColumn, InMemoryPagedProvider,
+    PagedDataProvider, pdt_fetch!, pdt_set_page_size!
+
+@kwdef mutable struct _PDTDemo <: Model
+    quit::Bool = false
+    tick::Int = 0
+    pdt::PagedDataTable = _pdt_demo_make()
+end
+
+function _pdt_demo_make()
+    n = 500
+    names  = ["Planet-$(lpad(i, 4, '0'))" for i in 1:n]
+    masses = [round(0.1 + 13.0 * (sin(i * 0.7) + 1) / 2; digits=2) for i in 1:n]
+    dists  = [round(1.0 + 100.0 * abs(cos(i * 0.3)); digits=1) for i in 1:n]
+    types  = [["Rocky", "Gas Giant", "Ice Giant", "Super-Earth", "Hot Jupiter"][mod1(i * 3, 5)] for i in 1:n]
+    cols = [
+        PagedColumn("Name"),
+        PagedColumn("Mass (Mⱼ)"; col_type=:numeric, width=10),
+        PagedColumn("Distance (ly)"; col_type=:numeric, width=14),
+        PagedColumn("Type"),
+    ]
+    data = Vector{Any}[names, masses, dists, types]
+    InMemoryPagedProvider(cols, data)
+end
+
+Tachikoma.should_quit(m::_PDTDemo) = m.quit
+
+function Tachikoma.update!(m::_PDTDemo, evt::KeyEvent)
+    evt.key == :escape && (m.quit = true; return)
+    handle_key!(m.pdt, evt)
+end
+
+function Tachikoma.update!(m::_PDTDemo, evt::MouseEvent)
+    handle_mouse!(m.pdt, evt)
+end
+
+function Tachikoma.view(m::_PDTDemo, f::Frame)
+    m.tick += 1
+    m.pdt.tick = m.tick
+    rows = split_layout(Layout(Vertical, [Fill(), Fixed(1)]), f.area)
+    render(m.pdt, rows[1], f.buffer)
+    render(StatusBar(
+        left=[Span(" PagedDataTable │ 500 planets │ [↑↓] navigate  [1-4] sort  [/] search  [f] filter  [d] detail ", tstyle(:text_dim))],
+    ), rows[2], f.buffer)
+end
+
+APP_EVENTS["paged_datatable_demo"] = function (fps)
+    events = Vector{Tuple{Int,Event}}()
+    t = fps
+
+    # Navigate down a few rows
+    for i in 1:5
+        push!(events, (t + i * 4, KeyEvent(:down)))
+    end
+    t += 30
+
+    # Sort by column 2 (Mass)
+    push!(events, (t, KeyEvent('2')))
+    t += fps
+
+    # Navigate to see sorted results
+    for i in 1:3
+        push!(events, (t + i * 4, KeyEvent(:down)))
+    end
+    t += fps
+
+    # Open search, type "Giant"
+    push!(events, (t, KeyEvent('/')))
+    t += fps ÷ 2
+    for (i, c) in enumerate("Giant")
+        push!(events, (t + i * 3, KeyEvent(c)))
+    end
+    t += length("Giant") * 3 + fps ÷ 2
+    push!(events, (t, KeyEvent(:enter)))
+    t += fps
+
+    # Navigate in search results
+    for i in 1:3
+        push!(events, (t + i * 5, KeyEvent(:down)))
+    end
+    t += fps
+
+    # Close search
+    push!(events, (t, KeyEvent('/')))
+    t += fps ÷ 2
+
+    # Open detail view
+    push!(events, (t, KeyEvent('d')))
+    t += fps * 2
+
+    # Close detail
+    push!(events, (t, KeyEvent(:escape)))
+    t += fps
+
+    # Open filter modal
+    push!(events, (t, KeyEvent('f')))
+    t += fps * 2
+
+    # Close filter
+    push!(events, (t, KeyEvent(:escape)))
+    t += fps
+
+    events
+end
+
+APP_REGISTRY["paged_datatable_demo"] = function (tach_file, w, h, frames, fps, realtime=false, warmup=0)
+    record_app(_PDTDemo(), tach_file; width=w, height=h, frames, fps,
+        realtime=realtime, warmup=warmup)
+end
+
 # ─── REPL Widget Demo (terminal-repl.md) ──────────────────────────────────
 # Shows an in-process REPL in a floating window, typing expressions and
 # seeing results. Uses realtime=true so the REPL task has wall-clock time

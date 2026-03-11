@@ -2,23 +2,30 @@
 
 `PagedDataTable` is a virtual data table widget that delegates data fetching to a **provider**. Unlike `DataTable` which holds all data in memory, `PagedDataTable` requests data one page at a time — making it suitable for datasets of any size, from a few hundred rows to millions.
 
+<!-- tachi:app paged_datatable_demo w=90 h=24 frames=300 fps=15 -->
+
 ## Provider Protocol
 
-A provider is any subtype of `PagedDataProvider` that implements two methods:
+A provider is any subtype of `PagedDataProvider` that implements two methods.
+
+Access the provider protocol types via `using Tachikoma.Paged`, and use `import` for functions you need to extend:
 
 ```julia
+using Tachikoma.Paged
+import Tachikoma.Paged: column_defs, fetch_page, supports_search, supports_filter
+
 struct MyProvider <: PagedDataProvider
     # ... your state
 end
 
 # Required
-Tachikoma.column_defs(p::MyProvider) = [PagedColumn("Name"), PagedColumn("Score"; col_type=:numeric)]
-Tachikoma.fetch_page(p::MyProvider, req::PageRequest) = PageResult(rows, total_count)
+column_defs(p::MyProvider) = [PagedColumn("Name"), PagedColumn("Score"; col_type=:numeric)]
+fetch_page(p::MyProvider, req::PageRequest) = PageResult(rows, total_count)
 
 # Optional
-Tachikoma.supports_search(::MyProvider) = true
-Tachikoma.supports_filter(::MyProvider) = true
-Tachikoma.filter_capabilities(::MyProvider) = FilterCapabilities()
+supports_search(::MyProvider) = true
+supports_filter(::MyProvider) = true
+filter_capabilities(::MyProvider) = FilterCapabilities()
 ```
 
 ### PagedColumn
@@ -150,9 +157,16 @@ Enable the extension:
 Tachikoma.enable_sqlite()  # triggers loading of SQLite + DBInterface
 ```
 
+## Access Model
+
+- `using Tachikoma` exports `PagedDataTable` and `pdt_set_provider!` — enough to use the widget with an existing provider.
+- `using Tachikoma.Paged` gives the full provider protocol: `PagedDataProvider`, `PagedColumn`, `PageRequest`, `PageResult`, `InMemoryPagedProvider`, all filter types, and the fetch/receive API.
+
 ## Widget Construction
 
 ```julia
+using Tachikoma.Paged
+
 pdt = PagedDataTable(provider;
     page_size=50,
     page_sizes=[25, 50, 100],
@@ -170,19 +184,31 @@ tq = TaskQueue()
 pdt = PagedDataTable(provider; page_size=50)
 
 # Widget calls this instead of blocking fetch
-pdt.on_fetch = () -> _pdt_fetch_async!(pdt, tq; task_id=:pdt_fetch)
+pdt.on_fetch = () -> pdt_fetch_async!(pdt, tq; task_id=:pdt_fetch)
 
 # In your update! handler:
 function update!(model, evt::TaskEvent)
     if evt.id == :pdt_fetch
         if evt.value isa Exception
-            _pdt_receive_error!(pdt, evt.value)
+            pdt_receive_error!(pdt, evt.value)
         else
-            _pdt_receive!(pdt, evt.value)
+            pdt_receive!(pdt, evt.value)
         end
     end
 end
 ```
+
+## Runtime API
+
+| Function | Description |
+|----------|-------------|
+| `pdt_set_provider!(pdt, provider)` | Switch to a new provider, resetting page/sort/filter state |
+| `pdt_refresh!(pdt)` | Re-fetch the current page (respects `on_fetch` for async) |
+| `pdt_set_page_size!(pdt, n)` | Change rows per page and re-fetch |
+| `pdt_fetch!(pdt)` | Synchronous fetch (used by constructor and tests) |
+| `pdt_fetch_async!(pdt, tq; task_id)` | Submit async fetch to a `TaskQueue` |
+| `pdt_receive!(pdt, result)` | Deliver a `PageResult` from async fetch |
+| `pdt_receive_error!(pdt, exception)` | Deliver an error from async fetch |
 
 ## Keyboard Controls
 
@@ -197,6 +223,8 @@ end
 | `g` | Go to page number |
 | `d` or `Enter` | Open detail view (if `detail_fn` set) |
 | `Left`/`Right` | Horizontal scroll (when columns overflow) |
+
+Mouse scroll navigates rows. Click column headers to sort. Drag column borders to resize.
 
 ## Detail View
 
@@ -218,7 +246,7 @@ The `paged_datatable_demo` showcases an exoplanet catalog with two switchable da
 - **Synthetic** — 1M deterministic rows with configurable latency and failure simulation
 - **SQLite** — 50k rows in a temporary SQLite database with real SQL query execution
 
-Press `Ctrl+D` to switch between sources. Press `s` for simulation settings (latency/failure controls only available for the synthetic source).
+Press `s` to open settings, where you can switch data sources and configure simulation parameters (latency/failure controls only available for the synthetic source).
 
 ```julia
 using TachikomaDemos
