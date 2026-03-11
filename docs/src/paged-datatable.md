@@ -10,6 +10,7 @@ A provider is any subtype of `PagedDataProvider` that implements two methods.
 
 Access the provider protocol types via `using Tachikoma.Paged`, and use `import` for functions you need to extend:
 
+<!-- tachi:noeval -->
 ```julia
 using Tachikoma.Paged
 import Tachikoma.Paged: column_defs, fetch_page, supports_search, supports_filter
@@ -57,6 +58,7 @@ The request sent to `fetch_page`:
 
 ### PageResult
 
+<!-- tachi:noeval -->
 ```julia
 PageResult(rows::Vector{Vector{Any}}, total_count::Int)
 ```
@@ -85,6 +87,7 @@ Filters use operators that depend on the column type:
 
 Providers declare which operators they support:
 
+<!-- tachi:noeval -->
 ```julia
 # Default capabilities
 FilterCapabilities()
@@ -102,6 +105,7 @@ FilterCapabilities(
 
 A filter applied to a column:
 
+<!-- tachi:noeval -->
 ```julia
 ColumnFilter(filter_gt, "1000")     # numeric: > 1000
 ColumnFilter(filter_contains, "Kepler")  # text: contains "Kepler"
@@ -123,6 +127,7 @@ Press `f` to open the filter modal. It has three sections navigable with `Tab`:
 
 Wraps column-major `Vector{Vector{Any}}` data with in-process sorting, search, and filtering:
 
+<!-- tachi:noeval -->
 ```julia
 cols = [
     PagedColumn("Name"),
@@ -137,6 +142,7 @@ provider = InMemoryPagedProvider(cols, data)
 
 With the `TachikomaTablesExt` extension (loaded automatically when `Tables.jl` is available), you can pass any Tables.jl-compatible source directly to `PagedDataTable`:
 
+<!-- tachi:noeval -->
 ```julia
 using DataFrames
 using Tachikoma.Paged
@@ -168,6 +174,7 @@ This works with any Tables.jl source: DataFrames, CSV.File, TypedTables, Arrow t
 
 The `TachikomaSQLiteExt` extension provides a SQLite-backed provider that translates filters to SQL `WHERE` clauses. Requires `SQLite.jl` and `DBInterface.jl`:
 
+<!-- tachi:noeval -->
 ```julia
 using SQLite, DBInterface
 using Tachikoma
@@ -184,6 +191,7 @@ The extension:
 
 Enable the extension:
 
+<!-- tachi:noeval -->
 ```julia
 Tachikoma.enable_sqlite()  # triggers loading of SQLite + DBInterface
 ```
@@ -195,6 +203,7 @@ Tachikoma.enable_sqlite()  # triggers loading of SQLite + DBInterface
 
 ## Widget Construction
 
+<!-- tachi:noeval -->
 ```julia
 using Tachikoma.Paged
 
@@ -210,6 +219,7 @@ pdt = PagedDataTable(provider;
 
 For non-blocking data loading, wire up the `on_fetch` callback:
 
+<!-- tachi:noeval -->
 ```julia
 tq = TaskQueue()
 pdt = PagedDataTable(provider; page_size=50)
@@ -261,6 +271,7 @@ Mouse scroll navigates rows. Click column headers to sort. Drag column borders t
 
 When `detail_fn` is provided, pressing `d` or `Enter` opens a modal showing all fields for the selected row:
 
+<!-- tachi:noeval -->
 ```julia
 function my_detail(columns::Vector{PagedColumn}, row_data::Vector{Any})
     [col.name => (col.format !== nothing ? col.format(row_data[i]) : string(row_data[i]))
@@ -279,6 +290,7 @@ The `paged_datatable_demo` showcases an exoplanet catalog with two switchable da
 
 Press `s` to open settings, where you can switch data sources and configure simulation parameters (latency/failure controls only available for the synthetic source).
 
+<!-- tachi:noeval -->
 ```julia
 using TachikomaDemos
 paged_datatable_demo()
