@@ -48,8 +48,9 @@ function enable_gif()
     nothing
 end
 
-# Ref hook — set by TachikomaTablesExt.__init__()
+# Ref hooks — set by TachikomaTablesExt.__init__()
 const _datatable_from_table = Ref{Union{Function, Nothing}}(nothing)
+const _paged_provider_from_table = Ref{Union{Function, Nothing}}(nothing)
 
 """
     tables_extension_loaded() → Bool

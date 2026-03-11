@@ -601,7 +601,7 @@ function pdt_demo_data()
     names  = ["Planet-$(lpad(i, 4, '0'))" for i in 1:n]
     masses = [round(0.1 + 13.0 * (sin(i * 0.7) + 1) / 2; digits=2) for i in 1:n]
     dists  = [round(1.0 + 100.0 * abs(cos(i * 0.3)); digits=1) for i in 1:n]
-    types  = [["Rocky", "Gas Giant", "Ice Giant", "Super-Earth", "Hot Jupiter"][mod1(i * 3, 5)] for i in 1:n]
+    types  = [["Rocky", "Terrestrial", "Sub-Neptune", "Super-Earth", "Hot Jupiter", "Ice World", "Gas Giant", "Lava"][mod1(i * 3, 8)] for i in 1:n]
     cols = [
         PagedColumn("Name"),
         PagedColumn("Mass (Mⱼ)"; col_type=:numeric, width=10),
@@ -653,13 +653,13 @@ APP_EVENTS["paged_datatable_demo"] = function (fps)
     end
     t += fps
 
-    # Open search, type "Giant"
+    # Open search, type "Lava"
     push!(events, (t, KeyEvent('/')))
     t += fps ÷ 2
-    for (i, c) in enumerate("Giant")
+    for (i, c) in enumerate("Lava")
         push!(events, (t + i * 3, KeyEvent(c)))
     end
-    t += length("Giant") * 3 + fps ÷ 2
+    t += length("Lava") * 3 + fps ÷ 2
     push!(events, (t, KeyEvent(:enter)))
     t += fps
 
