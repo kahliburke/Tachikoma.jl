@@ -133,6 +133,26 @@ data = Vector{Any}[names_vec, scores_vec, statuses_vec]
 provider = InMemoryPagedProvider(cols, data)
 ```
 
+### DataFrames
+
+`InMemoryPagedProvider` accepts column-major vectors, so connecting a `DataFrame` is straightforward:
+
+```julia
+using DataFrames
+using Tachikoma.Paged
+
+df = DataFrame(name=["Alice", "Bob", "Carol"], score=[95, 87, 92], grade=["A", "B+", "A-"])
+
+cols = [PagedColumn(string(n); col_type=eltype(df[!, n]) <: Number ? :numeric : :text)
+        for n in names(df)]
+data = Vector{Any}[Vector{Any}(df[!, n]) for n in names(df)]
+provider = InMemoryPagedProvider(cols, data)
+
+pdt = PagedDataTable(provider)
+```
+
+Sorting, search, and filtering all work automatically since `InMemoryPagedProvider` handles them in-process.
+
 ### SQLitePagedProvider (Extension)
 
 The `TachikomaSQLiteExt` extension provides a SQLite-backed provider that translates filters to SQL `WHERE` clauses. Requires `SQLite.jl` and `DBInterface.jl`:
