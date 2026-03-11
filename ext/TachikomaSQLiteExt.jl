@@ -1,6 +1,7 @@
 module TachikomaSQLiteExt
 
 using Tachikoma
+using Tachikoma.Paged
 using SQLite
 using DBInterface
 
@@ -158,7 +159,7 @@ function Tachikoma.fetch_page(p::SQLitePagedProvider, req::PageRequest)
 end
 
 function __init__()
-    Tachikoma._create_sqlite_provider[] = (db, table_name; kwargs...) ->
+    Tachikoma.Paged._create_sqlite_provider[] = (db, table_name; kwargs...) ->
         SQLitePagedProvider(db, table_name; kwargs...)
     @info "Tachikoma: SQLite database provider enabled"
 end
