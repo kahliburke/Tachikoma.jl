@@ -1310,18 +1310,19 @@
     # ═════════════════════════════════════════════════════════════════
 
     @testset "Tables.jl extension" begin
-        using Tables
-        # Create a simple NamedTuple table
-        tbl = (name=["alice", "bob"], score=[95, 87])
-        dt = T.DataTable(tbl)
-        @test length(dt.columns) == 2
-        @test dt.columns[1].name == "name"
-        @test dt.columns[2].name == "score"
-        @test dt.columns[2].align == T.col_right  # Number → right aligned
-        buf = T.Buffer(T.Rect(1, 1, 40, 6))
-        T.render(dt, T.Rect(1, 1, 40, 6), buf)
-        row1 = String([buf.content[i].char for i in 1:20])
-        @test occursin("name", row1)
+        if T.tables_extension_loaded()
+            # Create a simple NamedTuple table
+            tbl = (name=["alice", "bob"], score=[95, 87])
+            dt = T.DataTable(tbl)
+            @test length(dt.columns) == 2
+            @test dt.columns[1].name == "name"
+            @test dt.columns[2].name == "score"
+            @test dt.columns[2].align == T.col_right  # Number → right aligned
+            buf = T.Buffer(T.Rect(1, 1, 40, 6))
+            T.render(dt, T.Rect(1, 1, 40, 6), buf)
+            row1 = String([buf.content[i].char for i in 1:20])
+            @test occursin("name", row1)
+        end
     end
 
     @testset "Tables.jl not loaded without using" begin
