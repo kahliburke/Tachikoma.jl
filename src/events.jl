@@ -27,6 +27,10 @@ struct MouseEvent <: Event
     ctrl::Bool
 end
 
+struct FocusEvent <: Event
+    focused::Bool
+end
+
 struct TaskEvent{T} <: Event
     id::Symbol
     value::T
@@ -271,6 +275,9 @@ function csi_to_key(params::Vector{UInt8}, final::Char)
         n == 23 && return KeyEvent(:f11, action)
         n == 24 && return KeyEvent(:f12, action)
     end
+    # Focus events: CSI I = focus in, CSI O = focus out (DECSET 1004)
+    final == 'I' && isempty(params) && return FocusEvent(true)
+    final == 'O' && isempty(params) && return FocusEvent(false)
     # Log unknown CSI sequences for debugging
     _log_unknown_csi(params, final)
     return KeyEvent(:unknown)
