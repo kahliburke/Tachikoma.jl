@@ -410,8 +410,7 @@ function _parse_csi_params(raw::Vector{UInt8})
     (private, params)
 end
 
-function _dispatch_csi!(s::TermScreen, param_buf::Vector{UInt8}, final::UInt8, title_callback;
-                        pty::Union{PTY, Nothing}=nothing)
+function _dispatch_csi!(s::TermScreen, param_buf::Vector{UInt8}, final::UInt8, title_callback)
     private, params = _parse_csi_params(param_buf)
     p1 = isempty(params) ? 0 : params[1]
     p2 = length(params) >= 2 ? params[2] : 0
@@ -521,21 +520,15 @@ function _dispatch_csi!(s::TermScreen, param_buf::Vector{UInt8}, final::UInt8, t
         s.cursor_col = s.saved_cursor_col
         s.current_style = s.saved_style
     elseif final == UInt8('c')   # DA1 — primary device attributes
-        if p1 <= 1 && pty !== nothing && pty.alive
-            # Report as VT100 with advanced video — minimal safe response
-            pty_write(pty, "\e[?1;2c")
-        end
+        # Intentionally no response — writing to PTY stdin corrupts
+        # subprocess input parsers (Ink/React-based TUI apps like Claude Code).
+        # Apps handle missing DA1 responses via timeout.
     elseif final == UInt8('b')   # REP — repeat previous char
         # Not commonly used, skip for now
     elseif final == UInt8('n')   # DSR — device status report
-        if p1 == 6 && pty !== nothing && pty.alive
-            # CPR — report cursor position: ESC [ row ; col R
-            response = "\e[$(s.cursor_row);$(s.cursor_col)R"
-            pty_write(pty, response)
-        elseif p1 == 5 && pty !== nothing && pty.alive
-            # Status report — respond "terminal OK"
-            pty_write(pty, "\e[0n")
-        end
+        # Intentionally no response — same reason as DA1.
+        # CPR responses written to stdin are misinterpreted as keyboard
+        # input by subprocess TUI frameworks.
     elseif final == UInt8('t')   # window manipulation — ignore
     elseif final == UInt8('h') || final == UInt8('l')
         # SM/RM mode set/reset (non-private) — ignore
@@ -699,8 +692,7 @@ function _vt_feed!(tw, data::AbstractVector{UInt8})
                 push!(tw.vt_params, b)
             elseif b >= 0x40 && b <= 0x7e
                 # Final byte — dispatch
-                _pty = hasproperty(tw, :pty) ? tw.pty : nothing
-                _dispatch_csi!(screen, tw.vt_params, b, tw.title_callback; pty=_pty)
+                _dispatch_csi!(screen, tw.vt_params, b, tw.title_callback)
                 tw.vt_state = _vt_ground
             else
                 # Invalid — abort CSI
