@@ -450,12 +450,34 @@ function _dispatch_csi!(s::TermScreen, param_buf::Vector{UInt8}, final::UInt8, t
                 p == 1004 && (s.focus_events = false)
                 p == 2004 && (s.bracketed_paste = false)
             end
+        elseif final == UInt8('p') && pty !== nothing && pty.alive
+            # DECRQM — request mode (CSI ? Ps $ p)
+            # Respond with DECRPM: CSI ? Ps ; Pm $ y
+            # Pm: 1=set, 2=reset, 0=not recognized
+            for p in params
+                pm = if p == 1;    s.cursor_key_mode ? 1 : 2
+                elseif p == 6;     s.origin_mode ? 1 : 2
+                elseif p == 7;     s.autowrap ? 1 : 2
+                elseif p == 25;    s.cursor_visible ? 1 : 2
+                elseif p == 47 || p == 1047 || p == 1049; s.alt_active ? 1 : 2
+                elseif p == 1000 || p == 1002; s.mouse_reporting ? 1 : 2
+                elseif p == 1006;  s.mouse_sgr ? 1 : 2
+                elseif p == 1004;  s.focus_events ? 1 : 2
+                elseif p == 2004;  s.bracketed_paste ? 1 : 2
+                else; 0  # not recognized
+                end
+                pty_write(pty, "\e[?$(p);$(pm)\$y")
+            end
         end
         return
     end
 
-    # '>' private marker — Kitty key encoding, xterm version query, etc. — safely ignore
+    # '>' private marker — DA2 and Kitty key encoding, xterm version query, etc.
     if private == UInt8('>')
+        if final == UInt8('c') && pty !== nothing && pty.alive
+            # DA2 — secondary device attributes: report as xterm version 0
+            pty_write(pty, "\e[>0;0;0c")
+        end
         return
     end
 
@@ -518,6 +540,11 @@ function _dispatch_csi!(s::TermScreen, param_buf::Vector{UInt8}, final::UInt8, t
         s.cursor_row = s.saved_cursor_row
         s.cursor_col = s.saved_cursor_col
         s.current_style = s.saved_style
+    elseif final == UInt8('c')   # DA1 — primary device attributes
+        if pty !== nothing && pty.alive
+            # Report as VT220 with ANSI color, sixel, national replacement charset
+            pty_write(pty, "\e[?62;1;2;4;6;7;8;9;15;22c")
+        end
     elseif final == UInt8('b')   # REP — repeat previous char
         # Not commonly used, skip for now
     elseif final == UInt8('n')   # DSR — device status report
@@ -529,7 +556,12 @@ function _dispatch_csi!(s::TermScreen, param_buf::Vector{UInt8}, final::UInt8, t
             # Status report — respond "terminal OK"
             pty_write(pty, "\e[0n")
         end
-    elseif final == UInt8('t')   # window manipulation — ignore
+    elseif final == UInt8('t')   # window manipulation
+        if p1 == 18 && pty !== nothing && pty.alive
+            # Report text area size in characters: CSI 8 ; rows ; cols t
+            pty_write(pty, "\e[8;$(s.rows);$(s.cols)t")
+        end
+        # Other window manipulation codes silently ignored
     elseif final == UInt8('h') || final == UInt8('l')
         # SM/RM mode set/reset (non-private) — ignore
     end
