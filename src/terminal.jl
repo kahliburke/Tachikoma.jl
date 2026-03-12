@@ -74,7 +74,7 @@ end
 function Terminal(; io::IO = stdout, size = nothing, remote_tty_path::Union{String,Nothing} = nothing)
     sz = something(size, terminal_size())
     rect = Rect(1, 1, sz.cols, sz.rows)
-    Terminal([Buffer(rect), Buffer(rect)], 1, rect, true, false, NTuple{4,Int}[], 0, 300, CastRecorder(), io, false, gfx_none, remote_tty_path)
+    Terminal([Buffer(rect), Buffer(rect)], 1, rect, true, false, NTuple{4,Int}[], 0, 120, CastRecorder(), io, false, gfx_none, remote_tty_path)
 end
 
 # Query terminal dimensions from an arbitrary TTY path using `stty size`.
@@ -611,11 +611,16 @@ function draw!(func::Function, t::Terminal)
         # blank-screen flash between the clear and the redrawn content.
         write(io, CLEAR_SCREEN)
         reset!(previous_buf(t))
-    elseif t.frame_count % t.clear_interval == 0 && has_sixel
-        # Periodic clear: cap iTerm2 sixel memory growth by clearing the
-        # screen AND scrollback buffer.  \e[3J frees iTerm2's accumulated
-        # sixel image objects.  Only needed for sixel (Kitty manages its own).
-        write(io, CLEAR_SCROLLBACK)
+    elseif t.frame_count % t.clear_interval == 0
+        # Periodic full redraw: clears screen and forces a complete re-emit
+        # of all cells.  Recovers from lost terminal content (e.g. switching
+        # terminal tabs, SSH disconnects, or screen corruption).
+        # Also caps iTerm2 sixel memory growth via CLEAR_SCROLLBACK.
+        if has_sixel
+            write(io, CLEAR_SCROLLBACK)
+        else
+            write(io, CLEAR_SCREEN)
+        end
         reset!(previous_buf(t))
     elseif t.had_gfx && !has_gfx
         # Graphics were active last frame but not this one — clear the graphics
