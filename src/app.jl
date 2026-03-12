@@ -911,6 +911,18 @@ end
 
 function dispatch_event!(t::Terminal, overlay::AppOverlay, model::Model,
                         evt::Event, default_bindings::Bool)
+    # Focus events (DECSET 1004): suppress IO when unfocused, force full
+    # redraw on focus regain.  Prevents escape-sequence backlog that causes
+    # freeze/corruption when switching terminal tabs.
+    if evt isa FocusEvent
+        if evt.focused
+            t.focused = true
+            reset!(previous_buf(t))   # force complete re-emit on next draw!
+        else
+            t.focused = false
+        end
+        return
+    end
     # With Kitty keyboard protocol, each key generates press, repeat, and
     # release events.  Press and repeat are forwarded (repeat = held key),
     # but release is dropped by default.  Apps that need release events

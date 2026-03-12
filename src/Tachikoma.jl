@@ -43,7 +43,7 @@ end
 export # Core types
        Model, Terminal, Frame, Buffer, Rect,
        Style, Color256, Theme,
-       Event, KeyEvent,
+       Event, KeyEvent, FocusEvent,
        KeyAction, key_press, key_repeat, key_release,
        MouseEvent, MouseButton, MouseAction,
        mouse_left, mouse_middle, mouse_right, mouse_none,

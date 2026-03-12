@@ -41,6 +41,10 @@ mutable struct TermScreen
     # Mouse reporting modes (DECSET 1000/1002/1006)
     mouse_reporting::Bool
     mouse_sgr::Bool
+    # Cursor key mode (DECSET 1) and bracketed paste (DECSET 2004)
+    cursor_key_mode::Bool     # true = application mode (ESC O A), false = normal (ESC [ A)
+    bracketed_paste::Bool     # true = DECSET 2004 enabled
+    focus_events::Bool        # true = DECSET 1004 enabled
 end
 
 function TermScreen(rows::Int, cols::Int; scrollback_limit::Int=1000, onlcr::Bool=false)
@@ -53,7 +57,9 @@ function TermScreen(rows::Int, cols::Int; scrollback_limit::Int=1000, onlcr::Boo
                # alternate screen buffer
                false, nothing, 1, 1, RESET, nothing,
                # mouse reporting
-               false, false)
+               false, false,
+               # cursor key mode, bracketed paste, focus events
+               false, false, false)
 end
 
 # ── Screen Buffer Operations ────────────────────────────────────────
@@ -413,6 +419,7 @@ function _dispatch_csi!(s::TermScreen, param_buf::Vector{UInt8}, final::UInt8, t
         # DECSET / DECRST
         if final == UInt8('h')       # set
             for p in params
+                p == 1  && (s.cursor_key_mode = true)    # DECCKM
                 p == 25 && (s.cursor_visible = true)
                 p == 7  && (s.autowrap = true)
                 p == 6  && (s.origin_mode = true)
@@ -423,9 +430,12 @@ function _dispatch_csi!(s::TermScreen, param_buf::Vector{UInt8}, final::UInt8, t
                 # Mouse reporting
                 (p == 1000 || p == 1002) && (s.mouse_reporting = true)
                 p == 1006 && (s.mouse_sgr = true)
+                p == 1004 && (s.focus_events = true)
+                p == 2004 && (s.bracketed_paste = true)
             end
         elseif final == UInt8('l')   # reset
             for p in params
+                p == 1  && (s.cursor_key_mode = false)   # DECCKM
                 p == 25 && (s.cursor_visible = false)
                 p == 7  && (s.autowrap = false)
                 p == 6  && (s.origin_mode = false)
@@ -436,8 +446,22 @@ function _dispatch_csi!(s::TermScreen, param_buf::Vector{UInt8}, final::UInt8, t
                 # Mouse reporting
                 (p == 1000 || p == 1002) && (s.mouse_reporting = false)
                 p == 1006 && (s.mouse_sgr = false)
+                p == 1004 && (s.focus_events = false)
+                p == 2004 && (s.bracketed_paste = false)
             end
         end
+        return
+    end
+
+    # '>' private marker — DA2, Kitty key encoding, xterm version query, etc.
+    if private == UInt8('>')
+        # Silently ignore all '>' sequences (DA2, xterm queries, Kitty protocol)
+        # Responding to DA2 can cause echo feedback issues in embedded PTYs
+        return
+    end
+
+    # '=' private marker — Kitty keyboard protocol (CSI = flags ; mode u) — safely ignore
+    if private == UInt8('=')
         return
     end
 
@@ -495,10 +519,16 @@ function _dispatch_csi!(s::TermScreen, param_buf::Vector{UInt8}, final::UInt8, t
         s.cursor_row = s.saved_cursor_row
         s.cursor_col = s.saved_cursor_col
         s.current_style = s.saved_style
+    elseif final == UInt8('c')   # DA1 — primary device attributes
+        # Intentionally no response — writing to PTY stdin corrupts
+        # subprocess input parsers (Ink/React-based TUI apps like Claude Code).
+        # Apps handle missing DA1 responses via timeout.
     elseif final == UInt8('b')   # REP — repeat previous char
         # Not commonly used, skip for now
     elseif final == UInt8('n')   # DSR — device status report
-        # Would need to write response to PTY; ignore
+        # Intentionally no response — same reason as DA1.
+        # CPR responses written to stdin are misinterpreted as keyboard
+        # input by subprocess TUI frameworks.
     elseif final == UInt8('t')   # window manipulation — ignore
     elseif final == UInt8('h') || final == UInt8('l')
         # SM/RM mode set/reset (non-private) — ignore
@@ -636,6 +666,10 @@ function _vt_feed!(tw, data::AbstractVector{UInt8})
                 screen.scroll_bottom = screen.rows
                 screen.autowrap = true
                 screen.cursor_visible = true
+                screen.cursor_key_mode = false
+                screen.bracketed_paste = false
+                screen.focus_events = false
+                screen.origin_mode = false
                 tw.vt_state = _vt_ground
             elseif b == UInt8('(') || b == UInt8(')') || b == UInt8('*') || b == UInt8('+')
                 # Character set designation — consume next byte and ignore
@@ -713,18 +747,29 @@ end
 
 # ── Input Encoding (KeyEvent → ANSI bytes) ───────────────────────────
 
-function _encode_key(evt::KeyEvent; enter_as_lf::Bool=false)::Vector{UInt8}
+function _encode_key(evt::KeyEvent; enter_as_lf::Bool=false,
+                     cursor_key_mode::Bool=false)::Vector{UInt8}
     k = evt.key
     k == :enter     && return enter_as_lf ? UInt8[0x0a] : UInt8[0x0d]
     k == :backspace && return UInt8[0x7f]
     k == :tab       && return UInt8[0x09]
     k == :escape    && return UInt8[0x1b]
-    k == :up        && return Vector{UInt8}(codeunits("\e[A"))
-    k == :down      && return Vector{UInt8}(codeunits("\e[B"))
-    k == :right     && return Vector{UInt8}(codeunits("\e[C"))
-    k == :left      && return Vector{UInt8}(codeunits("\e[D"))
-    k == :home      && return Vector{UInt8}(codeunits("\e[H"))
-    k == :end_key   && return Vector{UInt8}(codeunits("\e[F"))
+    # Arrow keys: application mode (DECCKM) sends ESC O x, normal sends ESC [ x
+    if cursor_key_mode
+        k == :up    && return Vector{UInt8}(codeunits("\eOA"))
+        k == :down  && return Vector{UInt8}(codeunits("\eOB"))
+        k == :right && return Vector{UInt8}(codeunits("\eOC"))
+        k == :left  && return Vector{UInt8}(codeunits("\eOD"))
+        k == :home  && return Vector{UInt8}(codeunits("\eOH"))
+        k == :end_key && return Vector{UInt8}(codeunits("\eOF"))
+    else
+        k == :up    && return Vector{UInt8}(codeunits("\e[A"))
+        k == :down  && return Vector{UInt8}(codeunits("\e[B"))
+        k == :right && return Vector{UInt8}(codeunits("\e[C"))
+        k == :left  && return Vector{UInt8}(codeunits("\e[D"))
+        k == :home  && return Vector{UInt8}(codeunits("\e[H"))
+        k == :end_key && return Vector{UInt8}(codeunits("\e[F"))
+    end
     k == :insert    && return Vector{UInt8}(codeunits("\e[2~"))
     k == :delete    && return Vector{UInt8}(codeunits("\e[3~"))
     k == :pageup    && return Vector{UInt8}(codeunits("\e[5~"))
@@ -1073,7 +1118,8 @@ function handle_key!(tw::TerminalWidget, evt::KeyEvent)::Bool
 
     # Forward to PTY
     tw.pty.alive || return false
-    encoded = _encode_key(evt; enter_as_lf=tw.enter_as_lf)
+    encoded = _encode_key(evt; enter_as_lf=tw.enter_as_lf,
+                          cursor_key_mode=tw.screen.cursor_key_mode)
     if !isempty(encoded)
         pty_write(tw.pty, encoded)
         return true

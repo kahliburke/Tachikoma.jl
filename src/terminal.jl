@@ -69,12 +69,13 @@ mutable struct Terminal
     kitty_keyboard::Bool                        # true if Kitty keyboard protocol is active
     graphics_protocol::GraphicsProtocol         # detected graphics protocol (sixel/kitty/none)
     remote_tty_path::Union{String,Nothing}      # path to remote TTY (nothing = local); enables periodic size polling
+    focused::Bool                               # false when terminal tab lost focus (DECSET 1004); suppresses IO output
 end
 
 function Terminal(; io::IO = stdout, size = nothing, remote_tty_path::Union{String,Nothing} = nothing)
     sz = something(size, terminal_size())
     rect = Rect(1, 1, sz.cols, sz.rows)
-    Terminal([Buffer(rect), Buffer(rect)], 1, rect, true, false, NTuple{4,Int}[], 0, 300, CastRecorder(), io, false, gfx_none, remote_tty_path)
+    Terminal([Buffer(rect), Buffer(rect)], 1, rect, true, false, NTuple{4,Int}[], 0, 120, CastRecorder(), io, false, gfx_none, remote_tty_path, true)
 end
 
 # Query terminal dimensions from an arbitrary TTY path using `stty size`.
@@ -587,6 +588,14 @@ function draw!(func::Function, t::Terminal)
     t.frame_count += 1
     f = Frame(current_buf(t), t.size, GraphicsRegion[], PixelSnapshot[])
     func(f)
+    # When terminal tab is unfocused, skip all IO output to prevent
+    # escape-sequence backlog that freezes the terminal on tab switch back.
+    # The view function was still called (buffers are up-to-date), so the
+    # next focused draw! can diff correctly after reset!(previous_buf).
+    if !t.focused
+        swap_buffers!(t)
+        return
+    end
     # Capture frame for .cast recording BEFORE the REC badge is drawn,
     # so the badge appears on-screen but not in the recording.
     if t.recorder.active
@@ -611,11 +620,16 @@ function draw!(func::Function, t::Terminal)
         # blank-screen flash between the clear and the redrawn content.
         write(io, CLEAR_SCREEN)
         reset!(previous_buf(t))
-    elseif t.frame_count % t.clear_interval == 0 && has_sixel
-        # Periodic clear: cap iTerm2 sixel memory growth by clearing the
-        # screen AND scrollback buffer.  \e[3J frees iTerm2's accumulated
-        # sixel image objects.  Only needed for sixel (Kitty manages its own).
-        write(io, CLEAR_SCROLLBACK)
+    elseif t.frame_count % t.clear_interval == 0
+        # Periodic full redraw: clears screen and forces a complete re-emit
+        # of all cells.  Recovers from lost terminal content (e.g. switching
+        # terminal tabs, SSH disconnects, or screen corruption).
+        # Also caps iTerm2 sixel memory growth via CLEAR_SCROLLBACK.
+        if has_sixel
+            write(io, CLEAR_SCROLLBACK)
+        else
+            write(io, CLEAR_SCREEN)
+        end
         reset!(previous_buf(t))
     elseif t.had_gfx && !has_gfx
         # Graphics were active last frame but not this one — clear the graphics
@@ -884,14 +898,15 @@ function enter_tui!(t::Terminal; remote_tty::Bool = false)
         # Reset application cursor key mode (\e[?1l) so arrow keys arrive as
         # standard VT100 CSI sequences (\e[A etc.) rather than SS3 (\eOA etc.).
         # The shell or a previous TUI may have left the terminal in app mode.
-        print(t.io, "\e[?1l", MOUSE_ON)
+        print(t.io, "\e[?1l", MOUSE_ON, "\e[?1004h")
         Base.flush(t.io)
     else
-        # Local terminal: set raw mode on stdin and enable mouse.
+        # Local terminal: set raw mode on stdin and enable mouse + focus reporting.
         set_raw_mode!(true)
-        print(t.io, MOUSE_ON)
+        print(t.io, MOUSE_ON, "\e[?1004h")
         Base.flush(t.io)
     end
+    t.focused = true
     start_input!()
     if !remote_tty
         # Detect and enable Kitty keyboard protocol
@@ -944,7 +959,7 @@ function leave_tui!(t::Terminal)
         seq = ""
         t.graphics_protocol == gfx_kitty && (seq *= "\e_Ga=d,d=a,q=2\e\\")
         t.kitty_keyboard                  && (seq *= KITTY_KEYBOARD_OFF)
-        seq *= MOUSE_OFF
+        seq *= MOUSE_OFF * "\e[?1004l"
         print(t.io, seq)
         Base.flush(t.io)
     catch end

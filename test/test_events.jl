@@ -115,7 +115,7 @@
     @testset "Terminal mouse_enabled" begin
         sz = T.terminal_size()
         rect = T.Rect(1, 1, sz.cols, sz.rows)
-        term = T.Terminal([T.Buffer(rect), T.Buffer(rect)], 1, rect, true, false, NTuple{4,Int}[], 0, 300, T.CastRecorder(), devnull, false, T.gfx_none, nothing)
+        term = T.Terminal([T.Buffer(rect), T.Buffer(rect)], 1, rect, true, false, NTuple{4,Int}[], 0, 300, T.CastRecorder(), devnull, false, T.gfx_none, nothing, true)
         @test term.mouse_enabled
 
         # toggle_mouse! flips state (writes escape codes to stdout)
@@ -140,7 +140,7 @@
     @testset "Default bindings: Ctrl+G mouse toggle" begin
         sz = T.terminal_size()
         rect = T.Rect(1, 1, sz.cols, sz.rows)
-        term = T.Terminal([T.Buffer(rect), T.Buffer(rect)], 1, rect, true, false, NTuple{4,Int}[], 0, 300, T.CastRecorder(), devnull, false, T.gfx_none, nothing)
+        term = T.Terminal([T.Buffer(rect), T.Buffer(rect)], 1, rect, true, false, NTuple{4,Int}[], 0, 300, T.CastRecorder(), devnull, false, T.gfx_none, nothing, true)
         ov = T.AppOverlay()
 
         # Ctrl+G should toggle mouse and return true
@@ -155,7 +155,7 @@
     @testset "Default bindings: Ctrl+\\ opens theme" begin
         sz = T.terminal_size()
         rect = T.Rect(1, 1, sz.cols, sz.rows)
-        term = T.Terminal([T.Buffer(rect), T.Buffer(rect)], 1, rect, true, false, NTuple{4,Int}[], 0, 300, T.CastRecorder(), devnull, false, T.gfx_none, nothing)
+        term = T.Terminal([T.Buffer(rect), T.Buffer(rect)], 1, rect, true, false, NTuple{4,Int}[], 0, 300, T.CastRecorder(), devnull, false, T.gfx_none, nothing, true)
         ov = T.AppOverlay()
 
         # Ctrl+\ (byte 0x1c → char '|') opens theme overlay
@@ -185,7 +185,7 @@
     @testset "Default bindings: Ctrl+? opens help" begin
         sz = T.terminal_size()
         rect = T.Rect(1, 1, sz.cols, sz.rows)
-        term = T.Terminal([T.Buffer(rect), T.Buffer(rect)], 1, rect, true, false, NTuple{4,Int}[], 0, 300, T.CastRecorder(), devnull, false, T.gfx_none, nothing)
+        term = T.Terminal([T.Buffer(rect), T.Buffer(rect)], 1, rect, true, false, NTuple{4,Int}[], 0, 300, T.CastRecorder(), devnull, false, T.gfx_none, nothing, true)
         ov = T.AppOverlay()
 
         # Ctrl+? (byte 0x1f → char '\x7f') opens help
@@ -201,7 +201,7 @@
     @testset "Default bindings: unhandled returns false" begin
         sz = T.terminal_size()
         rect = T.Rect(1, 1, sz.cols, sz.rows)
-        term = T.Terminal([T.Buffer(rect), T.Buffer(rect)], 1, rect, true, false, NTuple{4,Int}[], 0, 300, T.CastRecorder(), devnull, false, T.gfx_none, nothing)
+        term = T.Terminal([T.Buffer(rect), T.Buffer(rect)], 1, rect, true, false, NTuple{4,Int}[], 0, 300, T.CastRecorder(), devnull, false, T.gfx_none, nothing, true)
         ov = T.AppOverlay()
 
         # Regular key 'a' is not a default binding
@@ -286,7 +286,7 @@
     @testset "Default bindings: Ctrl+S opens settings" begin
         sz = T.terminal_size()
         rect = T.Rect(1, 1, sz.cols, sz.rows)
-        term = T.Terminal([T.Buffer(rect), T.Buffer(rect)], 1, rect, true, false, NTuple{4,Int}[], 0, 300, T.CastRecorder(), devnull, false, T.gfx_none, nothing)
+        term = T.Terminal([T.Buffer(rect), T.Buffer(rect)], 1, rect, true, false, NTuple{4,Int}[], 0, 300, T.CastRecorder(), devnull, false, T.gfx_none, nothing, true)
         ov = T.AppOverlay()
 
         # Ctrl+S (byte 0x13 → char 's') opens settings
@@ -312,7 +312,7 @@
     @testset "Default bindings: Ctrl+A toggles animations" begin
         sz = T.terminal_size()
         rect = T.Rect(1, 1, sz.cols, sz.rows)
-        term = T.Terminal([T.Buffer(rect), T.Buffer(rect)], 1, rect, true, false, NTuple{4,Int}[], 0, 300, T.CastRecorder(), devnull, false, T.gfx_none, nothing)
+        term = T.Terminal([T.Buffer(rect), T.Buffer(rect)], 1, rect, true, false, NTuple{4,Int}[], 0, 300, T.CastRecorder(), devnull, false, T.gfx_none, nothing, true)
         ov = T.AppOverlay()
 
         orig = T.ANIMATIONS_ENABLED[]
@@ -339,7 +339,7 @@
         io_capture = IOBuffer()
         sz = T.terminal_size()
         rect = T.Rect(1, 1, sz.cols, sz.rows)
-        term = T.Terminal([T.Buffer(rect), T.Buffer(rect)], 1, rect, true, false, NTuple{4,Int}[], 0, 300, T.CastRecorder(), io_capture, false, T.gfx_none, nothing)
+        term = T.Terminal([T.Buffer(rect), T.Buffer(rect)], 1, rect, true, false, NTuple{4,Int}[], 0, 300, T.CastRecorder(), io_capture, false, T.gfx_none, nothing, true)
         T.toggle_mouse!(term)
         output = String(take!(io_capture))
         @test occursin("1000", output)  # mouse escape codes contain 1000
@@ -350,7 +350,7 @@
         io_capture = IOBuffer()
         sz = T.terminal_size()
         rect = T.Rect(1, 1, sz.cols, sz.rows)
-        term = T.Terminal([T.Buffer(rect), T.Buffer(rect)], 1, rect, false, false, NTuple{4,Int}[], 0, 300, T.CastRecorder(), io_capture, false, T.gfx_none, nothing)
+        term = T.Terminal([T.Buffer(rect), T.Buffer(rect)], 1, rect, false, false, NTuple{4,Int}[], 0, 300, T.CastRecorder(), io_capture, false, T.gfx_none, nothing, true)
         T.draw!(term) do f
             # render nothing, just test IO routing
         end
@@ -365,7 +365,7 @@
         sz = T.terminal_size()
         # Make terminal size different from actual to force resize
         rect = T.Rect(1, 1, 10, 5)
-        term = T.Terminal([T.Buffer(rect), T.Buffer(rect)], 1, rect, false, false, NTuple{4,Int}[], 0, 300, T.CastRecorder(), io_capture, false, T.gfx_none, nothing)
+        term = T.Terminal([T.Buffer(rect), T.Buffer(rect)], 1, rect, false, false, NTuple{4,Int}[], 0, 300, T.CastRecorder(), io_capture, false, T.gfx_none, nothing, true)
         resized = T.check_resize!(term)
         # If terminal size differs from 10x5, check_resize! returns true and updates buffers
         if sz.cols != 10 || sz.rows != 5
@@ -378,7 +378,7 @@
         io_capture = IOBuffer()
         sz = T.terminal_size()
         rect = T.Rect(1, 1, sz.cols, sz.rows)
-        term = T.Terminal([T.Buffer(rect), T.Buffer(rect)], 1, rect, true, false, NTuple{4,Int}[], 0, 300, T.CastRecorder(), io_capture, false, T.gfx_none, nothing)
+        term = T.Terminal([T.Buffer(rect), T.Buffer(rect)], 1, rect, true, false, NTuple{4,Int}[], 0, 300, T.CastRecorder(), io_capture, false, T.gfx_none, nothing, true)
 
         # enter_tui! writes alt screen, cursor hide, mouse enable to t.io
         # (start_input! may fail since stdin isn't a TTY, but escape sequences write first)
