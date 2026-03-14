@@ -187,7 +187,7 @@ w, h, cells, ts, sixels = load_tach("recording.tach")
 
 # GIF with a specific font
 export_gif_from_snapshots("recording.gif", w, h, cells, ts;
-    sixel_snapshots=sixels,
+    pixel_snapshots=sixels,
     font_path="/path/to/font.ttf",
     font_size=16, cell_w=10, cell_h=20)
 
