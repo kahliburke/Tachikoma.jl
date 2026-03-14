@@ -75,11 +75,11 @@ The native recording format. Compact, lossless, and supports all Tachikoma featu
 <!-- tachi:noeval -->
 ```julia
 # Load a .tach file
-width, height, cells, timestamps, sixels = load_tach("recording.tach")
+width, height, cells, timestamps, pixels = load_tach("recording.tach")
 
 # Re-export to other formats
 export_gif_from_snapshots("recording.gif", width, height, cells, timestamps;
-                          pixel_snapshots=sixels)
+                          pixel_snapshots=pixels)
 export_svg("recording.svg", width, height, cells, timestamps)
 ```
 
@@ -183,11 +183,11 @@ Load a previously saved recording and re-export with different settings:
 
 <!-- tachi:noeval -->
 ```julia
-w, h, cells, ts, sixels = load_tach("recording.tach")
+w, h, cells, ts, pixels = load_tach("recording.tach")
 
 # GIF with a specific font
 export_gif_from_snapshots("recording.gif", w, h, cells, ts;
-    sixel_snapshots=sixels,
+    pixel_snapshots=pixels,
     font_path="/path/to/font.ttf",
     font_size=16, cell_w=10, cell_h=20)
 
