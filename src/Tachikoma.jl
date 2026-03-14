@@ -1,5 +1,6 @@
 module Tachikoma
 
+using PrecompileTools
 using Preferences
 using FileWatching: poll_fd
 
@@ -199,5 +200,45 @@ export # Core types
        markdown_to_spans, enable_markdown, markdown_extension_loaded,
        # .tach format
        write_tach, load_tach, compress_dead_space
+
+# ── Precompilation workload ──────────────────────────────────────────
+@compile_workload begin
+    tb = TestBackend(80, 24)
+    r = Rect(1, 1, 80, 24)
+
+    # Layout
+    layout = Layout(Vertical, [Fixed(3), Fill(1), Fixed(1)])
+    split_layout(layout, r)
+    layout_h = Layout(Horizontal, [Percent(30), Fill(1), Fixed(20)])
+    split_layout(layout_h, r)
+
+    # Style
+    Style(fg=BLUE.c500, bg=SLATE.c900, bold=true)
+
+    # Widgets
+    render_widget!(tb, Block(title="Test"))
+    render_widget!(tb, Gauge(0.65, label="Loading"))
+    render_widget!(tb, SelectableList(["Alpha", "Beta", "Gamma", "Delta"]))
+    render_widget!(tb, TextInput(label="Search"))
+    render_widget!(tb, Table(["Name", "Age"], [["Alice", "30"], ["Bob", "25"]]))
+    render_widget!(tb, Sparkline([1.0, 4.0, 2.0, 8.0, 5.0, 7.0]))
+    render_widget!(tb, BarChart([BarEntry("A", 5), BarEntry("B", 3), BarEntry("C", 8)]))
+
+    # Canvas
+    c = Canvas(40, 20)
+    line!(c, 0, 0, 39, 19)
+    circle!(c, 20, 10, 8)
+    render_widget!(tb, c)
+
+    # Animation
+    tw = tween(0.0, 1.0, duration=30)
+    advance!(tw)
+    value(tw)
+
+    # Buffer inspection
+    row_text(tb, 1)
+    char_at(tb, 1, 1)
+    find_text(tb, "Test")
+end
 
 end
