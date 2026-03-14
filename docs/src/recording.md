@@ -79,7 +79,7 @@ width, height, cells, timestamps, sixels = load_tach("recording.tach")
 
 # Re-export to other formats
 export_gif_from_snapshots("recording.gif", width, height, cells, timestamps;
-                          sixel_snapshots=sixels)
+                          pixel_snapshots=sixels)
 export_svg("recording.svg", width, height, cells, timestamps)
 ```
 
