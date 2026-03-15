@@ -50,7 +50,10 @@ function render(modal::Modal, area::Rect, buf::Buffer)
 
     # Calculate modal dimensions
     msg_width = maximum(length.(lines); init=10)
-    btn_width = length(modal.cancel_label) + length(modal.confirm_label) + 12
+    cancel_w = isempty(modal.cancel_label) ? 0 : length(modal.cancel_label) + 6  # "[ label ]"
+    confirm_w = isempty(modal.confirm_label) ? 0 : length(modal.confirm_label) + 6
+    btn_gap = (cancel_w > 0 && confirm_w > 0) ? 2 : 0
+    btn_width = cancel_w + btn_gap + confirm_w
     inner_w = max(msg_width, btn_width, length(modal.title) + 4) + 4
     inner_h = length(lines) + 4  # title row + padding + message lines + padding + button row
     modal_w = min(inner_w + 2, area.width)  # +2 for border
@@ -107,9 +110,14 @@ function render(modal::Modal, area::Rect, buf::Buffer)
     btn_y = bottom(content) - 1
     btn_y <= msg_y && return
 
-    cancel_str = "[ $(modal.cancel_label) ]"
-    confirm_str = "[ $(modal.confirm_label) ]"
-    total_btn_w = length(cancel_str) + 2 + length(confirm_str)
+    has_cancel = !isempty(modal.cancel_label)
+    has_confirm = !isempty(modal.confirm_label)
+    (!has_cancel && !has_confirm) && return
+
+    cancel_str = has_cancel ? "[ $(modal.cancel_label) ]" : ""
+    confirm_str = has_confirm ? "[ $(modal.confirm_label) ]" : ""
+    gap = (has_cancel && has_confirm) ? 2 : 0
+    total_btn_w = length(cancel_str) + gap + length(confirm_str)
     btn_x = center(content, total_btn_w, 1).x
 
     # Animated selected button: gentle pulse
@@ -118,22 +126,30 @@ function render(modal::Modal, area::Rect, buf::Buffer)
 
     if modal.tick !== nothing && animations_enabled()
         p = pulse(modal.tick; period=60, lo=0.0, hi=0.3)
-        if modal.selected == :cancel
+        if modal.selected == :cancel && has_cancel
             fg = brighten(to_rgb(cancel_s.fg), p)
             cancel_s = Style(fg=fg, bold=true)
-        else
+        elseif modal.selected == :confirm && has_confirm
             fg = brighten(to_rgb(confirm_s.fg), p)
             confirm_s = Style(fg=fg, bold=true)
         end
     end
 
-    bx = set_string!(buf, btn_x, btn_y, cancel_str, cancel_s)
-    confirm_x = bx + 2
-    set_string!(buf, confirm_x, btn_y, confirm_str, confirm_s)
+    bx = btn_x
+    if has_cancel
+        bx = set_string!(buf, btn_x, btn_y, cancel_str, cancel_s)
+        modal._cancel_rect = Rect(btn_x, btn_y, length(cancel_str), 1)
+    else
+        modal._cancel_rect = Rect()
+    end
 
-    # Cache button hit areas for mouse handling
-    modal._cancel_rect = Rect(btn_x, btn_y, length(cancel_str), 1)
-    modal._confirm_rect = Rect(confirm_x, btn_y, length(confirm_str), 1)
+    confirm_x = bx + gap
+    if has_confirm
+        set_string!(buf, confirm_x, btn_y, confirm_str, confirm_s)
+        modal._confirm_rect = Rect(confirm_x, btn_y, length(confirm_str), 1)
+    else
+        modal._confirm_rect = Rect()
+    end
 end
 
 # ── Key handling ─────────────────────────────────────────────────────

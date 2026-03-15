@@ -50,6 +50,8 @@ init!(::Model, ::Terminal) = nothing
 update!(::Model, ::Event) = nothing
 cleanup!(::Model) = nothing
 should_quit(::Model) = false
+pre_render!(::Model) = nothing
+post_render!(::Model) = nothing
 
 
 """
@@ -1021,7 +1023,7 @@ function app(model::Model; fps=60, default_bindings=true, on_stdout=nothing, on_
                 while INPUT_ACTIVE[] && bytesavailable(_input_io()) > 0
                     evt = read_event()
                     evt isa KeyEvent && (evt = _track_key_state!(evt))
-                    dispatch_event!(t, overlay, model, evt, default_bindings)
+                    Base.invokelatest(dispatch_event!, t, overlay, model, evt, default_bindings)
                 end
                 # Drain async task queues
                 drain_tasks!(_framework_tasks) do tevt
@@ -1032,13 +1034,13 @@ function app(model::Model; fps=60, default_bindings=true, on_stdout=nothing, on_
                     elseif tevt isa TaskEvent && tevt.id == :_tach_saved
                         # no-op, .tach write complete
                     else
-                        dispatch_event!(t, overlay, model, tevt, default_bindings)
+                        Base.invokelatest(dispatch_event!, t, overlay, model, tevt, default_bindings)
                     end
                 end
                 _user_tq = task_queue(model)
                 if _user_tq !== nothing
                     drain_tasks!(_user_tq) do tevt
-                        dispatch_event!(t, overlay, model, tevt, default_bindings)
+                        Base.invokelatest(dispatch_event!, t, overlay, model, tevt, default_bindings)
                     end
                 end
 
@@ -1060,14 +1062,18 @@ function app(model::Model; fps=60, default_bindings=true, on_stdout=nothing, on_
                         overlay.notify_ttl = 0
                     end
                 end
+                Base.invokelatest(pre_render!, model)
                 draw!(t) do f
-                    if default_bindings && overlay_active(overlay)
-                        render_overlay!(overlay, f)
-                    else
-                        view(model, f)
-                        default_bindings && render_overlay!(overlay, f)
+                    Base.invokelatest() do
+                        if default_bindings && overlay_active(overlay)
+                            render_overlay!(overlay, f)
+                        else
+                            view(model, f)
+                            default_bindings && render_overlay!(overlay, f)
+                        end
                     end
                 end
+                Base.invokelatest(post_render!, model)
                 last_draw_ns = time_ns()
                 # Process deferred operations AFTER draw so status is visible
                 if default_bindings && overlay.pending_stop
