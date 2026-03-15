@@ -29,6 +29,8 @@ end
 | `should_quit(model)` | No | Return `true` to exit (default: `false`) |
 | `init!(model, terminal)` | No | One-time setup when app starts |
 | `cleanup!(model)` | No | Teardown when app exits |
+| `pre_render!(model)` | No | Called each frame just before `view` |
+| `post_render!(model)` | No | Called each frame just after `view` |
 | `copy_rect(model)` | No | `Rect` of focused pane for Ctrl+Y copy |
 | `task_queue(model)` | No | Return a `TaskQueue` for async integration |
 
@@ -49,7 +51,9 @@ root = TreeNode("app(model) called", [
         TreeNode("poll_event() → KeyEvent / MouseEvent / nothing"),
         TreeNode("Handle default bindings (theme, help, settings)"),
         TreeNode("update!(model, event)"),
+        TreeNode("pre_render!(model)"),
         TreeNode("view(model, frame)"),
+        TreeNode("post_render!(model)"),
         TreeNode("Diff buffers → write changes to terminal"),
     ]),
     TreeNode("Save layout preferences"),
