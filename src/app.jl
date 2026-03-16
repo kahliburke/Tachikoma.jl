@@ -964,8 +964,12 @@ function app(model::Model; fps=60, default_bindings=true, on_stdout=nothing, on_
     # stdin Julia object would read from the wrong source.
     _saved_input = INPUT_IO[] === nothing
     if _saved_input
-        saved_fd = ccall(:dup, Cint, (Cint,), Cint(0))
-        INPUT_IO[] = Base.TTY(RawFD(saved_fd))
+        @static if Sys.iswindows()
+            INPUT_IO[] = stdin
+        else
+            saved_fd = ccall(:dup, Cint, (Cint,), Cint(0))
+            INPUT_IO[] = Base.TTY(RawFD(saved_fd))
+        end
     end
     _restarting = Ref(false)
     with_terminal(; on_stdout, on_stderr, tty_out, tty_size) do t
