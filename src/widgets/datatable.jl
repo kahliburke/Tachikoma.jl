@@ -55,6 +55,9 @@ mutable struct DataTable
     show_detail::Bool              # whether detail popup is visible
     detail_row::Int                # which row is being detailed
     detail_scroll::Int             # scroll offset within detail view
+    # Per-row styling (optional). When non-empty, row_styles[data_row] overrides
+    # style/alt_style for that row. Selected rows still use selected_style.
+    row_styles::Vector{Style}
     # Cached render state for mouse hit testing
     last_content_area::Rect        # cached from last render
     last_col_positions::Vector{Tuple{Int,Int}} # (x-position, column index) of each border after last render
@@ -73,6 +76,7 @@ function DataTable(columns::Vector{DataColumn};
     detail_fn::Union{Function, Nothing}=nothing,
     detail_key::Symbol=:char,
     detail_char::Char='d',
+    row_styles::Vector{Style}=Style[],
 )
     n = _dt_nrows(columns)
     perm = collect(1:n)
@@ -82,6 +86,7 @@ function DataTable(columns::Vector{DataColumn};
               Int[], 0, 0, 0, 0,   # col resize
               0,                     # col_offset
               detail_fn, detail_key, detail_char, false, 0, 0,  # detail view
+              row_styles,             # per-row styles
               Rect(), Tuple{Int,Int}[], Int[])  # cached render state
 end
 
@@ -96,6 +101,7 @@ _dt_nrows(cols::Vector{DataColumn}) = isempty(cols) ? 0 : maximum(length(c.value
 function _dt_format_cell(col::DataColumn, row::Int)
     row > length(col.values) && return ""
     v = col.values[row]
+    v isa Span && return v.content  # extract text from styled cell
     col.format !== nothing ? col.format(v) : string(v)
 end
 
@@ -491,8 +497,11 @@ function render(dt::DataTable, rect::Rect, buf::Buffer)
         ry > bottom(content_area) && break
 
         is_selected = dt.selected > 0 && row_perm_idx == dt.selected
+        has_row_style = !isempty(dt.row_styles) && data_row <= length(dt.row_styles)
         row_style = if is_selected
             dt.selected_style
+        elseif has_row_style
+            dt.row_styles[data_row]
         elseif data_row % 2 == 0
             dt.alt_style
         else
@@ -517,6 +526,9 @@ function render(dt::DataTable, rect::Rect, buf::Buffer)
             col = dt.columns[i]
             w = widths[i]
             cell_text = _dt_format_cell(col, data_row)
+            # Cell-level style: Span values override row style
+            raw_val = data_row <= length(col.values) ? col.values[data_row] : nothing
+            cell_style = raw_val isa Span && !is_selected ? raw_val.style : row_style
             avail = min(w, max_x - rx + 1)
             if length(cell_text) > avail
                 cell_text = avail > 1 ? cell_text[1:max(1, avail-1)] * "…" : string(cell_text[1])
@@ -532,7 +544,7 @@ function render(dt::DataTable, rect::Rect, buf::Buffer)
                 rx
             end
 
-            set_string!(buf, cell_x, ry, cell_text, row_style;
+            set_string!(buf, cell_x, ry, cell_text, cell_style;
                         max_x=min(rx + w - 1, max_x))
             rx += w
             if i < nc
