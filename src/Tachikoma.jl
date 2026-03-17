@@ -37,6 +37,7 @@ include("background.jl")
 include("markdown.jl")
 
 function __init__()
+    load_light_mode!()
     load_theme!()
     load_animations!()
     load_render_backend!()
@@ -80,7 +81,11 @@ export # Core types
        # Themes
        KOKAKU, ESPER, MOTOKO, KANEDA, NEUROMANCER, CATPPUCCIN,
        SOLARIZED, DRACULA, OUTRUN, ZENBURN, ICEBERG,
-       ALL_THEMES, THEME, RESET,
+       PAPER, LATTE, SOLARIS, SAKURA, AYU,
+       GRUVBOX, FROST, MEADOW, DUNE, LAVENDER, HORIZON,
+       OVERCAST, DUSK,
+       DARK_THEMES, LIGHT_THEMES, ALL_THEMES, THEME, RESET,
+       light_mode, set_light_mode!, active_themes, canvas_bg,
        # Visual constants
        DOT, BARS_V, BARS_H, BLOCKS, SCANLINE, MARKER,
        SPINNER_BRAILLE, SPINNER_DOTS,

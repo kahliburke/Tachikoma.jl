@@ -43,7 +43,7 @@ function PixelCanvas(width::Int, height::Int;
     end
     color = _style_to_rgb(style)
     PixelCanvas(width, height,
-                fill(BLACK, ph, pw),
+                fill(canvas_bg(), ph, pw),
                 pw, ph,
                 width * 2, height * 4,
                 style, color)
@@ -182,7 +182,7 @@ function unset_point!(c::PixelCanvas, dx::Int, dy::Int)
     py1 = ((dy + 1) * ph) ÷ dh
     for py in py0:py1
         for px in px0:px1
-            c.pixels[py, px] = BLACK
+            c.pixels[py, px] = canvas_bg()
         end
     end
     nothing
@@ -194,7 +194,7 @@ end
 Clear all pixels.
 """
 function clear!(c::PixelCanvas)
-    fill!(c.pixels, BLACK)
+    fill!(c.pixels, canvas_bg())
 end
 
 """
@@ -271,7 +271,7 @@ function render(c::PixelCanvas, rect::Rect, buf::Buffer)
                     px0 = (dx * pw) ÷ dw + 1
                     py0 = (dy * ph) ÷ dh + 1
                     (px0 <= pw && py0 <= ph) || continue
-                    if c.pixels[py0, px0] != BLACK
+                    if c.pixels[py0, px0] != canvas_bg()
                         bits |= BRAILLE_MAP[sy + 1][sx + 1]
                     end
                 end

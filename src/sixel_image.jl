@@ -70,7 +70,7 @@ function PixelImage(cells_w::Int, cells_h::Int;
                     decay::DecayParams=DecayParams())
     pw, ph = _pixelimage_pixel_dims(cells_w, cells_h)
     color = _style_to_rgb(style)
-    PixelImage(fill(BLACK, ph, pw), pw, ph, cells_w, cells_h,
+    PixelImage(fill(canvas_bg(), ph, pw), pw, ph, cells_w, cells_h,
                block, style, color, decay)
 end
 
@@ -160,7 +160,7 @@ end
 Clear all pixels to black.
 """
 function clear!(img::PixelImage)
-    fill!(img.pixels, BLACK)
+    fill!(img.pixels, canvas_bg())
 end
 
 """
@@ -189,7 +189,7 @@ end
 function _pixelimage_resize!(si::PixelImage, cells_w::Int, cells_h::Int)
     (cells_w == si.cells_w && cells_h == si.cells_h) && return
     pw, ph = _pixelimage_pixel_dims(cells_w, cells_h)
-    si.pixels = fill(BLACK, ph, pw)
+    si.pixels = fill(canvas_bg(), ph, pw)
     si.pixel_w = pw
     si.pixel_h = ph
     si.cells_w = cells_w
@@ -267,7 +267,7 @@ function render(si::PixelImage, rect::Rect, buf::Buffer)
                     px0 = (dx * pw) ÷ dot_w + 1
                     py0 = (dy * ph) ÷ dot_h + 1
                     (px0 <= pw && py0 <= ph) || continue
-                    if si.pixels[py0, px0] != BLACK
+                    if si.pixels[py0, px0] != canvas_bg()
                         bits |= BRAILLE_MAP[sy + 1][sx + 1]
                     end
                 end
