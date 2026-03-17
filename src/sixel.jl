@@ -41,6 +41,7 @@ the master `params.decay` intensity. Skips black (background) pixels.
 """
 function apply_decay!(pixels::Matrix{ColorRGB}, params::DecayParams, tick::Int)
     params.decay <= 0.0 && return pixels
+    _bg = canvas_bg()
     h, w = size(pixels)
     master = params.decay
     do_jitter = params.jitter > 0.0
@@ -53,7 +54,7 @@ function apply_decay!(pixels::Matrix{ColorRGB}, params::DecayParams, tick::Int)
 
     @inbounds for cy in 1:h, cx in 1:w
         px = pixels[cy, cx]
-        px == BLACK && continue
+        px == _bg && continue
 
         x = Float64(cx)
         y = Float64(cy)
@@ -75,7 +76,7 @@ function apply_decay!(pixels::Matrix{ColorRGB}, params::DecayParams, tick::Int)
             if n < rot_threshold
                 # Flip to black or hue-shifted version
                 if n < rot_threshold * 0.5
-                    px = BLACK
+                    px = _bg
                 else
                     px = hue_shift(px, n * 360.0)
                 end
@@ -108,6 +109,7 @@ function apply_decay_subsampled!(pixels::Matrix{ColorRGB}, params::DecayParams,
                                  tick::Int, step::Int)
     params.decay <= 0.0 && return pixels
     step <= 1 && return apply_decay!(pixels, params, tick)
+    _bg = canvas_bg()
     h, w = size(pixels)
     master = params.decay
     do_jitter = params.jitter > 0.0
@@ -122,7 +124,7 @@ function apply_decay_subsampled!(pixels::Matrix{ColorRGB}, params::DecayParams,
         y = Float64(cy)
         for cx in 1:step:w
             px = pixels[cy, cx]
-            px == BLACK && continue
+            px == _bg && continue
 
             x = Float64(cx)
 
@@ -140,7 +142,7 @@ function apply_decay_subsampled!(pixels::Matrix{ColorRGB}, params::DecayParams,
                 n = noise(x * 13.7, y * 17.3 + tick_f * 0.01)
                 if n < rot_threshold
                     if n < rot_threshold * 0.5
-                        px = BLACK
+                        px = _bg
                     else
                         px = hue_shift(px, n * 360.0)
                     end
@@ -252,6 +254,7 @@ const _UNIQUE_KEYS = Ref(Vector{Int}(undef, 0))
 
 function _collect_unique_colors!(src::Matrix{ColorRGB}, lut::Vector{UInt16},
                                   dirty::Vector{Int}, shift::Int=2)
+    _bg = canvas_bg()
     unique_keys = _UNIQUE_KEYS[]
     if length(unique_keys) < 262144
         unique_keys = Vector{Int}(undef, 262144)
@@ -261,7 +264,7 @@ function _collect_unique_colors!(src::Matrix{ColorRGB}, lut::Vector{UInt16},
     nd = 0
     @inbounds for i in eachindex(src)
         px = src[i]
-        px == BLACK && continue
+        px == _bg && continue
         qpx = _quantize(px, shift)
         key = _color_key(qpx, shift)
         if lut[key] == 0
@@ -325,6 +328,7 @@ function encode_sixel(pixels::Matrix{ColorRGB};
                       decay::DecayParams=DecayParams(), tick::Int=0)
     h, w = size(pixels)
     (h == 0 || w == 0) && return UInt8[]
+    _bg = canvas_bg()
 
     # Only copy pixels when decay will modify them
     needs_decay = decay.decay > 0.0
@@ -391,7 +395,7 @@ function encode_sixel(pixels::Matrix{ColorRGB};
     # Map every pixel to its palette index
     @inbounds for i in eachindex(src)
         px = src[i]
-        px == BLACK && continue
+        px == _bg && continue
         qpx = _quantize(px, shift)
         key = _color_key(qpx, shift)
         ci = lut[key]
@@ -432,9 +436,18 @@ function encode_sixel(pixels::Matrix{ColorRGB};
     write(io, UInt8(';'))
     _write_decimal(io, h)
 
-    # Color 0: black background — explicitly painted each band to ensure
+    # Color 0: background — explicitly painted each band to ensure
     # clean background regardless of terminal P2 support.
-    write(io, "#0;2;0;0;0")
+    bg = canvas_bg()
+    bg_r = round(Int, Int(bg.r) / 255 * 100)
+    bg_g = round(Int, Int(bg.g) / 255 * 100)
+    bg_b = round(Int, Int(bg.b) / 255 * 100)
+    write(io, "#0;2;")
+    _write_decimal(io, bg_r)
+    write(io, UInt8(';'))
+    _write_decimal(io, bg_g)
+    write(io, UInt8(';'))
+    _write_decimal(io, bg_b)
 
     # Data colors: indices 1..N
     for (i, c) in enumerate(palette)

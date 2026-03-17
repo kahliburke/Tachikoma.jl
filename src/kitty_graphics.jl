@@ -237,8 +237,9 @@ function encode_kitty(pixels::Matrix{ColorRGB};
         src = pixels
     end
 
-    # Skip all-black frames
-    any(!=(BLACK), src) || return UInt8[]
+    # Skip all-background frames
+    bg = canvas_bg()
+    any(!=(bg), src) || return UInt8[]
 
     nbytes = h * w * 3
 

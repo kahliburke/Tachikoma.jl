@@ -1,6 +1,6 @@
 # Styling & Themes
 
-Tachikoma provides a comprehensive styling system with ANSI 256 colors, true RGB colors, text attributes, and a theme engine with 11 built-in palettes.
+Tachikoma provides a comprehensive styling system with ANSI 256 colors, true RGB colors, text attributes, and a theme engine with 24 built-in palettes across dark and light modes.
 
 ## Style
 
@@ -113,7 +113,9 @@ Always prefer `tstyle` over hardcoded colors — your app automatically adapts w
 
 ## Themes
 
-Tachikoma ships with 11 built-in themes:
+Tachikoma ships with 24 built-in themes split into dark and light packs. Use **Ctrl+\\** to open the theme selector and **Tab** to switch between dark and light mode. Your choice is saved via Preferences.jl.
+
+### Dark Themes
 
 | Theme | Constant | Description |
 |:------|:---------|:------------|
@@ -129,16 +131,39 @@ Tachikoma ships with 11 built-in themes:
 | Zenburn | `ZENBURN` | Low-contrast warm |
 | Iceberg | `ICEBERG` | Cool blue minimal |
 
+### Light Themes
+
+| Theme | Constant | Description |
+|:------|:---------|:------------|
+| Paper | `PAPER` | Clean minimal, black ink on white |
+| Latte | `LATTE` | Catppuccin Latte, soft pastels on cream |
+| Solaris | `SOLARIS` | Solarized Light, precision color science |
+| Sakura | `SAKURA` | Cherry blossom pink on snow |
+| Ayu | `AYU` | Warm daylight, ochre accents |
+| Gruvbox | `GRUVBOX` | Retro groove, warm contrast on tan |
+| Frost | `FROST` | Arctic clarity, ice blue on snow |
+| Meadow | `MEADOW` | Natural greens on warm white |
+| Dune | `DUNE` | Desert sand, warm earth tones |
+| Lavender | `LAVENDER` | Soft purple haze on cool white |
+| Horizon | `HORIZON` | Coastal sunrise, warm amber |
+| Overcast | `OVERCAST` | Balanced mid-gray, works anywhere |
+| Dusk | `DUSK` | Twilight gray, warm mids with cool accents |
+
 ### Theme API
 
 ```julia
 theme()                    # get current Theme
 set_theme!(KANEDA)         # set by Theme value
 set_theme!(:kaneda)        # set by Symbol name
-ALL_THEMES                 # tuple of all 11 themes
+light_mode()               # true if light mode is active
+set_light_mode!(true)      # switch to light mode
+active_themes()            # themes for current mode
+DARK_THEMES                # tuple of all dark themes
+LIGHT_THEMES               # tuple of all light themes
+ALL_THEMES                 # tuple of all themes (dark + light)
 ```
 
-Theme changes take effect immediately — the next `view` call uses the new colors.
+Theme changes take effect immediately — the next `view` call uses the new colors. Pixel canvases automatically use a white or black background to match the active mode.
 
 <!-- tachi:app theme_demo w=50 h=12 frames=240 fps=15 -->
 
