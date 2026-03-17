@@ -391,9 +391,287 @@ const ICEBERG = Theme(
     Color256(117),  # title: light blue
 )
 
-# All themes for iteration
-const ALL_THEMES = (KOKAKU, ESPER, MOTOKO, KANEDA, NEUROMANCER, CATPPUCCIN,
-                    SOLARIZED, DRACULA, OUTRUN, ZENBURN, ICEBERG)
+# ── Light themes ───────────────────────────────────────────────────────
+
+#  Paper  ── clean minimal, like a printed page
+#  Crisp, professional, effortless. Black ink on white stock.
+const PAPER = Theme(
+    "paper",
+    Color256(231),  # bg: pure white
+    Color256(249),  # border: light gray
+    Color256(240),  # border_focus: medium gray
+    Color256(234),  # text: near-black
+    Color256(245),  # text_dim: medium gray
+    Color256(232),  # text_bright: black
+    Color256(25),   # primary: deep blue
+    Color256(66),   # secondary: teal
+    Color256(130),  # accent: warm brown
+    Color256(28),   # success: forest green
+    Color256(172),  # warning: dark orange
+    Color256(124),  # error: dark red
+    Color256(25),   # title: deep blue
+)
+
+#  Latte  ── Catppuccin Latte / soft warm pastels on cream
+#  Cozy, readable, refined. Morning coffee with good typography.
+const LATTE = Theme(
+    "latte",
+    Color256(230),  # bg: warm cream
+    Color256(250),  # border: warm gray
+    Color256(103),  # border_focus: mauve
+    Color256(236),  # text: dark charcoal
+    Color256(244),  # text_dim: subtext
+    Color256(233),  # text_bright: near-black
+    Color256(25),   # primary: blue
+    Color256(103),  # secondary: mauve
+    Color256(168),  # accent: pink
+    Color256(71),   # success: green
+    Color256(136),  # warning: yellow-brown
+    Color256(124),  # error: red
+    Color256(30),   # title: teal
+)
+
+#  Solaris  ── Solarized Light / precision color science on pale yellow
+#  Balanced, deliberate, timeless. Lab-tuned for daylight readability.
+const SOLARIS = Theme(
+    "solaris",
+    Color256(230),  # bg: base3 (light yellow)
+    Color256(247),  # border: base1
+    Color256(37),   # border_focus: cyan
+    Color256(235),  # text: base00
+    Color256(244),  # text_dim: base1
+    Color256(233),  # text_bright: base02
+    Color256(33),   # primary: blue
+    Color256(37),   # secondary: cyan
+    Color256(136),  # accent: yellow
+    Color256(64),   # success: green
+    Color256(166),  # warning: orange
+    Color256(160),  # error: red
+    Color256(125),  # title: magenta
+)
+
+#  Sakura  ── cherry blossom / soft pink tones on snow
+#  Gentle, warm, spring morning. Petals on a quiet stream.
+const SAKURA = Theme(
+    "sakura",
+    Color256(231),  # bg: white
+    Color256(218),  # border: light pink
+    Color256(168),  # border_focus: medium pink
+    Color256(236),  # text: dark gray
+    Color256(245),  # text_dim: medium gray
+    Color256(233),  # text_bright: near-black
+    Color256(168),  # primary: rose
+    Color256(132),  # secondary: dark orchid
+    Color256(204),  # accent: hot pink
+    Color256(71),   # success: green
+    Color256(172),  # warning: dark orange
+    Color256(124),  # error: dark red
+    Color256(132),  # title: orchid
+)
+
+#  Ayu  ── warm daylight / ochre accents on soft white
+#  Comfortable, warm, natural. Sunlit desk with aged paper.
+const AYU = Theme(
+    "ayu",
+    Color256(230),  # bg: warm white
+    Color256(249),  # border: light warm gray
+    Color256(173),  # border_focus: terracotta
+    Color256(236),  # text: dark gray
+    Color256(245),  # text_dim: medium gray
+    Color256(233),  # text_bright: near-black
+    Color256(173),  # primary: terracotta orange
+    Color256(66),   # secondary: muted teal
+    Color256(136),  # accent: amber
+    Color256(65),   # success: olive green
+    Color256(172),  # warning: dark orange
+    Color256(131),  # error: brick red
+    Color256(173),  # title: terracotta
+)
+
+#  Gruvbox  ── retro groove / warm contrast on light tan
+#  Earthy, textured, vintage. Old CRT warmth meets modern readability.
+const GRUVBOX = Theme(
+    "gruvbox",
+    Color256(223),  # bg: light tan (fbf1c7)
+    Color256(248),  # border: warm gray
+    Color256(106),  # border_focus: green
+    Color256(237),  # text: dark brown-gray
+    Color256(243),  # text_dim: gray
+    Color256(234),  # text_bright: near-black
+    Color256(124),  # primary: red
+    Color256(106),  # secondary: green
+    Color256(172),  # accent: orange
+    Color256(106),  # success: green
+    Color256(172),  # warning: orange
+    Color256(124),  # error: red
+    Color256(132),  # title: purple
+)
+
+#  Frost  ── arctic clarity / ice blue on snow
+#  Clean, cold, precise. Nordic light through frosted glass.
+const FROST = Theme(
+    "frost",
+    Color256(255),  # bg: bright gray-white
+    Color256(152),  # border: steel blue-gray
+    Color256(67),   # border_focus: slate blue
+    Color256(236),  # text: dark gray
+    Color256(245),  # text_dim: medium gray
+    Color256(233),  # text_bright: near-black
+    Color256(67),   # primary: slate blue
+    Color256(30),   # secondary: dark cyan
+    Color256(109),  # accent: steel blue
+    Color256(71),   # success: green
+    Color256(136),  # warning: yellow-brown
+    Color256(131),  # error: muted red
+    Color256(67),   # title: slate blue
+)
+
+#  Meadow  ── sunlit field / natural greens on warm white
+#  Fresh, organic, alive. Grass and wildflowers in afternoon sun.
+const MEADOW = Theme(
+    "meadow",
+    Color256(230),  # bg: warm cream
+    Color256(151),  # border: sage
+    Color256(65),   # border_focus: dark olive
+    Color256(236),  # text: dark gray
+    Color256(244),  # text_dim: medium gray
+    Color256(233),  # text_bright: near-black
+    Color256(65),   # primary: olive green
+    Color256(29),   # secondary: dark green
+    Color256(107),  # accent: spring green
+    Color256(28),   # success: forest green
+    Color256(172),  # warning: dark orange
+    Color256(124),  # error: dark red
+    Color256(29),   # title: dark green
+)
+
+#  Dune  ── desert sand / warm earth tones on parchment
+#  Dusty, warm, timeless. Sandstone and copper in golden hour.
+const DUNE = Theme(
+    "dune",
+    Color256(223),  # bg: light tan
+    Color256(180),  # border: tan
+    Color256(130),  # border_focus: brown
+    Color256(236),  # text: dark gray
+    Color256(244),  # text_dim: medium gray
+    Color256(233),  # text_bright: near-black
+    Color256(130),  # primary: brown
+    Color256(94),   # secondary: dark brown
+    Color256(172),  # accent: dark orange
+    Color256(64),   # success: dark yellow-green
+    Color256(208),  # warning: orange
+    Color256(124),  # error: dark red
+    Color256(130),  # title: brown
+)
+
+#  Lavender  ── soft purple haze on cool white
+#  Calm, dreamy, elegant. Wisteria hanging over a stone garden.
+const LAVENDER = Theme(
+    "lavender",
+    Color256(231),  # bg: white
+    Color256(189),  # border: light lavender-gray
+    Color256(97),   # border_focus: dusty violet
+    Color256(236),  # text: dark gray
+    Color256(245),  # text_dim: medium gray
+    Color256(233),  # text_bright: near-black
+    Color256(97),   # primary: dusty violet
+    Color256(61),   # secondary: dark purple
+    Color256(140),  # accent: medium purple
+    Color256(71),   # success: green
+    Color256(136),  # warning: yellow-brown
+    Color256(131),  # error: muted red
+    Color256(97),   # title: dusty violet
+)
+
+#  Horizon  ── coastal sunrise / warm amber on soft cream
+#  Golden, serene, expansive. First light over calm water.
+const HORIZON = Theme(
+    "horizon",
+    Color256(230),  # bg: warm cream
+    Color256(180),  # border: light warm tan
+    Color256(173),  # border_focus: salmon
+    Color256(236),  # text: dark gray
+    Color256(244),  # text_dim: medium gray
+    Color256(233),  # text_bright: near-black
+    Color256(167),  # primary: coral red
+    Color256(173),  # secondary: salmon
+    Color256(209),  # accent: light coral
+    Color256(71),   # success: green
+    Color256(172),  # warning: dark orange
+    Color256(124),  # error: dark red
+    Color256(167),  # title: coral red
+)
+
+#  Overcast  ── mid-gray / balanced contrast, works anywhere
+#  Neutral, steady, reliable. Cloudy sky with silver lining.
+const OVERCAST = Theme(
+    "overcast",
+    Color256(252),  # bg: light gray
+    Color256(245),  # border: medium gray
+    Color256(68),   # border_focus: steel blue
+    Color256(234),  # text: near-black
+    Color256(242),  # text_dim: gray
+    Color256(232),  # text_bright: black
+    Color256(68),   # primary: steel blue
+    Color256(30),   # secondary: dark cyan
+    Color256(37),   # accent: cyan
+    Color256(28),   # success: forest green
+    Color256(172),  # warning: dark orange
+    Color256(124),  # error: dark red
+    Color256(68),   # title: steel blue
+)
+
+#  Dusk  ── twilight gray / warm mids, cool accents
+#  Liminal, moody, balanced. The sky between day and night.
+const DUSK = Theme(
+    "dusk",
+    Color256(249),  # bg: warm medium-light gray
+    Color256(243),  # border: medium gray
+    Color256(133),  # border_focus: medium purple
+    Color256(235),  # text: dark charcoal
+    Color256(241),  # text_dim: darker gray
+    Color256(232),  # text_bright: near-black
+    Color256(133),  # primary: medium purple
+    Color256(96),   # secondary: dark magenta
+    Color256(175),  # accent: orchid
+    Color256(65),   # success: olive green
+    Color256(172),  # warning: dark orange
+    Color256(131),  # error: brick red
+    Color256(133),  # title: medium purple
+)
+
+# ── Theme collections ─────────────────────────────────────────────────
+
+const DARK_THEMES = (KOKAKU, ESPER, MOTOKO, KANEDA, NEUROMANCER, CATPPUCCIN,
+                     SOLARIZED, DRACULA, OUTRUN, ZENBURN, ICEBERG)
+
+const LIGHT_THEMES = (PAPER, LATTE, SOLARIS, SAKURA, AYU,
+                      GRUVBOX, FROST, MEADOW, DUNE, LAVENDER, HORIZON,
+                      OVERCAST, DUSK)
+
+# ── Light/dark mode ───────────────────────────────────────────────────
+
+const LIGHT_MODE = Ref(false)
+light_mode() = LIGHT_MODE[]
+
+function set_light_mode!(enabled::Bool)
+    LIGHT_MODE[] = enabled
+    nothing
+end
+
+function save_light_mode()
+    @set_preferences!("light_mode" => LIGHT_MODE[])
+end
+
+function load_light_mode!()
+    LIGHT_MODE[] = @load_preference("light_mode", false)
+end
+
+"""Return the active theme pack based on light/dark mode."""
+active_themes() = LIGHT_MODE[] ? LIGHT_THEMES : DARK_THEMES
+
+"""All themes for iteration (mode-dependent)."""
+const ALL_THEMES = (DARK_THEMES..., LIGHT_THEMES...)
 
 # Active theme
 const THEME = Ref{Theme}(KOKAKU)
@@ -419,6 +697,9 @@ function set_theme!(name::Symbol)
     error("Unknown theme: $name")
 end
 
+"""Background color for pixel canvases — black in dark mode, white in light mode."""
+canvas_bg() = LIGHT_MODE[] ? ColorRGB(0xff, 0xff, 0xff) : BLACK
+
 # ── Persistence via Preferences.jl ────────────────────────────────────
 
 function save_theme(name::String)
@@ -427,7 +708,10 @@ end
 
 function load_theme!()
     name = @load_preference("theme", "kokaku")
-    set_theme!(Symbol(name))
+    for t in ALL_THEMES
+        t.name == string(name) && (THEME[] = t; return)
+    end
+    THEME[] = LIGHT_MODE[] ? PAPER : KOKAKU
 end
 
 # Animations preference

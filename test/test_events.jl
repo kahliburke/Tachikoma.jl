@@ -163,17 +163,18 @@
         @test T.handle_default_binding!(term, ov, _DummyModel(),evt)
         @test ov.show_theme
 
-        # Arrow down cycles theme
+        # Arrow down cycles theme (within active pack)
         ov.theme_idx = 1
-        T.set_theme!(T.ALL_THEMES[1])
+        themes = T.active_themes()
+        T.set_theme!(themes[1])
         T.handle_default_binding!(term, ov, _DummyModel(),T.KeyEvent(:down))
         @test ov.theme_idx == 2
-        @test T.theme() === T.ALL_THEMES[2]
+        @test T.theme() === themes[2]
 
         # Arrow up wraps around
         ov.theme_idx = 1
         T.handle_default_binding!(term, ov, _DummyModel(),T.KeyEvent(:up))
-        @test ov.theme_idx == length(T.ALL_THEMES)
+        @test ov.theme_idx == length(themes)
 
         # Escape closes
         T.handle_default_binding!(term, ov, _DummyModel(),T.KeyEvent(:escape))

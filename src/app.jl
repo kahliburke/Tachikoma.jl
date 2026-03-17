@@ -170,17 +170,25 @@ end
 function handle_default_binding!(t::Terminal, overlay::AppOverlay, model::Model, evt::KeyEvent)
     # Theme overlay is open — consume keys
     if overlay.show_theme
+        themes = active_themes()
         if evt.key == :escape
             overlay.show_theme = false
         elseif evt.key == :up
-            overlay.theme_idx = mod1(overlay.theme_idx - 1, length(ALL_THEMES))
-            set_theme!(ALL_THEMES[overlay.theme_idx])
+            overlay.theme_idx = mod1(overlay.theme_idx - 1, length(themes))
+            set_theme!(themes[overlay.theme_idx])
         elseif evt.key == :down
-            overlay.theme_idx = mod1(overlay.theme_idx + 1, length(ALL_THEMES))
-            set_theme!(ALL_THEMES[overlay.theme_idx])
+            overlay.theme_idx = mod1(overlay.theme_idx + 1, length(themes))
+            set_theme!(themes[overlay.theme_idx])
         elseif evt.key == :enter
             save_theme(theme().name)
+            save_light_mode()
             overlay.show_theme = false
+        elseif evt.key == :tab || evt.key == :backtab
+            # Toggle light/dark mode
+            set_light_mode!(!light_mode())
+            themes = active_themes()
+            overlay.theme_idx = 1
+            set_theme!(themes[1])
         end
         return true
     end
@@ -318,9 +326,11 @@ function render_theme_overlay!(overlay::AppOverlay, f::Frame)
     buf = f.buffer
     area = f.area
 
-    n = length(ALL_THEMES)
-    modal_w = 30
-    modal_h = n + 4
+    themes = active_themes()
+    n = length(themes)
+    mode_label = light_mode() ? "☀ Light" : "🌙 Dark"
+    modal_w = 34
+    modal_h = n + 6  # extra rows for mode indicator + separator
     modal_rect = center(area, modal_w, modal_h)
 
     # Dim background
@@ -336,11 +346,25 @@ function render_theme_overlay!(overlay::AppOverlay, f::Frame)
         box=BOX_HEAVY,
     )
     content = render(block, modal_rect, buf)
+    rx = right(content)
+
+    # Mode indicator row
+    mode_y = content.y
+    set_string!(buf, content.x, mode_y, "  $mode_label",
+                Style(fg=theme().accent, bold=true); max_x=rx)
+    tab_hint = "[Tab] switch"
+    set_string!(buf, rx - length(tab_hint) + 1, mode_y, tab_hint,
+                tstyle(:text_dim); max_x=rx)
+
+    # Separator
+    sep_y = content.y + 1
+    for cx in content.x:rx
+        set_char!(buf, cx, sep_y, '─', tstyle(:border))
+    end
 
     # List themes
-    rx = right(content)
-    for (i, th) in enumerate(ALL_THEMES)
-        y = content.y + i - 1
+    for (i, th) in enumerate(themes)
+        y = sep_y + i
         y > bottom(content) && break
         if i == overlay.theme_idx
             for cx in content.x:rx
@@ -358,7 +382,7 @@ function render_theme_overlay!(overlay::AppOverlay, f::Frame)
 
     # Footer hint
     hint_y = bottom(content)
-    if hint_y > content.y + n
+    if hint_y > sep_y + n
         set_string!(buf, content.x, hint_y,
                     "[↑↓] [Enter]save [Esc]close",
                     tstyle(:text_dim); max_x=rx)
