@@ -92,6 +92,23 @@
         @test spans[2].style.strikethrough == false
     end
 
+    @testset "parse_ansi: reverse video (SGR 7/27)" begin
+        # Reverse swaps fg and bg in the output style
+        spans = T.parse_ansi("\e[31;42;7mreversed\e[0m")
+        @test spans[1].style.fg == T.Color256(2)  # bg green → fg
+        @test spans[1].style.bg == T.Color256(1)  # fg red → bg
+        @test spans[1].content == "reversed"
+    end
+
+    @testset "parse_ansi: reverse off (SGR 27)" begin
+        spans = T.parse_ansi("\e[31;7mrev\e[27mnormal")
+        # reversed: fg=NoColor (was bg), bg=Color256(1) (was fg red)
+        @test spans[1].style.bg == T.Color256(1)
+        # after reverse off: fg=Color256(1), bg=NoColor
+        @test spans[2].style.fg == T.Color256(1)
+        @test spans[2].style.bg isa T.NoColor
+    end
+
     @testset "parse_ansi: default color reset (39/49)" begin
         spans = T.parse_ansi("\e[31;42mcolored\e[39mfg reset\e[49mbg reset")
         @test spans[1].style.fg == T.Color256(1)
