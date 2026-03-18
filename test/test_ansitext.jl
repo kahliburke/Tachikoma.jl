@@ -193,12 +193,39 @@
 
     # ── Per-widget opt-out ──────────────────────────────────────────
 
-    @testset "Paragraph: ansi=false skips parsing" begin
+    @testset "Paragraph: ansi=false strips escapes" begin
         p = T.Paragraph("\e[31mred\e[0m", ansi=false)
         tb = T.TestBackend(20, 3)
         T.render_widget!(tb, p)
-        # Not parsed as red — gets the default text style instead
+        # Not parsed as red — gets the default text style
         @test T.style_at(tb, 1, 1).fg != T.Color256(1)
+        # Escape sequences stripped — shows clean text "red"
+        @test rstrip(T.row_text(tb, 1)) == "red"
+    end
+
+    @testset "Paragraph: raw=true shows literal escapes" begin
+        p = T.Paragraph("\e[31mred\e[0m", raw=true)
+        tb = T.TestBackend(30, 3)
+        T.render_widget!(tb, p)
+        # ESC replaced with ␛, bracket codes visible
+        row = rstrip(T.row_text(tb, 1))
+        @test occursin("␛[31m", row)
+        @test occursin("red", row)
+        @test occursin("␛[0m", row)
+    end
+
+    @testset "Paragraph: raw=true with char_wrap sizes correctly" begin
+        # "␛[31mX␛[0m" = 11 display columns
+        p = T.Paragraph("\e[31mX\e[0m", raw=true, wrap=T.char_wrap)
+        tb = T.TestBackend(6, 4)
+        T.render_widget!(tb, p)
+        # Should wrap correctly — first line fits "␛[31mX" (6 cols)
+        row1 = rstrip(T.row_text(tb, 1))
+        row2 = rstrip(T.row_text(tb, 2))
+        @test length(row1) > 0
+        @test length(row2) > 0
+        full = row1 * row2
+        @test occursin("␛[31m", full)
     end
 
     @testset "ScrollPane: ansi=false skips parsing" begin
