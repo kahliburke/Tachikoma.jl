@@ -21,3 +21,6 @@ FreeTypeAbstraction = "0.10.8"
 Infiltrator = "1.9.9"
 Match = "2.4.1"
 SQLite = "1"
+
+[sources]
+Tachikoma = {path = "../.."}
