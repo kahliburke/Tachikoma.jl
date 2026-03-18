@@ -39,9 +39,9 @@ end
 In-place bit-rot effects on pixel buffer. All effects are scaled by
 the master `params.decay` intensity. Skips black (background) pixels.
 """
-function apply_decay!(pixels::Matrix{ColorRGB}, params::DecayParams, tick::Int)
+function apply_decay!(pixels::Matrix{ColorRGB}, params::DecayParams, tick::Int;
+                      bg::ColorRGB=BLACK)
     params.decay <= 0.0 && return pixels
-    _bg = canvas_bg()
     h, w = size(pixels)
     master = params.decay
     do_jitter = params.jitter > 0.0
@@ -54,7 +54,7 @@ function apply_decay!(pixels::Matrix{ColorRGB}, params::DecayParams, tick::Int)
 
     @inbounds for cy in 1:h, cx in 1:w
         px = pixels[cy, cx]
-        px == _bg && continue
+        px == bg && continue
 
         x = Float64(cx)
         y = Float64(cy)
@@ -76,7 +76,7 @@ function apply_decay!(pixels::Matrix{ColorRGB}, params::DecayParams, tick::Int)
             if n < rot_threshold
                 # Flip to black or hue-shifted version
                 if n < rot_threshold * 0.5
-                    px = _bg
+                    px = bg
                 else
                     px = hue_shift(px, n * 360.0)
                 end
@@ -106,10 +106,9 @@ Gives step² speedup for decay-heavy frames at the cost of block artifacts
 (acceptable since decay is itself a distortion effect).
 """
 function apply_decay_subsampled!(pixels::Matrix{ColorRGB}, params::DecayParams,
-                                 tick::Int, step::Int)
+                                 tick::Int, step::Int; bg::ColorRGB=BLACK)
     params.decay <= 0.0 && return pixels
-    step <= 1 && return apply_decay!(pixels, params, tick)
-    _bg = canvas_bg()
+    step <= 1 && return apply_decay!(pixels, params, tick; bg=bg)
     h, w = size(pixels)
     master = params.decay
     do_jitter = params.jitter > 0.0
@@ -124,7 +123,7 @@ function apply_decay_subsampled!(pixels::Matrix{ColorRGB}, params::DecayParams,
         y = Float64(cy)
         for cx in 1:step:w
             px = pixels[cy, cx]
-            px == _bg && continue
+            px == bg && continue
 
             x = Float64(cx)
 
@@ -142,7 +141,7 @@ function apply_decay_subsampled!(pixels::Matrix{ColorRGB}, params::DecayParams,
                 n = noise(x * 13.7, y * 17.3 + tick_f * 0.01)
                 if n < rot_threshold
                     if n < rot_threshold * 0.5
-                        px = _bg
+                        px = bg
                     else
                         px = hue_shift(px, n * 360.0)
                     end
@@ -253,8 +252,8 @@ end
 const _UNIQUE_KEYS = Ref(Vector{Int}(undef, 0))
 
 function _collect_unique_colors!(src::Matrix{ColorRGB}, lut::Vector{UInt16},
-                                  dirty::Vector{Int}, shift::Int=2)
-    _bg = canvas_bg()
+                                  dirty::Vector{Int}, shift::Int=2;
+                                  bg::ColorRGB=BLACK)
     unique_keys = _UNIQUE_KEYS[]
     if length(unique_keys) < 262144
         unique_keys = Vector{Int}(undef, 262144)
@@ -264,7 +263,7 @@ function _collect_unique_colors!(src::Matrix{ColorRGB}, lut::Vector{UInt16},
     nd = 0
     @inbounds for i in eachindex(src)
         px = src[i]
-        px == _bg && continue
+        px == bg && continue
         qpx = _quantize(px, shift)
         key = _color_key(qpx, shift)
         if lut[key] == 0
@@ -318,17 +317,17 @@ DCS ... ST byte sequence.
 
 Pixel matrix is indexed [row, col] with row 1 at top.
 
-Each sixel band writes an explicit background layer (color 0 = black)
+Each sixel band writes an explicit background layer (color 0 = bg)
 before data colors, ensuring old sixel data is properly overwritten
 between frames.
 
 Performance: reuses module-level buffers across frames to minimize allocations.
 """
 function encode_sixel(pixels::Matrix{ColorRGB};
-                      decay::DecayParams=DecayParams(), tick::Int=0)
+                      decay::DecayParams=DecayParams(), tick::Int=0,
+                      bg::ColorRGB=canvas_bg())
     h, w = size(pixels)
     (h == 0 || w == 0) && return UInt8[]
-    _bg = canvas_bg()
 
     # Only copy pixels when decay will modify them
     needs_decay = decay.decay > 0.0
@@ -344,7 +343,7 @@ function encode_sixel(pixels::Matrix{ColorRGB};
         # Subsampled decay for large images
         npix = h * w
         decay_step = npix > 500_000 ? max(1, round(Int, sqrt(npix / 500_000))) : 1
-        apply_decay_subsampled!(src, decay, tick, decay_step)
+        apply_decay_subsampled!(src, decay, tick, decay_step; bg=bg)
     else
         src = pixels
     end
@@ -371,10 +370,10 @@ function encode_sixel(pixels::Matrix{ColorRGB};
     # coarsening brings the count under 255, and also reduces the number
     # of band passes (fewer colors = smaller output).
     shift = 2
-    n_unique = _collect_unique_colors!(src, lut, dirty, shift)
+    n_unique = _collect_unique_colors!(src, lut, dirty, shift; bg=bg)
     while n_unique > 255 && shift < 4
         shift += 1
-        n_unique = _collect_unique_colors!(src, lut, dirty, shift)
+        n_unique = _collect_unique_colors!(src, lut, dirty, shift; bg=bg)
     end
     unique_keys = _UNIQUE_KEYS[]
     palette = _select_palette(unique_keys, n_unique, shift)
@@ -395,7 +394,7 @@ function encode_sixel(pixels::Matrix{ColorRGB};
     # Map every pixel to its palette index
     @inbounds for i in eachindex(src)
         px = src[i]
-        px == _bg && continue
+        px == bg && continue
         qpx = _quantize(px, shift)
         key = _color_key(qpx, shift)
         ci = lut[key]
@@ -438,7 +437,6 @@ function encode_sixel(pixels::Matrix{ColorRGB};
 
     # Color 0: background — explicitly painted each band to ensure
     # clean background regardless of terminal P2 support.
-    bg = canvas_bg()
     bg_r = round(Int, Int(bg.r) / 255 * 100)
     bg_g = round(Int, Int(bg.g) / 255 * 100)
     bg_b = round(Int, Int(bg.b) / 255 * 100)

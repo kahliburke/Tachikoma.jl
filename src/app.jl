@@ -167,6 +167,14 @@ function clipboard_copy!(text::String)
     nothing
 end
 
+function _sync_theme_overlay_idx!(overlay::AppOverlay)
+    overlay.theme_idx = 1
+    for (i, th) in enumerate(active_themes())
+        th === THEME[] && (overlay.theme_idx = i; break)
+    end
+    nothing
+end
+
 function handle_default_binding!(t::Terminal, overlay::AppOverlay, model::Model, evt::KeyEvent)
     # Theme overlay is open — consume keys
     if overlay.show_theme
@@ -211,6 +219,7 @@ function handle_default_binding!(t::Terminal, overlay::AppOverlay, model::Model,
     end
     # Ctrl+\ → open theme selector (byte 0x1c → Char(0x1c + 0x60) = '|')
     if evt.key == :ctrl && evt.char == '|'
+        _sync_theme_overlay_idx!(overlay)
         overlay.show_theme = true
         return true
     end
@@ -1012,10 +1021,7 @@ function app(model::Model; fps=60, default_bindings=true, on_stdout=nothing, on_
         # Connect model's async sources (PTYs, etc.)
         set_wake!(model, notify)
 
-        # Sync overlay theme_idx with current theme
-        for (i, th) in enumerate(ALL_THEMES)
-            th === THEME[] && (overlay.theme_idx = i; break)
-        end
+        _sync_theme_overlay_idx!(overlay)
         frame_interval = 1.0 / fps
 
         # ── Stdin monitor: event-driven wake on input ──
