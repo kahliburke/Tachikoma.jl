@@ -67,6 +67,11 @@ end
     tick::Int = 0
     focus::Int = 1   # 1-4 for the four panes
 
+    # Resizable layouts for draggable pane borders
+    vlayout::ResizableLayout = ResizableLayout(Vertical, [Fill(), Fill()])
+    top_hlayout::ResizableLayout = ResizableLayout(Horizontal, [Fill(), Fill()])
+    bot_hlayout::ResizableLayout = ResizableLayout(Horizontal, [Fill(), Fill()])
+
     # Top-left: Paragraph with ANSI parsed (default)
     para_on::Paragraph = Paragraph(ANSI_SAMPLE;
         wrap=char_wrap,
@@ -121,6 +126,11 @@ function update!(m::AnsiDemoModel, evt::KeyEvent)
 end
 
 function update!(m::AnsiDemoModel, evt::MouseEvent)
+    # Resizable pane borders
+    handle_mouse!(m.vlayout, evt) && return
+    handle_mouse!(m.top_hlayout, evt) && return
+    handle_mouse!(m.bot_hlayout, evt) && return
+    # ScrollPane scrollbar and scroll wheel
     for pane in (m.scroll_on, m.scroll_off)
         handle_mouse!(pane, evt) && return
     end
@@ -157,11 +167,13 @@ function view(m::AnsiDemoModel, f::Frame)
         title="$(focus_marker(4))ScrollPane (ansi=false)",
         border_style=focus_border(4), title_style=focus_title(4))
 
-    # Layout: 2x2 grid with footer
-    rows = split_layout(Layout(Vertical, [Fill(1), Fill(1), Fixed(1)]), f.area)
-    length(rows) < 3 && return
-    top_cols = split_layout(Layout(Horizontal, [Fill(1), Fill(1)]), rows[1])
-    bot_cols = split_layout(Layout(Horizontal, [Fill(1), Fill(1)]), rows[2])
+    # Layout: 2x2 grid with footer, draggable borders
+    footer_rows = split_layout(Layout(Vertical, [Fill(), Fixed(1)]), f.area)
+    length(footer_rows) < 2 && return
+    rows = split_layout(m.vlayout, footer_rows[1])
+    length(rows) < 2 && return
+    top_cols = split_layout(m.top_hlayout, rows[1])
+    bot_cols = split_layout(m.bot_hlayout, rows[2])
 
     render(m.para_on, top_cols[1], buf)
     render(m.para_off, top_cols[2], buf)
@@ -172,7 +184,7 @@ function view(m::AnsiDemoModel, f::Frame)
     render(StatusBar(
         left=[Span("  [Tab]focus [↑↓/PgUp/PgDn]scroll ", tstyle(:text_dim))],
         right=[Span("$(length(m.log_lines)) lines  [q/Esc]quit ", tstyle(:text_dim))],
-    ), rows[3], buf)
+    ), footer_rows[2], buf)
 end
 
 function ansi_demo(; theme_name=nothing)
