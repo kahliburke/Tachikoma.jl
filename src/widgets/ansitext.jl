@@ -30,12 +30,15 @@ mutable struct _ParseState
     italic::Bool
     underline::Bool
     strikethrough::Bool
+    reverse::Bool
 end
 
-_ParseState() = _ParseState(_TC_NONE, _TC_NONE, false, false, false, false, false)
+_ParseState() = _ParseState(_TC_NONE, _TC_NONE, false, false, false, false, false, false)
 
 @inline function _to_style(s::_ParseState)
-    Style(_tc_to_color(s.fg), _tc_to_color(s.bg),
+    fg = s.reverse ? s.bg : s.fg
+    bg = s.reverse ? s.fg : s.bg
+    Style(_tc_to_color(fg), _tc_to_color(bg),
           s.bold, s.dim, s.italic, s.underline, s.strikethrough, "")
 end
 
@@ -47,6 +50,7 @@ end
     s.italic = false
     s.underline = false
     s.strikethrough = false
+    s.reverse = false
 end
 
 # Pre-allocated params buffer (thread-local would be ideal, but single-threaded render)
@@ -95,6 +99,8 @@ function _apply_sgr!(state::_ParseState, nparams::Int)
             state.italic = true
         elseif p == 4
             state.underline = true
+        elseif p == 7
+            state.reverse = true
         elseif p == 9
             state.strikethrough = true
         elseif p == 22
@@ -104,6 +110,8 @@ function _apply_sgr!(state::_ParseState, nparams::Int)
             state.italic = false
         elseif p == 24
             state.underline = false
+        elseif p == 27
+            state.reverse = false
         elseif p == 29
             state.strikethrough = false
         elseif 30 <= p <= 37
@@ -154,7 +162,7 @@ Supports:
 - Bright colors (90–97 fg, 100–107 bg)
 - 256-color mode (`38;5;n` / `48;5;n`)
 - 24-bit RGB (`38;2;r;g;b` / `48;2;r;g;b`)
-- Bold, dim, italic, underline, strikethrough
+- Bold, dim, italic, underline, strikethrough, reverse video
 - Reset (`0` / `\\e[m`)
 - Non-SGR escape sequences are silently stripped.
 
