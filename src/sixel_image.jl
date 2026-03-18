@@ -14,6 +14,7 @@ mutable struct PixelImage
     cells_w::Int                    # cell dims this buffer was sized for
     cells_h::Int
     block::Union{Block, Nothing}
+    bg::ColorRGB                    # current empty/background pixel color
     style::Style                    # braille fallback style
     color::ColorRGB                 # current drawing color
     decay::DecayParams              # per-widget decay (default: off)
@@ -70,8 +71,20 @@ function PixelImage(cells_w::Int, cells_h::Int;
                     decay::DecayParams=DecayParams())
     pw, ph = _pixelimage_pixel_dims(cells_w, cells_h)
     color = _style_to_rgb(style)
-    PixelImage(fill(canvas_bg(), ph, pw), pw, ph, cells_w, cells_h,
-               block, style, color, decay)
+    bg = canvas_bg()
+    PixelImage(fill(bg, ph, pw), pw, ph, cells_w, cells_h,
+               block, bg, style, color, decay)
+end
+
+function _sync_pixelimage_bg!(img::PixelImage)
+    new_bg = canvas_bg()
+    old_bg = img.bg
+    old_bg == new_bg && return img
+    @inbounds for i in eachindex(img.pixels)
+        img.pixels[i] == old_bg && (img.pixels[i] = new_bg)
+    end
+    img.bg = new_bg
+    img
 end
 
 # ── Drawing API (pixel-native, 1-based coordinates) ──────────────────
@@ -157,10 +170,11 @@ end
 """
     clear!(img::PixelImage)
 
-Clear all pixels to black.
+Clear all pixels to the current background color.
 """
 function clear!(img::PixelImage)
-    fill!(img.pixels, canvas_bg())
+    _sync_pixelimage_bg!(img)
+    fill!(img.pixels, img.bg)
 end
 
 """
@@ -187,9 +201,10 @@ end
 # ── Internal: resize pixel buffer if cell dims changed ───────────────
 
 function _pixelimage_resize!(si::PixelImage, cells_w::Int, cells_h::Int)
+    _sync_pixelimage_bg!(si)
     (cells_w == si.cells_w && cells_h == si.cells_h) && return
     pw, ph = _pixelimage_pixel_dims(cells_w, cells_h)
-    si.pixels = fill(canvas_bg(), ph, pw)
+    si.pixels = fill(si.bg, ph, pw)
     si.pixel_w = pw
     si.pixel_h = ph
     si.cells_w = cells_w
@@ -220,11 +235,11 @@ function render(si::PixelImage, rect::Rect, f::Frame; tick::Int=0)
         return
     end
     if gfx == gfx_kitty
-        data = encode_kitty(si.pixels; decay=si.decay, tick=tick,
+        data = encode_kitty(si.pixels; decay=si.decay, tick=tick, bg=si.bg,
                             cols=content.width, rows=content.height)
         fmt = gfx_fmt_kitty
     else
-        data = encode_sixel(si.pixels; decay=si.decay, tick=tick)
+        data = encode_sixel(si.pixels; decay=si.decay, tick=tick, bg=si.bg)
         fmt = gfx_fmt_sixel
     end
     isempty(data) || render_graphics!(f, data, content; pixels=si.pixels, format=fmt)
@@ -267,7 +282,7 @@ function render(si::PixelImage, rect::Rect, buf::Buffer)
                     px0 = (dx * pw) ÷ dot_w + 1
                     py0 = (dy * ph) ÷ dot_h + 1
                     (px0 <= pw && py0 <= ph) || continue
-                    if si.pixels[py0, px0] != canvas_bg()
+                    if si.pixels[py0, px0] != si.bg
                         bits |= BRAILLE_MAP[sy + 1][sx + 1]
                     end
                 end

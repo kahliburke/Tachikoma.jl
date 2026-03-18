@@ -211,11 +211,12 @@ Uses `a=T` (transmit + display), `f=24` (raw RGB), `q=2` (suppress OK).
 Passes `s=width,v=height` for pixel dimensions and `c=cols,r=rows` for
 cell placement when provided.
 
-Returns `UInt8[]` for all-black images (matches `encode_sixel` behavior).
+Returns `UInt8[]` for all-background images (matches `encode_sixel` behavior).
 """
 function encode_kitty(pixels::Matrix{ColorRGB};
                       decay::DecayParams=DecayParams(), tick::Int=0,
-                      cols::Int=0, rows::Int=0)
+                      cols::Int=0, rows::Int=0,
+                      bg::ColorRGB=canvas_bg())
     h, w = size(pixels)
     (h == 0 || w == 0) && return UInt8[]
 
@@ -232,13 +233,12 @@ function encode_kitty(pixels::Matrix{ColorRGB};
 
         npix = h * w
         decay_step = npix > 500_000 ? max(1, round(Int, sqrt(npix / 500_000))) : 1
-        apply_decay_subsampled!(src, decay, tick, decay_step)
+        apply_decay_subsampled!(src, decay, tick, decay_step; bg=bg)
     else
         src = pixels
     end
 
     # Skip all-background frames
-    bg = canvas_bg()
     any(!=(bg), src) || return UInt8[]
 
     nbytes = h * w * 3
