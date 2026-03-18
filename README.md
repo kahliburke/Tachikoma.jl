@@ -35,7 +35,7 @@ Tachikoma is a pure-Julia framework for building rich, interactive terminal appl
 
 **Graphics** — Three rendering backends: Braille dots (2x4), quadrant blocks (2x2), and pixel rendering (16x32 per cell, Kitty or sixel). Vector drawing API with lines, arcs, circles, and shapes.
 
-**11 Themes** — Cyberpunk, retro, and classic palettes (KOKAKU, ESPER, MOTOKO, KANEDA, NEUROMANCER, CATPPUCCIN, SOLARIZED, DRACULA, OUTRUN, ZENBURN, ICEBERG) with hot-swappable switching.
+**24 Themes** — 11 dark and 13 light palettes with hot-swappable switching via **Ctrl+\\** theme selector.
 
 **Recording & Export** — Live recording via `Ctrl+R`, headless `record_app()`/`record_widget()` for CI, native `.tach` format with Zstd compression, export to SVG and GIF.
 
@@ -167,7 +167,7 @@ Full documentation is available at **[kahliburke.github.io/Tachikoma.jl](https:/
 | [Widgets](https://kahliburke.github.io/Tachikoma.jl/dev/widgets) | Complete catalog of all widgets |
 | [Animation](https://kahliburke.github.io/Tachikoma.jl/dev/animation) | Tweens, springs, timelines, and organic effects |
 | [Graphics](https://kahliburke.github.io/Tachikoma.jl/dev/canvas) | Canvas, BlockCanvas, and pixel rendering |
-| [Themes](https://kahliburke.github.io/Tachikoma.jl/dev/styling) | 11 built-in themes with hot-swap switching |
+| [Themes](https://kahliburke.github.io/Tachikoma.jl/dev/styling) | 24 themes (dark + light) with hot-swap switching |
 | [Recording](https://kahliburke.github.io/Tachikoma.jl/dev/recording) | Recording and export to SVG/GIF |
 | [Testing](https://kahliburke.github.io/Tachikoma.jl/dev/testing) | TestBackend for headless widget testing |
 | [API Reference](https://kahliburke.github.io/Tachikoma.jl/dev/api) | Auto-generated API documentation |
