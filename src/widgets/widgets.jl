@@ -80,6 +80,7 @@ include("markdownpane.jl")
 include("floating_window.jl")
 include("window_manager.jl")
 include("terminal_widget.jl")
+include("ansitext.jl")
 include("repl_widget.jl")
 
 # NOTE: form.jl depends on FocusRing, included after its definition below

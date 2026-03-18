@@ -27,17 +27,28 @@ mutable struct Paragraph
 end
 
 """
-    Paragraph(text; wrap=no_wrap, alignment=align_left, block=nothing, ...)
+    Paragraph(text; wrap=no_wrap, alignment=align_left, block=nothing, ansi=true, ...)
 
 Styled text block with configurable wrapping (`no_wrap`, `word_wrap`, `char_wrap`)
 and alignment (`align_left`, `align_center`, `align_right`).
 Also accepts `Vector{Span}` for mixed-style text.
+
+When `ansi=true` (the default), strings containing ANSI escape sequences are
+automatically parsed into styled spans — colors (standard, 256, RGB), bold,
+dim, italic, underline, and strikethrough are all supported. Set `ansi=false`
+to treat escape sequences as literal text.
 """
 function Paragraph(text::AbstractString;
                    block=nothing, style=tstyle(:text),
                    wrap::WrapMode=no_wrap, alignment::Alignment=align_left,
-                   scroll_offset::Int=0, tick=nothing, show_scrollbar::Bool=true)
-    Paragraph([Span(text, style)], block, wrap, alignment, scroll_offset, tick, show_scrollbar)
+                   scroll_offset::Int=0, tick=nothing, show_scrollbar::Bool=true,
+                   ansi::Bool=ansi_enabled())
+    spans = if ansi && contains(text, '\e')
+        parse_ansi(text)
+    else
+        [Span(text, style)]
+    end
+    Paragraph(spans, block, wrap, alignment, scroll_offset, tick, show_scrollbar)
 end
 
 function Paragraph(spans::Vector{Span}; block=nothing,

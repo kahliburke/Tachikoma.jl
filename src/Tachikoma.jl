@@ -203,6 +203,8 @@ export # Core types
        # Markdown extension
        MarkdownPane, set_markdown!,
        markdown_to_spans, enable_markdown, markdown_extension_loaded,
+       # ANSI text
+       parse_ansi, ansi_enabled, set_ansi_enabled!,
        # .tach format
        write_tach, load_tach, compress_dead_space
 
