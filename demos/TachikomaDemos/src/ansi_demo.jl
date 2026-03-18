@@ -66,6 +66,7 @@ end
     quit::Bool = false
     tick::Int = 0
     focus::Int = 1   # 1-4 for the four panes
+    raw_mode::Bool = true  # toggle: raw=true shows ␛ literals, false strips escapes
 
     # Resizable layouts for draggable pane borders
     vlayout::ResizableLayout = ResizableLayout(Vertical, [Fill(), Fill()])
@@ -79,11 +80,11 @@ end
                     border_style=tstyle(:border),
                     title_style=tstyle(:title)))
 
-    # Top-right: Paragraph with ANSI disabled
+    # Top-right: Paragraph mode toggled by [r] key
     para_off::Paragraph = Paragraph(ANSI_SAMPLE;
-        ansi=false,
+        raw=true,
         wrap=char_wrap,
-        block=Block(title="Paragraph (ansi=false)",
+        block=Block(title="Paragraph (raw=true)",
                     border_style=tstyle(:border),
                     title_style=tstyle(:title)))
 
@@ -111,9 +112,22 @@ function _ansi_pane_for_focus(m::AnsiDemoModel)
     return m.scroll_off
 end
 
+function _rebuild_para_off!(m::AnsiDemoModel)
+    m.para_off = if m.raw_mode
+        Paragraph(ANSI_SAMPLE; raw=true, wrap=char_wrap,
+            block=Block(title="Paragraph (raw=true)",
+                        border_style=tstyle(:border), title_style=tstyle(:title)))
+    else
+        Paragraph(ANSI_SAMPLE; ansi=false, wrap=char_wrap,
+            block=Block(title="Paragraph (ansi=false)",
+                        border_style=tstyle(:border), title_style=tstyle(:title)))
+    end
+end
+
 function update!(m::AnsiDemoModel, evt::KeyEvent)
     if evt.key == :char
         evt.char == 'q' && (m.quit = true; return)
+        evt.char == 'r' && (m.raw_mode = !m.raw_mode; _rebuild_para_off!(m); return)
     end
     evt.key == :escape && (m.quit = true; return)
     evt.key == :tab && (m.focus = mod1(m.focus + 1, 4); return)
@@ -157,8 +171,9 @@ function view(m::AnsiDemoModel, f::Frame)
     m.para_on.block = Block(
         title="$(focus_marker(1))Paragraph (ansi=true)",
         border_style=focus_border(1), title_style=focus_title(1))
+    para_off_label = m.raw_mode ? "raw=true" : "ansi=false"
     m.para_off.block = Block(
-        title="$(focus_marker(2))Paragraph (ansi=false)",
+        title="$(focus_marker(2))Paragraph ($para_off_label)",
         border_style=focus_border(2), title_style=focus_title(2))
     m.scroll_on.block = Block(
         title="$(focus_marker(3))ScrollPane (ansi=true)",
@@ -186,7 +201,7 @@ function view(m::AnsiDemoModel, f::Frame)
 
     # Footer
     render(StatusBar(
-        left=[Span("  [Tab]focus [↑↓/PgUp/PgDn]scroll ", tstyle(:text_dim))],
+        left=[Span("  [Tab]focus [↑↓/PgUp/PgDn]scroll [r]toggle raw ", tstyle(:text_dim))],
         right=[Span("$(length(m.log_lines)) lines  [q/Esc]quit ", tstyle(:text_dim))],
     ), footer_rows[2], buf)
 end
