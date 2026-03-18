@@ -127,9 +127,9 @@ end
 
 function update!(m::AnsiDemoModel, evt::MouseEvent)
     # Resizable pane borders
-    handle_mouse!(m.vlayout, evt) && return
-    handle_mouse!(m.top_hlayout, evt) && return
-    handle_mouse!(m.bot_hlayout, evt) && return
+    handle_resize!(m.vlayout, evt) && return
+    handle_resize!(m.top_hlayout, evt) && return
+    handle_resize!(m.bot_hlayout, evt) && return
     # ScrollPane scrollbar and scroll wheel
     for pane in (m.scroll_on, m.scroll_off)
         handle_mouse!(pane, evt) && return
@@ -179,6 +179,10 @@ function view(m::AnsiDemoModel, f::Frame)
     render(m.para_off, top_cols[2], buf)
     render(m.scroll_on, bot_cols[1], buf)
     render(m.scroll_off, bot_cols[2], buf)
+
+    render_resize_handles!(buf, m.vlayout)
+    render_resize_handles!(buf, m.top_hlayout)
+    render_resize_handles!(buf, m.bot_hlayout)
 
     # Footer
     render(StatusBar(
