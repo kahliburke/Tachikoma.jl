@@ -26,6 +26,7 @@ const ANSI_SAMPLE = string(
     "\e[38;2;255;100;50m● RGB (255,100,50)\e[0m  \e[38;2;50;200;150m● RGB (50,200,150)\e[0m\n",
     "\n",
     "\e[1;3;31mBold Italic Red\e[0m  \e[4;38;5;75mUnderline 256-Blue\e[0m\n",
+    "\e[7mReverse Video\e[0m  \e[32;7m Rev Green \e[0m  \e[31;44;7m Rev Red/Blue \e[0m\n",
     "\e[1;38;2;100;200;255m╚══════════════════════════╝\e[0m",
 )
 
