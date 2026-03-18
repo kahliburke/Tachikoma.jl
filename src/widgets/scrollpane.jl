@@ -17,6 +17,7 @@ mutable struct ScrollPane
     last_area::Rect          # cached content area for mouse hit testing
     tick::Union{Int, Nothing}
     word_wrap::Bool          # wrap long lines at content width
+    ansi::Bool               # parse ANSI escape sequences in String lines
     _visual_total::Int       # cached visual line count (after word wrap)
     _sb_state::ScrollbarState
 end
@@ -31,10 +32,11 @@ function ScrollPane(lines::Vector{String};
     text_style=tstyle(:text),
     tick=nothing,
     word_wrap=false,
+    ansi=ansi_enabled(),
 )
     ScrollPane(lines, offset, following, reverse, block,
                show_scrollbar, scrollbar_style, scrollbar_thumb_style,
-               text_style, 0, Rect(), tick, word_wrap, 0, ScrollbarState())
+               text_style, 0, Rect(), tick, word_wrap, ansi, 0, ScrollbarState())
 end
 
 function ScrollPane(lines::Vector{Vector{Span}};
@@ -45,10 +47,11 @@ function ScrollPane(lines::Vector{Vector{Span}};
     text_style=tstyle(:text),
     tick=nothing,
     word_wrap=false,
+    ansi=false,
 )
     ScrollPane(lines, offset, following, reverse, block,
                show_scrollbar, scrollbar_style, scrollbar_thumb_style,
-               text_style, 0, Rect(), tick, word_wrap, 0, ScrollbarState())
+               text_style, 0, Rect(), tick, word_wrap, ansi, 0, ScrollbarState())
 end
 
 function ScrollPane(render_fn::Function, total_lines::Int;
@@ -59,10 +62,11 @@ function ScrollPane(render_fn::Function, total_lines::Int;
     text_style=tstyle(:text),
     tick=nothing,
     word_wrap=false,
+    ansi=false,
 )
     ScrollPane((render_fn, total_lines), offset, following, reverse, block,
                show_scrollbar, scrollbar_style, scrollbar_thumb_style,
-               text_style, 0, Rect(), tick, word_wrap, 0, ScrollbarState())
+               text_style, 0, Rect(), tick, word_wrap, ansi, 0, ScrollbarState())
 end
 
 focusable(::ScrollPane) = true
@@ -163,7 +167,14 @@ function render(sp::ScrollPane, rect::Rect, buf::Buffer)
     # 2. Word-wrap path: expand logical lines → visual lines, then render
     c = sp.content
     if sp.word_wrap && !(c isa Tuple{Function,Int}) && content_area.width > 1
-        visual = _wrap_content(c, content_area.width)
+        # When ANSI is enabled on String content, convert to Span vectors first
+        # so that _wrap_content measures display width correctly (not raw bytes).
+        wrap_c = if sp.ansi && c isa Vector{String}
+            [contains(l, '\e') ? parse_ansi(l) : [Span(l, sp.text_style)] for l in c]
+        else
+            c
+        end
+        visual = _wrap_content(wrap_c, content_area.width)
         total = length(visual)
 
         needs_scrollbar = sp.show_scrollbar && total > visible_h
@@ -176,7 +187,7 @@ function render(sp::ScrollPane, rect::Rect, buf::Buffer)
 
         # Re-wrap with final text width if scrollbar appeared
         if needs_scrollbar
-            visual = _wrap_content(c, text_area.width)
+            visual = _wrap_content(wrap_c, text_area.width)
             total = length(visual)
         end
 
@@ -382,8 +393,18 @@ function _render_lines!(sp::ScrollPane, lines::Vector{String},
         end
         (idx < 1 || idx > n) && continue
         y = text_area.y + i - 1
-        set_string!(buf, text_area.x, y, lines[idx], sp.text_style;
-                    max_x=right(text_area))
+        line = lines[idx]
+        if sp.ansi && contains(line, '\e')
+            col = text_area.x
+            for span in parse_ansi(line)
+                col > right(text_area) && break
+                col = set_string!(buf, col, y, span.content, span.style;
+                                  max_x=right(text_area))
+            end
+        else
+            set_string!(buf, text_area.x, y, line, sp.text_style;
+                        max_x=right(text_area))
+        end
     end
 end
 
