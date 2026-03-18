@@ -50,6 +50,33 @@ paragraph_line_count(para, 40)   # count wrapped lines for a given width
 Wrap modes: `no_wrap`, `word_wrap`, `char_wrap`.
 Alignment: `align_left`, `align_center`, `align_right`.
 
+#### ANSI Escape Sequences
+
+Strings containing ANSI escape sequences are automatically parsed into styled spans — no manual `Span` construction needed:
+
+<!-- tachi:widget paragraph_ansi w=50 h=6 -->
+```julia
+text = "\e[1mBold\e[0m \e[3;32mitalic green\e[0m \e[38;5;208m256-color\e[0m"
+para = Paragraph(text; wrap=char_wrap)
+render(para, area, buf)
+```
+
+Supported SGR codes: standard colors (30–37, 40–47), bright colors (90–97, 100–107), 256-color (`38;5;n` / `48;5;n`), 24-bit RGB (`38;2;r;g;b` / `48;2;r;g;b`), bold, dim, italic, underline, strikethrough, and reset. Non-SGR escape sequences (cursor movement, window titles, etc.) are silently stripped.
+
+Disable per-widget with `ansi=false`:
+
+```julia
+# Show raw escape codes instead of styled text
+para = Paragraph("\e[31mred\e[0m"; ansi=false)
+```
+
+Use `parse_ansi` directly to convert ANSI strings into `Span` vectors for reuse:
+
+```julia
+spans = parse_ansi("\e[1;31mError:\e[0m something broke")
+Paragraph(spans)
+```
+
 ### Span
 
 Inline styled text fragment, used inside `Paragraph` and `StatusBar`:
@@ -629,6 +656,19 @@ render(sp, area, buf)
 <!-- tachi:noeval -->
 ```julia
 handle_mouse!(sp, evt, area)         # scrollbar drag + scroll wheel
+```
+
+ScrollPane automatically parses ANSI escape sequences in `String` content, just like `Paragraph`. This works with both the non-wrap and `word_wrap=true` paths:
+
+```julia
+lines = ["\e[32m[OK]\e[0m Server started", "\e[31m[ERR]\e[0m Connection refused"]
+sp = ScrollPane(lines; word_wrap=true)
+```
+
+Disable with `ansi=false`:
+
+```julia
+sp = ScrollPane(lines; ansi=false)
 ```
 
 ### Scrollbar
