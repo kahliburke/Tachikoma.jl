@@ -61,13 +61,20 @@ para = Paragraph(text; wrap=char_wrap)
 render(para, area, buf)
 ```
 
-Supported SGR codes: standard colors (30–37, 40–47), bright colors (90–97, 100–107), 256-color (`38;5;n` / `48;5;n`), 24-bit RGB (`38;2;r;g;b` / `48;2;r;g;b`), bold, dim, italic, underline, strikethrough, and reset. Non-SGR escape sequences (cursor movement, window titles, etc.) are silently stripped.
+Supported SGR codes: standard colors (30–37, 40–47), bright colors (90–97, 100–107), 256-color (`38;5;n` / `48;5;n`), 24-bit RGB (`38;2;r;g;b` / `48;2;r;g;b`), bold, dim, italic, underline, strikethrough, reverse video, and reset. Non-SGR escape sequences (cursor movement, window titles, etc.) are silently stripped.
 
-Disable per-widget with `ansi=false`:
+Disable per-widget with `ansi=false` — escape sequences are stripped and text is shown unstyled:
 
 ```julia
-# Show raw escape codes instead of styled text
 para = Paragraph("\e[31mred\e[0m"; ansi=false)
+# renders as plain "red" without color
+```
+
+To inspect the literal escape codes (useful for debugging), use `raw=true` — the ESC byte is replaced with the visible `␛` symbol:
+
+```julia
+para = Paragraph("\e[31mred\e[0m"; raw=true)
+# renders as "␛[31mred␛[0m"
 ```
 
 Use `parse_ansi` directly to convert ANSI strings into `Span` vectors for reuse:
