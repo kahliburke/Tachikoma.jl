@@ -3,6 +3,8 @@
     # ═════════════════════════════════════════════════════════════════
 
     @testset "Sixel encoder: red pixels" begin
+        orig_mode = T.light_mode()
+        T.set_light_mode!(false)
         red = T.ColorRGB(0xff, 0x00, 0x00)
         pixels = fill(red, 6, 4)  # 6 rows, 4 cols
         data = T.encode_sixel(pixels)
@@ -14,6 +16,7 @@
         @test occursin("#0;2;0;0;0", str)
         # Color is quantized (0xff→0xfc=252 → 99%) for palette efficiency
         @test occursin("#1;2;99;0;0", str)
+        T.set_light_mode!(orig_mode)
     end
 
     @testset "Sixel encoder: empty input" begin
@@ -80,6 +83,8 @@
     # ═════════════════════════════════════════════════════════════════
 
     @testset "PixelCanvas construction" begin
+        orig_mode = T.light_mode()
+        T.set_light_mode!(false)
         sc = T.PixelCanvas(10, 5)
         cpx = T.CELL_PX[]
         @test sc.pixel_w == 10 * cpx.w
@@ -89,9 +94,13 @@
         @test sc.width == 10
         @test sc.height == 5
         @test size(sc.pixels) == (sc.pixel_h, sc.pixel_w)
+        @test sc.bg == T.BLACK
+        T.set_light_mode!(orig_mode)
     end
 
     @testset "PixelCanvas set_point!/unset_point!" begin
+        orig_mode = T.light_mode()
+        T.set_light_mode!(false)
         sc = T.PixelCanvas(5, 3)
         # All black initially
         @test all(px == T.ColorRGB(0,0,0) for px in sc.pixels)
@@ -103,6 +112,7 @@
         # Unset it
         T.unset_point!(sc, 0, 0)
         @test all(px == T.ColorRGB(0,0,0) for px in sc.pixels)
+        T.set_light_mode!(orig_mode)
     end
 
     @testset "PixelCanvas line!" begin
@@ -112,10 +122,28 @@
     end
 
     @testset "PixelCanvas clear!" begin
+        orig_mode = T.light_mode()
+        T.set_light_mode!(false)
         sc = T.PixelCanvas(5, 3)
         T.set_point!(sc, 0, 0)
         T.clear!(sc)
         @test all(px == T.ColorRGB(0,0,0) for px in sc.pixels)
+        T.set_light_mode!(orig_mode)
+    end
+
+    @testset "PixelCanvas adapts empty background across mode toggle" begin
+        orig_mode = T.light_mode()
+        try
+            T.set_light_mode!(false)
+            sc = T.PixelCanvas(5, 3)
+            T.set_light_mode!(true)
+            buf = T.Buffer(T.Rect(1, 1, 10, 5))
+            T.render(sc, T.Rect(1, 1, 5, 3), buf)
+            @test all(cell.char in (T.EMPTY_CHAR, Char(T.BRAILLE_OFFSET)) for cell in buf.content)
+            @test sc.bg == T.canvas_bg()
+        finally
+            T.set_light_mode!(orig_mode)
+        end
     end
 
     @testset "PixelCanvas out of bounds" begin
@@ -154,12 +182,16 @@
     # ═════════════════════════════════════════════════════════════════
 
     @testset "PixelImage construction" begin
+        orig_mode = T.light_mode()
+        T.set_light_mode!(false)
         img = T.PixelImage(10, 5)
         @test img.cells_w == 10
         @test img.cells_h == 5
         @test img.pixel_w >= 1
         @test img.pixel_h >= 1
         @test size(img.pixels) == (img.pixel_h, img.pixel_w)
+        @test img.bg == T.BLACK
+        T.set_light_mode!(orig_mode)
     end
 
     @testset "PixelImage set_pixel!" begin
@@ -187,10 +219,28 @@
     end
 
     @testset "PixelImage clear!" begin
+        orig_mode = T.light_mode()
+        T.set_light_mode!(false)
         img = T.PixelImage(5, 3)
         T.set_pixel!(img, 1, 1, T.ColorRGB(0xff, 0xff, 0xff))
         T.clear!(img)
         @test img.pixels[1, 1] == T.BLACK
+        T.set_light_mode!(orig_mode)
+    end
+
+    @testset "PixelImage adapts empty background across mode toggle" begin
+        orig_mode = T.light_mode()
+        try
+            T.set_light_mode!(false)
+            img = T.PixelImage(5, 3)
+            T.set_light_mode!(true)
+            buf = T.Buffer(T.Rect(1, 1, 10, 5))
+            T.render(img, T.Rect(1, 1, 5, 3), buf)
+            @test all(cell.char in (T.EMPTY_CHAR, Char(T.BRAILLE_OFFSET)) for cell in buf.content)
+            @test img.bg == T.canvas_bg()
+        finally
+            T.set_light_mode!(orig_mode)
+        end
     end
 
     @testset "PixelImage render to Frame" begin
@@ -494,4 +544,3 @@
 
         T.BG_CONFIG[] = orig
     end
-

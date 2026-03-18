@@ -157,30 +157,42 @@
         rect = T.Rect(1, 1, sz.cols, sz.rows)
         term = T.Terminal([T.Buffer(rect), T.Buffer(rect)], 1, rect, true, false, NTuple{4,Int}[], 0, 300, T.CastRecorder(), devnull, false, T.gfx_none, nothing)
         ov = T.AppOverlay()
+        orig_mode = T.light_mode()
+        orig_theme = T.theme()
 
-        # Ctrl+\ (byte 0x1c → char '|') opens theme overlay
-        evt = T.KeyEvent(:ctrl, '|')
-        @test T.handle_default_binding!(term, ov, _DummyModel(),evt)
-        @test ov.show_theme
+        try
+            # Ctrl+\ (byte 0x1c → char '|') opens theme overlay
+            evt = T.KeyEvent(:ctrl, '|')
+            @test T.handle_default_binding!(term, ov, _DummyModel(), evt)
+            @test ov.show_theme
 
-        # Arrow down cycles theme (within active pack)
-        ov.theme_idx = 1
-        themes = T.active_themes()
-        T.set_theme!(themes[1])
-        T.handle_default_binding!(term, ov, _DummyModel(),T.KeyEvent(:down))
-        @test ov.theme_idx == 2
-        @test T.theme() === themes[2]
+            # Opening in light mode should sync to the active pack, not ALL_THEMES
+            T.set_light_mode!(true)
+            T.set_theme!(T.PAPER)
+            ov.show_theme = false
+            @test T.handle_default_binding!(term, ov, _DummyModel(), evt)
+            @test ov.theme_idx == 1
 
-        # Arrow up wraps around
-        ov.theme_idx = 1
-        T.handle_default_binding!(term, ov, _DummyModel(),T.KeyEvent(:up))
-        @test ov.theme_idx == length(themes)
+            # Arrow down cycles theme (within active pack)
+            ov.theme_idx = 1
+            themes = T.active_themes()
+            T.set_theme!(themes[1])
+            T.handle_default_binding!(term, ov, _DummyModel(), T.KeyEvent(:down))
+            @test ov.theme_idx == 2
+            @test T.theme() === themes[2]
 
-        # Escape closes
-        T.handle_default_binding!(term, ov, _DummyModel(),T.KeyEvent(:escape))
-        @test !ov.show_theme
+            # Arrow up wraps around
+            ov.theme_idx = 1
+            T.handle_default_binding!(term, ov, _DummyModel(), T.KeyEvent(:up))
+            @test ov.theme_idx == length(themes)
 
-        T.set_theme!(T.KOKAKU)  # restore
+            # Escape closes
+            T.handle_default_binding!(term, ov, _DummyModel(), T.KeyEvent(:escape))
+            @test !ov.show_theme
+        finally
+            T.set_light_mode!(orig_mode)
+            T.set_theme!(orig_theme)
+        end
     end
 
     @testset "Default bindings: Ctrl+? opens help" begin
@@ -591,4 +603,3 @@
         @test evt isa T.MouseEvent
         @test evt.button == T.mouse_left
     end
-
