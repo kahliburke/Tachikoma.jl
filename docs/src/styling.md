@@ -165,6 +165,17 @@ ALL_THEMES                 # tuple of all themes (dark + light)
 
 Theme changes take effect immediately — the next `view` call uses the new colors. Pixel canvases automatically use a white or black background to match the active mode.
 
+### ANSI Parsing Default
+
+Strings passed to `Paragraph` and `ScrollPane` are automatically parsed for ANSI escape sequences (colors, bold, italic, etc.). Control this globally:
+
+```julia
+ansi_enabled()              # true by default
+set_ansi_enabled!(false)    # disable globally
+```
+
+Per-widget `ansi=true` or `ansi=false` overrides the global default. See [Paragraph](widgets.md#ansi-escape-sequences) and [ScrollPane](widgets.md#scrollpane) for details.
+
 <!-- tachi:app theme_demo w=50 h=12 frames=240 fps=15 -->
 
 ### Theme Struct

@@ -714,6 +714,29 @@ function load_theme!()
     THEME[] = LIGHT_MODE[] ? PAPER : KOKAKU
 end
 
+# ── ANSI parsing preference ───────────────────────────────────────────
+
+const ANSI_ENABLED = Ref(true)
+
+"""
+    ansi_enabled() → Bool
+
+Return whether ANSI escape sequence parsing is enabled globally.
+Widgets like `Paragraph` and `ScrollPane` use this as their default.
+"""
+ansi_enabled() = ANSI_ENABLED[]
+
+"""
+    set_ansi_enabled!(enabled::Bool)
+
+Enable or disable global ANSI escape sequence parsing. Individual widgets
+can still override via their `ansi` keyword argument.
+"""
+function set_ansi_enabled!(enabled::Bool)
+    ANSI_ENABLED[] = enabled
+    nothing
+end
+
 # Animations preference
 const ANIMATIONS_ENABLED = Ref(true)
 animations_enabled() = ANIMATIONS_ENABLED[]
