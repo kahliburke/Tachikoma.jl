@@ -15,6 +15,7 @@ mutable struct PixelCanvas
     pixel_h::Int             # total pixel height
     dot_w::Int               # braille-compatible: width * 2
     dot_h::Int               # braille-compatible: height * 4
+    bg::ColorRGB             # current empty/background pixel color
     style::Style
     color::ColorRGB
 end
@@ -42,10 +43,12 @@ function PixelCanvas(width::Int, height::Int;
         ph = max(1, round(Int, ph * ss.h))
     end
     color = _style_to_rgb(style)
+    bg = canvas_bg()
     PixelCanvas(width, height,
-                fill(canvas_bg(), ph, pw),
+                fill(bg, ph, pw),
                 pw, ph,
                 width * 2, height * 4,
+                bg,
                 style, color)
 end
 
@@ -61,6 +64,17 @@ function _style_to_rgb(s::Style)
     s.fg isa ColorRGB && return s.fg
     s.fg isa Color256 && return to_rgb(s.fg)
     ColorRGB(0xff, 0xff, 0xff)
+end
+
+function _sync_canvas_bg!(c::PixelCanvas)
+    new_bg = canvas_bg()
+    old_bg = c.bg
+    old_bg == new_bg && return c
+    @inbounds for i in eachindex(c.pixels)
+        c.pixels[i] == old_bg && (c.pixels[i] = new_bg)
+    end
+    c.bg = new_bg
+    c
 end
 
 # ── Pixel-level API (native resolution) ──────────────────────────────
@@ -174,6 +188,7 @@ Clear a point in dot-space coordinates.
 function unset_point!(c::PixelCanvas, dx::Int, dy::Int)
     (dx >= 0 && dy >= 0) || return
     (dx < c.dot_w && dy < c.dot_h) || return
+    _sync_canvas_bg!(c)
     pw, dw = c.pixel_w, c.dot_w
     ph, dh = c.pixel_h, c.dot_h
     px0 = (dx * pw) ÷ dw + 1
@@ -182,7 +197,7 @@ function unset_point!(c::PixelCanvas, dx::Int, dy::Int)
     py1 = ((dy + 1) * ph) ÷ dh
     for py in py0:py1
         for px in px0:px1
-            c.pixels[py, px] = canvas_bg()
+            c.pixels[py, px] = c.bg
         end
     end
     nothing
@@ -194,7 +209,8 @@ end
 Clear all pixels.
 """
 function clear!(c::PixelCanvas)
-    fill!(c.pixels, canvas_bg())
+    _sync_canvas_bg!(c)
+    fill!(c.pixels, c.bg)
 end
 
 """
@@ -235,13 +251,14 @@ and places them into the frame's region list. Decay defaults to off
 function render(c::PixelCanvas, rect::Rect, f::Frame;
                 tick::Int=0, decay::DecayParams=DecayParams())
     (rect.width < 1 || rect.height < 1) && return
+    _sync_canvas_bg!(c)
     gfx = GRAPHICS_PROTOCOL[]
     if gfx == gfx_kitty
-        data = encode_kitty(c.pixels; decay=decay, tick=tick,
+        data = encode_kitty(c.pixels; decay=decay, tick=tick, bg=c.bg,
                             cols=rect.width, rows=rect.height)
         fmt = gfx_fmt_kitty
     else
-        data = encode_sixel(c.pixels; decay=decay, tick=tick)
+        data = encode_sixel(c.pixels; decay=decay, tick=tick, bg=c.bg)
         fmt = gfx_fmt_sixel
     end
     isempty(data) || render_graphics!(f, data, rect; pixels=c.pixels, format=fmt)
@@ -256,6 +273,7 @@ same visual as Canvas but at pixel resolution.
 """
 function render(c::PixelCanvas, rect::Rect, buf::Buffer)
     (rect.width < 1 || rect.height < 1) && return
+    _sync_canvas_bg!(c)
     pw, dw = c.pixel_w, c.dot_w
     ph, dh = c.pixel_h, c.dot_h
 
@@ -271,7 +289,7 @@ function render(c::PixelCanvas, rect::Rect, buf::Buffer)
                     px0 = (dx * pw) ÷ dw + 1
                     py0 = (dy * ph) ÷ dh + 1
                     (px0 <= pw && py0 <= ph) || continue
-                    if c.pixels[py0, px0] != canvas_bg()
+                    if c.pixels[py0, px0] != c.bg
                         bits |= BRAILLE_MAP[sy + 1][sx + 1]
                     end
                 end
