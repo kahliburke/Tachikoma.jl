@@ -27,7 +27,7 @@
     @testset "Sixel encoder: all black (no palette)" begin
         black = T.ColorRGB(0x00, 0x00, 0x00)
         pixels = fill(black, 6, 4)
-        @test isempty(T.encode_sixel(pixels))
+        @test isempty(T.encode_sixel(pixels; bg=black))
     end
 
     @testset "Sixel encoder: multi-color palette" begin
