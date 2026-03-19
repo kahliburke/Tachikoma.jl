@@ -513,6 +513,11 @@
         @test occursin("Plain", row)
     end
 
+    @testset "TabBar: value" begin
+        tabs = T.TabBar(["A", "B"]; active=2)
+        @test T.value(tabs) == 2
+    end
+
     # ─────────────────────────────────────────────────────────────────
     # Scrollbar
     # ─────────────────────────────────────────────────────────────────

@@ -84,3 +84,5 @@ function render(bar::TabBar, rect::Rect, buf::Buffer)
         end
     end
 end
+
+value(bar::TabBar) = bar.active
