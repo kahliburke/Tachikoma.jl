@@ -22,7 +22,7 @@
 
         @testset "encode_kitty all-black → empty" begin
             pixels = fill(T.BLACK, 4, 4)
-            data = T.encode_kitty(pixels)
+            data = T.encode_kitty(pixels; bg=T.BLACK)
             @test isempty(data)
         end
 
