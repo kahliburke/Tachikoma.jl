@@ -1005,6 +1005,8 @@ function app(model::Model; fps=60, default_bindings=true, on_stdout=nothing, on_
         end
     end
     _restarting = Ref(false)
+    _app_error = Ref{Any}(nothing)
+    _app_bt = Ref{Any}(nothing)
     with_terminal(; on_stdout, on_stderr, tty_out, tty_size) do t
         init!(model, t)
         _load_layout_prefs!(model)
@@ -1134,6 +1136,9 @@ function app(model::Model; fps=60, default_bindings=true, on_stdout=nothing, on_
                     overlay.notify_ttl = typemax(Int)
                 end
             end
+        catch e
+            _app_error[] = e
+            _app_bt[] = catch_backtrace()
         finally
             close(frame_timer)
             close(wake)  # unblocks stdin_monitor + any pending take!
@@ -1146,5 +1151,10 @@ function app(model::Model; fps=60, default_bindings=true, on_stdout=nothing, on_
     # (leave_tui!, raw mode off, alt screen off) before app teardown begins.
     cleanup!(model)
     _saved_input && (INPUT_IO[] = nothing)
+    if _app_error[] !== nothing
+        Base.showerror(stderr, _app_error[], _app_bt[])
+        println(stderr)
+        throw(_app_error[])
+    end
     _restarting[] ? :restart : nothing
 end
