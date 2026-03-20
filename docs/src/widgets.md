@@ -463,19 +463,26 @@ render(tabs, area, buf)
 <!-- tachi:noeval -->
 ```julia
 handle_key!(tabs, evt)     # left/right/tab to switch
+handle_mouse!(tabs, evt)   # click to switch (returns :changed or :none)
 value(tabs)                # selected tab index (1-based)
+set_value!(tabs, 2)        # set active tab programmatically
 ```
+
+When there are more tabs than fit in the available width, overflow indicators (`…`) appear automatically and the visible window scrolls to keep the active tab in view.
 
 Store the `TabBar` in your model to preserve state across frames:
 
 <!-- tachi:noeval -->
 ```julia
 @kwdef mutable struct App <: Model
-    tabs::TabBar = TabBar(["Overview", "Details", "Settings"])
+    tabs::TabBar = TabBar(["Overview", "Details", "Settings"]; focused=true)
 end
 
 function update!(m::App, e::KeyEvent)
     handle_key!(m.tabs, e)
+end
+function update!(m::App, e::MouseEvent)
+    handle_mouse!(m.tabs, e)
 end
 
 function view(m::App, f::Frame)
