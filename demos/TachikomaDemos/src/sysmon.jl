@@ -9,7 +9,7 @@
 @kwdef mutable struct SysmonModel <: Model
     quit::Bool = false
     tick::Int = 0
-    tab::Int = 1                             # 1=overview, 2=processes, 3=network
+    tabs::TabBar = TabBar(["Overview", "Processes", "Network"]; active=1, focused=true)
     # Simulated metrics
     cpu_cores::Vector{Float64} = [0.3, 0.5, 0.2, 0.7, 0.4, 0.6, 0.35, 0.55]
     mem_used::Float64 = 6.2                  # GB
@@ -46,16 +46,25 @@ const SYSMON_PROCS = [
 ]
 
 function update!(m::SysmonModel, evt::KeyEvent)
-    @match (evt.key, evt.char) begin
-        (:char, 'q') || (:escape, _) => (m.quit = true)
-        (:char, '1')                 => (m.tab = 1)
-        (:char, '2')                 => (m.tab = 2)
-        (:char, '3')                 => (m.tab = 3)
-        (:tab, _)                    => (m.tab = mod1(m.tab + 1, 3))
-        (:up, _)                     => m.tab == 2 && (m.proc_selected = max(1, m.proc_selected - 1))
-        (:down, _)                   => m.tab == 2 && (m.proc_selected = min(length(SYSMON_PROCS),
-                                                                              m.proc_selected + 1))
-        _                            => nothing
+    if evt.key == :escape || (evt.key == :char && evt.char == 'q')
+        m.quit = true
+        return
+    end
+    # Number keys for direct tab access
+    if evt.key == :char && evt.char in ('1', '2', '3')
+        m.tabs.active = Int(evt.char) - Int('0')
+        return
+    end
+    # TabBar handles left/right/tab
+    handle_key!(m.tabs, evt) && return
+    # Per-tab keys
+    tab = value(m.tabs)
+    if tab == 2
+        if evt.key == :up
+            m.proc_selected = max(1, m.proc_selected - 1)
+        elseif evt.key == :down
+            m.proc_selected = min(length(SYSMON_PROCS), m.proc_selected + 1)
+        end
     end
 end
 
@@ -123,11 +132,10 @@ function view(m::SysmonModel, f::Frame)
     status_area = rows[3]
 
     # ── Tab bar ──
-    render(TabBar(["Overview", "Processes", "Network"]; active=m.tab),
-           tab_area, buf)
+    render(m.tabs, tab_area, buf)
 
     # ── Content based on active tab ──
-    @match m.tab begin
+    @match value(m.tabs) begin
         1 => view_overview(m, content_area, buf)
         2 => view_processes(m, content_area, buf)
         _ => view_network(m, content_area, buf)
