@@ -64,10 +64,8 @@ function update!(m::TabBarDemoModel, evt::KeyEvent)
     # Per-tab key handling
     tab = value(m.tabs)
     if tab == 2
-        # Activity tab: scroll the log
         handle_key!(m.log_pane, evt)
     elseif tab == 3
-        # Settings tab: navigate checkboxes
         if evt.key == :up
             m.settings_focus = mod1(m.settings_focus - 1, 3)
         elseif evt.key == :down
@@ -78,6 +76,11 @@ function update!(m::TabBarDemoModel, evt::KeyEvent)
             handle_key!(cb, evt)
         end
     end
+end
+
+function update!(m::TabBarDemoModel, evt::MouseEvent)
+    handle_mouse!(m.tabs, evt)
+end
 end
 
 function view(m::TabBarDemoModel, f::Frame)
