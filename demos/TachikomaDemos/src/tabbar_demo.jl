@@ -81,7 +81,6 @@ end
 function update!(m::TabBarDemoModel, evt::MouseEvent)
     handle_mouse!(m.tabs, evt)
 end
-end
 
 function view(m::TabBarDemoModel, f::Frame)
     m.tick += 1
