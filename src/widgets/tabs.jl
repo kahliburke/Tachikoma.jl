@@ -4,9 +4,10 @@
 
 const TabLabel = Union{String, Vector{Span}}
 
-struct TabBar
+mutable struct TabBar
     labels::Vector{TabLabel}
     active::Int                    # 1-based index of active tab
+    focused::Bool                  # receives key events when true
     style::Style                   # inactive tab style
     active_style::Style            # active tab style
     separator::String              # between tabs, e.g. " │ "
@@ -14,12 +15,29 @@ end
 
 function TabBar(labels::Vector{<:TabLabel};
     active=1,
+    focused=false,
     style=tstyle(:text_dim),
     active_style=tstyle(:accent, bold=true),
     separator=" │ ",
 )
     act = clamp(active, 1, max(1, length(labels)))
-    TabBar(convert(Vector{TabLabel}, labels), act, style, active_style, separator)
+    TabBar(convert(Vector{TabLabel}, labels), act, focused, style, active_style, separator)
+end
+
+value(bar::TabBar) = bar.active
+
+function handle_key!(bar::TabBar, evt::KeyEvent)::Bool
+    bar.focused || return false
+    n = length(bar.labels)
+    n == 0 && return false
+    if evt.key == :left || evt.key == :backtab
+        bar.active = mod1(bar.active - 1, n)
+        return true
+    elseif evt.key == :right || evt.key == :tab
+        bar.active = mod1(bar.active + 1, n)
+        return true
+    end
+    false
 end
 
 # Plain-string label length

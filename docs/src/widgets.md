@@ -462,8 +462,26 @@ render(tabs, area, buf)
 
 <!-- tachi:noeval -->
 ```julia
-handle_key!(tabs, evt)     # left/right to switch
-value(tabs)                # selected tab index
+handle_key!(tabs, evt)     # left/right/tab to switch
+value(tabs)                # selected tab index (1-based)
+```
+
+Store the `TabBar` in your model to preserve state across frames:
+
+<!-- tachi:noeval -->
+```julia
+@kwdef mutable struct App <: Model
+    tabs::TabBar = TabBar(["Overview", "Details", "Settings"])
+end
+
+function update!(m::App, e::KeyEvent)
+    handle_key!(m.tabs, e)
+end
+
+function view(m::App, f::Frame)
+    render(m.tabs, area, f.buffer)
+    # Use value(m.tabs) to decide which pane to show
+end
 ```
 
 ### Modal
