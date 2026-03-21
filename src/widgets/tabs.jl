@@ -42,21 +42,26 @@ function handle_key!(bar::TabBar, evt::KeyEvent)::Bool
     n == 0 && return false
     if evt.key == :left || evt.key == :backtab
         bar.active = mod1(bar.active - 1, n)
+        empty!(bar._tab_rects)  # invalidate — visible window will shift
         return true
     elseif evt.key == :right || evt.key == :tab
         bar.active = mod1(bar.active + 1, n)
+        empty!(bar._tab_rects)  # invalidate — visible window will shift
         return true
     end
     false
 end
 
 function handle_mouse!(bar::TabBar, evt::MouseEvent)::Symbol
+    evt.button == mouse_left || return :none
     isempty(bar._tab_rects) && return :none
     for (vi, rect) in enumerate(bar._tab_rects)
-        if Base.contains(rect, evt.x, evt.y) && evt.button == mouse_left
+        if Base.contains(rect, evt.x, evt.y)
             real_idx = first(bar._visible_range) + vi - 1
+            real_idx = clamp(real_idx, 1, length(bar.labels))
             if real_idx != bar.active
                 bar.active = real_idx
+                empty!(bar._tab_rects)  # invalidate — visible window may shift
                 return :changed
             end
             return :none
