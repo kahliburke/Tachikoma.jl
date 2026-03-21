@@ -34,4 +34,5 @@ struct _DummyModel <: T.Model end
     include("test_paged_datatable.jl")
     include("test_ansitext.jl")
     include("test_app_error.jl")
+    include("test_demos_load.jl")
 end
