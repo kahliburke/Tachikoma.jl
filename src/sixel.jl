@@ -7,6 +7,7 @@
 # ═══════════════════════════════════════════════════════════════════════
 
 const BLACK = ColorRGB(0x00, 0x00, 0x00)
+const _SIXEL_IO = IOBuffer(sizehint=256_000)
 
 # ── Color quantization & fast palette lookup ─────────────────────────
 
@@ -26,6 +27,14 @@ const BLACK = ColorRGB(0x00, 0x00, 0x00)
     bits = 8 - shift
     (Int(c.r >> shift) << (2 * bits)) | (Int(c.g >> shift) << bits) | Int(c.b >> shift) + 1
 end
+
+# Compile-time constant shift specializations for the common case
+@inline _quantize_2(c::ColorRGB) = ColorRGB(
+    (c.r >> 0x02) << 0x02,
+    (c.g >> 0x02) << 0x02,
+    (c.b >> 0x02) << 0x02)
+@inline _color_key_2(c::ColorRGB) =
+    (Int(c.r >> 0x02) << 12) | (Int(c.g >> 0x02) << 6) | Int(c.b >> 0x02) + 1
 
 # Convenience wrappers at the default quality level (shift=2)
 @inline _quantize(c::ColorRGB) = _quantize(c, 2)
@@ -422,8 +431,9 @@ function encode_sixel(pixels::Matrix{ColorRGB};
 
     has_any || return UInt8[]
 
-    # Pre-sized IOBuffer — avoids regrowth reallocations
-    io = IOBuffer(sizehint = h * w)
+    # Reuse IOBuffer across frames — avoids allocation every call
+    io = _SIXEL_IO
+    truncate(io, 0)
 
     # DCS P1;P2;P3 q  (Device Control String, sixel mode)
     # P2=0: use explicit background painting (most compatible)
@@ -550,7 +560,7 @@ function encode_sixel(pixels::Matrix{ColorRGB};
                 ch = 0x3F + bits
                 # Count run of identical chars
                 run = 1
-                while col + run <= w && band_bits[ci, col + run] == bits
+                while col + run <= w && @inbounds(band_bits[ci, col + run]) == bits
                     run += 1
                 end
                 if bits == 0

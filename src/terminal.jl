@@ -571,28 +571,232 @@ function render_graphics!(f::Frame, data::Vector{UInt8}, area::Rect;
     nothing
 end
 
+
+# ── Virtual Framebuffer for sixel compositing ─────────────────────────
+#
+# A full-screen RGBA pixel buffer. During view(), each render_rgba! call
+# alpha-blends into this buffer. After view() returns, dirty regions are
+# encoded as sixel and emitted — giving proper compositing, transparency,
+# and z-ordering without kitty's native layer support.
+
+mutable struct PixelFramebuffer
+    rgba::Vector{UInt8}      # flat RGBA, row-major (w pixels per row)
+    width::Int               # pixels
+    height::Int              # pixels
+    dirty::Bool
+    dirty_x0::Int            # pixel bounding box of dirty region
+    dirty_y0::Int
+    dirty_x1::Int
+    dirty_y1::Int
+    # Cached output buffer to avoid per-frame allocation
+    _flush_pixels::Matrix{ColorRGB}
+end
+
+const _PIXEL_FB = PixelFramebuffer(UInt8[], 0, 0, false, 0, 0, 0, 0,
+                                   Matrix{ColorRGB}(undef, 0, 0))
+
+"""Clear/resize framebuffer, filling with cell background colors from the buffer."""
+function _fb_init!(fb::PixelFramebuffer, buf::Buffer, area::Rect)
+    cp = CELL_PX[]
+    cpw = max(1, cp.w)
+    cph = max(1, cp.h)
+    pw = area.width * cpw
+    ph = area.height * cph
+    nbytes = pw * ph * 4
+
+    if fb.width != pw || fb.height != ph || length(fb.rgba) != nbytes
+        fb.rgba = Vector{UInt8}(undef, nbytes)
+        fb.width = pw
+        fb.height = ph
+    end
+
+    # Fill with transparent black — pixels that are never written won't be encoded
+    fill!(fb.rgba, 0x00)
+
+    fb.dirty = false
+    fb.dirty_x0 = pw + 1
+    fb.dirty_y0 = ph + 1
+    fb.dirty_x1 = 0
+    fb.dirty_y1 = 0
+end
+
+"""Blend RGBA image into the framebuffer at the given cell position."""
+function _fb_blend!(fb::PixelFramebuffer, rgba::Vector{UInt8}, w::Int, h::Int,
+                    area::Rect, screen_area::Rect, buf::Buffer)
+    cp = CELL_PX[]
+    cpw = max(1, cp.w)
+    cph = max(1, cp.h)
+    fbw = fb.width
+    fbh = fb.height
+
+    x_off = (area.x - screen_area.x) * cpw
+    y_off = (area.y - screen_area.y) * cph
+
+    GC.@preserve fb rgba begin
+        src_ptr = pointer(rgba)
+        dst_ptr = pointer(fb.rgba)
+
+        for sy in 1:h
+            dy = y_off + sy
+            if dy < 1 || dy > fbh
+                src_ptr += w * 4
+                continue
+            end
+            for sx in 1:w
+                dx = x_off + sx
+                if dx < 1 || dx > fbw
+                    src_ptr += 4
+                    continue
+                end
+
+                r = unsafe_load(src_ptr, 1)
+                g = unsafe_load(src_ptr, 2)
+                b = unsafe_load(src_ptr, 3)
+                a = unsafe_load(src_ptr, 4)
+                src_ptr += 4
+
+                a == 0x00 && continue
+
+                dp = dst_ptr + ((dy - 1) * fbw + (dx - 1)) * 4
+
+                if a == 0xff
+                    unsafe_store!(dp, r, 1)
+                    unsafe_store!(dp, g, 2)
+                    unsafe_store!(dp, b, 3)
+                    unsafe_store!(dp, 0xff, 4)
+                else
+                    da = unsafe_load(dp, 4)
+                    if da == 0x00
+                        unsafe_store!(dp, r, 1)
+                        unsafe_store!(dp, g, 2)
+                        unsafe_store!(dp, b, 3)
+                        unsafe_store!(dp, a, 4)
+                    else
+                        af = a / 255.0
+                        inv_af = 1.0 - af
+                        unsafe_store!(dp, unsafe_trunc(UInt8, min(r * af + unsafe_load(dp, 1) * inv_af, 255.0)), 1)
+                        unsafe_store!(dp, unsafe_trunc(UInt8, min(g * af + unsafe_load(dp, 2) * inv_af, 255.0)), 2)
+                        unsafe_store!(dp, unsafe_trunc(UInt8, min(b * af + unsafe_load(dp, 3) * inv_af, 255.0)), 3)
+                        unsafe_store!(dp, unsafe_trunc(UInt8, min(da + a * inv_af, 255.0)), 4)
+                    end
+                end
+            end
+        end
+    end
+
+    # Expand dirty region (in pixels)
+    x0 = x_off + 1
+    y0 = y_off + 1
+    x1 = min(x_off + w, fbw)
+    y1 = min(y_off + h, fbh)
+    fb.dirty = true
+    fb.dirty_x0 = min(fb.dirty_x0, x0)
+    fb.dirty_y0 = min(fb.dirty_y0, y0)
+    fb.dirty_x1 = max(fb.dirty_x1, x1)
+    fb.dirty_y1 = max(fb.dirty_y1, y1)
+end
+
+"""Encode dirty framebuffer region as sixel and emit as graphics."""
+function _fb_flush!(fb::PixelFramebuffer, f::Frame, screen_area::Rect)
+    fb.dirty || return
+
+    cp = CELL_PX[]
+    cpw = max(1, cp.w)
+    cph = max(1, cp.h)
+
+    # Clamp dirty region
+    x0 = max(1, fb.dirty_x0)
+    y0 = max(1, fb.dirty_y0)
+    x1 = min(fb.width, fb.dirty_x1)
+    y1 = min(fb.height, fb.dirty_y1)
+    (x0 > x1 || y0 > y1) && return
+
+    dw = x1 - x0 + 1
+    dh = y1 - y0 + 1
+    fbw = fb.width
+    fallback_bg = canvas_bg()
+
+    sentinel = ColorRGB(0x01, 0x00, 0x01)
+    if size(fb._flush_pixels) != (dh, dw)
+        fb._flush_pixels = Matrix{ColorRGB}(undef, dh, dw)
+    end
+    pixels = fb._flush_pixels
+    fallback_bg = canvas_bg()
+    @inbounds for dy in 1:dh
+        for dx in 1:dw
+            di = ((y0 + dy - 2) * fbw + (x0 + dx - 2)) * 4
+            a = fb.rgba[di + 4]
+            if a == 0xff
+                pixels[dy, dx] = ColorRGB(fb.rgba[di + 1], fb.rgba[di + 2], fb.rgba[di + 3])
+            elseif a == 0x00
+                pixels[dy, dx] = sentinel
+            else
+                # Semi-transparent: composite against cell bg now
+                r = fb.rgba[di + 1]
+                g = fb.rgba[di + 2]
+                b = fb.rgba[di + 3]
+                af = a / 255.0
+                inv_af = 1.0 - af
+                # Look up cell bg for this pixel position
+                px_x = x0 + dx - 1
+                px_y = y0 + dy - 1
+                cell_col = screen_area.x + (px_x - 1) ÷ cpw
+                cell_row = screen_area.y + (px_y - 1) ÷ cph
+                cell_bg = fallback_bg  # fast default
+                pixels[dy, dx] = ColorRGB(
+                    unsafe_trunc(UInt8, min(r * af + cell_bg.r * inv_af, 255.0)),
+                    unsafe_trunc(UInt8, min(g * af + cell_bg.g * inv_af, 255.0)),
+                    unsafe_trunc(UInt8, min(b * af + cell_bg.b * inv_af, 255.0)),
+                )
+            end
+        end
+    end
+
+    data = encode_sixel(pixels; bg=sentinel)
+    isempty(data) && return
+
+    # Map pixel dirty region back to cell coords
+    c0 = screen_area.x + (x0 - 1) ÷ cpw
+    r0 = screen_area.y + (y0 - 1) ÷ cph
+    c1 = screen_area.x + (x1 - 1) ÷ cpw
+    r1 = screen_area.y + (y1 - 1) ÷ cph
+    cell_area = Rect(c0, r0, c1 - c0 + 1, r1 - r0 + 1)
+
+    render_graphics!(f, data, cell_area; pixels=pixels, format=gfx_fmt_sixel)
+end
+
+# ── render_rgba! — public API ─────────────────────────────────────────
+
 """
     render_rgba!(f::Frame, rgba::Vector{UInt8}, w::Int, h::Int, area::Rect;
-                 cols::Int=area.width, rows::Int=area.height)
+                 cols::Int=area.width, rows::Int=area.height, z::Int=-1,
+                 scale_to_cells::Bool=true, bg::ColorRGB=canvas_bg())
 
-Render RGBA pixel data directly into a Frame using the kitty graphics protocol.
+Render RGBA pixel data into a Frame. On kitty, uses native RGBA with z-index
+for layered compositing. On sixel, blends into a virtual framebuffer that
+gets composited and encoded at frame end.
+
 `rgba` must be `w * h * 4` bytes in row-major order (top-to-bottom, left-to-right).
-Alpha channel is preserved for transparency compositing.
-
-This is the preferred API for external renderers (e.g., TachiMakie) that produce
-RGBA pixel data and want to display it in the terminal with transparency support.
 """
 function render_rgba!(f::Frame, rgba::Vector{UInt8}, w::Int, h::Int, area::Rect;
                       cols::Int=area.width, rows::Int=area.height, z::Int=-1,
-                      scale_to_cells::Bool=true)
-    GRAPHICS_PROTOCOL[] == gfx_kitty || return
-    c = scale_to_cells ? cols : 0
-    r = scale_to_cells ? rows : 0
-    data = encode_kitty_rgba(rgba, w, h; cols=c, rows=r, z=z)
-    isempty(data) && return
-    render_graphics!(f, data, area; format=gfx_fmt_kitty)
-end
+                      scale_to_cells::Bool=true,
+                      bg::ColorRGB=canvas_bg())
+    gfx = GRAPHICS_PROTOCOL[]
+    gfx == gfx_none && return
 
+    if gfx == gfx_kitty
+        c = scale_to_cells ? cols : 0
+        r = scale_to_cells ? rows : 0
+        data = encode_kitty_rgba(rgba, w, h; cols=c, rows=r, z=z)
+        isempty(data) && return
+        render_graphics!(f, data, area; format=gfx_fmt_kitty)
+    else
+        # Sixel: blend into the virtual framebuffer.
+        # _fb_flush! encodes and emits after view() returns.
+        _fb_blend!(_PIXEL_FB, rgba, w, h, area, f.area, f.buffer)
+    end
+end
 # ── Recording badge (drawn after capture, so it's on-screen only) ─────
 
 function _draw_rec_badge!(buf::Buffer, area::Rect)
@@ -611,7 +815,15 @@ function draw!(func::Function, t::Terminal)
     resized = check_resize!(t)
     t.frame_count += 1
     f = Frame(current_buf(t), t.size, GraphicsRegion[], PixelSnapshot[])
+    # Initialize the pixel framebuffer for sixel compositing
+    if t.graphics_protocol != gfx_kitty
+        _fb_init!(_PIXEL_FB, current_buf(t), t.size)
+    end
     func(f)
+    # Flush sixel framebuffer — encode dirty regions
+    if t.graphics_protocol != gfx_kitty && _PIXEL_FB.dirty
+        _fb_flush!(_PIXEL_FB, f, t.size)
+    end
     # Capture frame for .cast recording BEFORE the REC badge is drawn,
     # so the badge appears on-screen but not in the recording.
     if t.recorder.active
@@ -643,10 +855,11 @@ function draw!(func::Function, t::Terminal)
         # blank-screen flash between the clear and the redrawn content.
         write(io, CLEAR_SCREEN)
         reset!(previous_buf(t))
-    elseif t.frame_count % t.clear_interval == 0 && has_sixel
+    elseif t.frame_count % t.clear_interval == 0 && has_sixel && !_PIXEL_FB.dirty
         # Periodic clear: cap iTerm2 sixel memory growth by clearing the
         # screen AND scrollback buffer.  \e[3J frees iTerm2's accumulated
-        # sixel image objects.  Only needed for sixel (Kitty manages its own).
+        # sixel image objects.  Skip when using the virtual framebuffer
+        # (it overwrites sixel data each frame anyway).
         write(io, CLEAR_SCROLLBACK)
         reset!(previous_buf(t))
     elseif t.had_gfx && !has_gfx
