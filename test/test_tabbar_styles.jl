@@ -249,8 +249,8 @@
         @test occursin("Tab2", row2)
     end
 
-    @testset "deprecated kwargs still work" begin
-        tabs = TabBar(["A", "B"]; style=tstyle(:text), active_style=tstyle(:primary))
+    @testset "explicit TabBarStyle" begin
+        tabs = TabBar(["A", "B"]; tab_style=TabBarStyle(inactive=tstyle(:text), active=tstyle(:primary)))
         @test value(tabs) == 1
         @test tabs.tab_style.active == tstyle(:primary)
         @test tabs.tab_style.inactive == tstyle(:text)

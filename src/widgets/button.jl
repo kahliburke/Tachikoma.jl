@@ -101,28 +101,7 @@ function Button(label::String;
     focused::Bool=false,
     tick::Union{Int, Nothing}=nothing,
     button_style::ButtonStyle=ButtonStyle(),
-    # Deprecated kwargs
-    style=nothing,
-    focused_style=nothing,
-    bordered=nothing,
-    box=nothing,
 )
-    if any(!isnothing, (style, focused_style, bordered, box))
-        Base.depwarn(
-            "Passing style/bordered/box kwargs directly to Button is deprecated. " *
-            "Use `button_style=ButtonStyle(...)` instead.",
-            :Button)
-        dec = if something(bordered, false)
-            BorderedButton(box=something(box, BOX_ROUNDED))
-        else
-            button_style.decoration
-        end
-        button_style = ButtonStyle(
-            decoration=dec,
-            normal=something(style, button_style.normal),
-            focused=something(focused_style, button_style.focused),
-        )
-    end
     Button(label, focused, tick, button_style, Rect(), 0)
 end
 

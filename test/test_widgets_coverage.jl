@@ -329,8 +329,8 @@
     @testset "Button: focused vs unfocused style" begin
         red = T.Style(fg=T.ColorRGB(0xff, 0x00, 0x00))
         blue = T.Style(fg=T.ColorRGB(0x00, 0x00, 0xff))
-        btn_focused = T.Button("Go"; focused=true, style=blue, focused_style=red)
-        btn_unfocused = T.Button("Go"; focused=false, style=blue, focused_style=red)
+        btn_focused = T.Button("Go"; focused=true, button_style=T.ButtonStyle(normal=blue, focused=red))
+        btn_unfocused = T.Button("Go"; focused=false, button_style=T.ButtonStyle(normal=blue, focused=red))
 
         tb1 = T.TestBackend(20, 1)
         T.render_widget!(tb1, btn_focused)

@@ -128,29 +128,7 @@ function TabBar(labels::Vector{<:TabLabel};
     active=1,
     focused=false,
     tab_style::TabBarStyle=TabBarStyle(),
-    # Deprecated kwargs — kept for backwards compatibility
-    style=nothing,
-    active_style=nothing,
-    separator=nothing,
-    overflow_char=nothing,
-    overflow_style=nothing,
 )
-    # Handle deprecated kwargs by building a TabBarStyle from them
-    if any(!isnothing, (style, active_style, separator, overflow_char, overflow_style))
-        Base.depwarn(
-            "Passing style kwargs directly to TabBar is deprecated. " *
-            "Use `tab_style=TabBarStyle(...)` instead.",
-            :TabBar)
-        ts = tab_style
-        tab_style = TabBarStyle(
-            decoration=ts.decoration,
-            active=something(active_style, ts.active),
-            inactive=something(style, ts.inactive),
-            separator=something(separator, ts.separator),
-            overflow_char=something(overflow_char, ts.overflow_char),
-            overflow_style=something(overflow_style, ts.overflow_style),
-        )
-    end
     act = clamp(active, 1, max(1, length(labels)))
     TabBar(convert(Vector{TabLabel}, labels), act, focused, tab_style,
            1:length(labels), Rect[])
@@ -202,7 +180,7 @@ _tab_label_len(spans::Vector{Span}) = sum(length(s.content) for s in spans; init
 """Rendered width of a single tab including decoration."""
 _tab_rendered_width(label::TabLabel, ::TabDecoration) = _tab_label_len(label) + 2
 _tab_rendered_width(label::TabLabel, ::PlainTabs) = _tab_label_len(label)
-_tab_rendered_width(label::TabLabel, ::BoxTabs) = _tab_label_len(label) + 2  # │ + label + │
+_tab_rendered_width(label::TabLabel, ::BoxTabs) = _tab_label_len(label) + 4  # │ + pad + label + pad + │
 
 function _render_tab_label!(buf::Buffer, cx::Int, y::Int, label::String, sty::Style, maxcx::Int)
     for ch in label
@@ -230,21 +208,47 @@ function _compute_visible_tabs(bar::TabBar, avail_width::Int)
     n = length(bar.labels)
     dec = bar.tab_style.decoration
     n == 0 && return (1, 0)
-    sep_w = length(bar.tab_style.separator)
+    # BoxTabs don't use separators — tabs are visually separated by their borders
+    sep_w = dec isa BoxTabs ? 0 : length(bar.tab_style.separator)
     tab_widths = [_tab_rendered_width(bar.labels[i], dec) for i in 1:n]
 
     total = sum(tab_widths) + sep_w * max(0, n - 1)
     total <= avail_width && return (1, n)
 
-    # If the active tab is already visible in the current range, keep it stable
-    # to avoid jarring scrolls on mouse click. Only recompute when needed.
+    # If the active tab is already visible in the current range, try to keep
+    # the range stable to avoid jarring scrolls. But if active is at the edge,
+    # shift the window by one to reveal the next tab (browser-like behavior).
     prev = bar._visible_range
     if bar.active in prev && first(prev) >= 1 && last(prev) <= n
-        need_left = first(prev) > 1 ? 1 : 0
-        need_right = last(prev) < n ? 1 : 0
-        test_w = sum(tab_widths[first(prev):last(prev)]) + sep_w * max(0, length(prev) - 1) + need_left + need_right
+        lo, hi = first(prev), last(prev)
+        # Shift window to reveal tabs beyond the clicked edge
+        if bar.active == lo && lo > 1
+            lo -= 1
+            # Drop from the right if needed to fit
+            while lo < hi
+                need_left = lo > 1 ? 1 : 0
+                need_right = hi < n ? 1 : 0
+                test_w = sum(tab_widths[lo:hi]) + sep_w * max(0, hi - lo) + need_left + need_right
+                test_w <= avail_width && break
+                hi -= 1
+            end
+        elseif bar.active == hi && hi < n
+            hi += 1
+            # Drop from the left if needed to fit
+            while lo < hi
+                need_left = lo > 1 ? 1 : 0
+                need_right = hi < n ? 1 : 0
+                test_w = sum(tab_widths[lo:hi]) + sep_w * max(0, hi - lo) + need_left + need_right
+                test_w <= avail_width && break
+                lo += 1
+            end
+        end
+        # Verify the range still fits
+        need_left = lo > 1 ? 1 : 0
+        need_right = hi < n ? 1 : 0
+        test_w = sum(tab_widths[lo:hi]) + sep_w * max(0, hi - lo) + need_left + need_right
         if test_w <= avail_width
-            return (first(prev), last(prev))
+            return (lo, hi)
         end
     end
 
@@ -418,10 +422,20 @@ function _render_tabs!(bar::TabBar, dec::BoxTabs, rect::Rect, buf::Buffer)
     y_mid = rect.y + 1
     y_bot = rect.y + 2
 
+    # The active tab's color determines the baseline color (the "shelf").
+    # This makes the baseline feel continuous with the active tab.
+    active_sty = _tab_style(ts, bar.active, true)
+    baseline_style = active_sty
+
+    # First pass: draw baseline across the entire bottom row
+    for x in rect.x:right(rect)
+        set_char!(buf, x, y_bot, box.h, baseline_style)
+    end
+
     for i in lo:hi
         label = bar.labels[i]
         tw = _tab_label_len(label)
-        tab_w = tw + 2  # v + label + v
+        tab_w = tw + 4  # │ + pad + label + pad + │
 
         # Check if this tab fits
         cx + tab_w - 1 > max_rx && break
@@ -429,41 +443,43 @@ function _render_tabs!(bar::TabBar, dec::BoxTabs, rect::Rect, buf::Buffer)
         tab_start = cx
         is_active = i == bar.active
         sty = _tab_style(ts, i, is_active)
-        border_style = sty
 
-        # Top border: ┌──┐
+        # Per-tab border color: active = full color, inactive = dimmed version
+        border_style = if is_active
+            sty
+        elseif !isempty(ts.tab_colors) && i <= length(ts.tab_colors)
+            # Use per-tab color but dimmed for inactive borders
+            Style(fg=ts.tab_colors[i].fg, dim=true)
+        else
+            ts.inactive
+        end
+
+        # Top border: ╭──────╮
         set_char!(buf, cx, y_top, box.tl, border_style)
-        for j in 1:tw
+        for j in 1:(tw + 2)
             set_char!(buf, cx + j, y_top, box.h, border_style)
         end
-        set_char!(buf, cx + tw + 1, y_top, box.tr, border_style)
+        set_char!(buf, cx + tw + 3, y_top, box.tr, border_style)
 
-        # Middle: │label│
+        # Middle: │ label │
         set_char!(buf, cx, y_mid, box.v, border_style)
-        _render_tab_label!(buf, cx + 1, y_mid, label, sty, cx + tw)
-        set_char!(buf, cx + tw + 1, y_mid, box.v, border_style)
+        set_char!(buf, cx + 1, y_mid, ' ', sty)
+        _render_tab_label!(buf, cx + 2, y_mid, label, sty, cx + tw + 1)
+        set_char!(buf, cx + tw + 2, y_mid, ' ', sty)
+        set_char!(buf, cx + tw + 3, y_mid, box.v, border_style)
 
-        # Bottom border: └──┘ for inactive, spaces for active (connected)
+        # Bottom: active tab opens into content (break the baseline),
+        # inactive tabs sit on the baseline with their dimmed color
         if is_active
-            set_char!(buf, cx, y_bot, box.br, border_style)
-            for j in 1:tw
+            set_char!(buf, cx, y_bot, box.br, sty)
+            for j in 1:(tw + 2)
                 set_char!(buf, cx + j, y_bot, ' ', sty)
             end
-            set_char!(buf, cx + tw + 1, y_bot, box.bl, border_style)
-        else
-            set_char!(buf, cx, y_bot, box.bl, border_style)
-            for j in 1:tw
-                set_char!(buf, cx + j, y_bot, box.h, border_style)
-            end
-            set_char!(buf, cx + tw + 1, y_bot, box.br, border_style)
+            set_char!(buf, cx + tw + 3, y_bot, box.bl, sty)
         end
+        # Inactive tabs: baseline shows through (already drawn in active tab's color)
 
         push!(bar._tab_rects, Rect(tab_start, y_top, tab_w, 3))
         cx += tab_w
-    end
-
-    # Draw bottom border line across remaining width
-    for x in cx:right(rect)
-        set_char!(buf, x, y_bot, box.h, tstyle(:border, dim=true))
     end
 end
