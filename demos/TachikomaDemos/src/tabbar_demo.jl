@@ -8,10 +8,23 @@
 # [←→/Tab] switch tabs  [q/Esc] quit
 # ═══════════════════════════════════════════════════════════════════════
 
+const _TABBAR_DEMO_COLORS = [
+    tstyle(:primary), tstyle(:accent), tstyle(:success),
+    tstyle(:warning), tstyle(:error), tstyle(:secondary),
+    tstyle(:primary), tstyle(:accent), tstyle(:success),
+    tstyle(:warning), tstyle(:error), tstyle(:secondary),
+]
+
 @kwdef mutable struct TabBarDemoModel <: Model
     quit::Bool = false
     tick::Int = 0
     tabs::TabBar = TabBar(["Overview", "Activity", "Settings"]; active=1, focused=true)
+    # Overflow demo: many tabs with per-tab colors
+    many_tabs::TabBar = TabBar(
+        ["Server", "Database", "Cache", "Network", "Auth", "Logs",
+         "Metrics", "Config", "Deploy", "Monitor", "Alerts", "Storage"];
+        active=1, focused=false,
+        tab_style=TabBarStyle(tab_colors=_TABBAR_DEMO_COLORS))
 
     # Overview tab data
     cpu_data::Vector{Float64} = Float64[rand() * 0.3 + 0.1 for _ in 1:40]
@@ -56,8 +69,18 @@ function update!(m::TabBarDemoModel, evt::KeyEvent)
         return
     end
 
+    # F2 to toggle focus between the two tab bars
+    if evt.key == :f2
+        m.tabs.focused = !m.tabs.focused
+        m.many_tabs.focused = !m.many_tabs.focused
+        return
+    end
+
     # TabBar consumes left/right/tab when focused
     if handle_key!(m.tabs, evt)
+        return
+    end
+    if handle_key!(m.many_tabs, evt)
         return
     end
 
@@ -80,6 +103,7 @@ end
 
 function update!(m::TabBarDemoModel, evt::MouseEvent)
     handle_mouse!(m.tabs, evt)
+    handle_mouse!(m.many_tabs, evt)
 end
 
 function view(m::TabBarDemoModel, f::Frame)
@@ -91,7 +115,6 @@ function view(m::TabBarDemoModel, f::Frame)
     if mod(m.tick, 8) == 0
         line = _random_log_line(m.tick)
         push!(m.log_lines, line)
-        # Keep last 200 lines
         length(m.log_lines) > 200 && popfirst!(m.log_lines)
         m.log_pane = ScrollPane(m.log_lines;
             block=Block(title="Activity Log ($(length(m.log_lines)) entries)",
@@ -107,14 +130,22 @@ function view(m::TabBarDemoModel, f::Frame)
         length(m.mem_data) > 60 && popfirst!(m.mem_data)
     end
 
-    # Layout: tab bar | content | footer
-    rows = split_layout(Layout(Vertical, [Fixed(1), Fill(), Fixed(1)]), f.area)
-    length(rows) < 3 && return
-    tab_area = rows[1]
-    content_area = rows[2]
-    footer_area = rows[3]
+    # Layout: overflow tabs | main tab bar | content | footer
+    rows = split_layout(Layout(Vertical, [Fixed(2), Fixed(1), Fill(), Fixed(1)]), f.area)
+    length(rows) < 4 && return
+    overflow_area = rows[1]
+    tab_area = rows[2]
+    content_area = rows[3]
+    footer_area = rows[4]
 
-    # Render tab bar
+    # Overflow tab bar with per-tab colors (top)
+    label = "Overflow ($(value(m.many_tabs))/$(length(m.many_tabs.labels)))"
+    set_string!(buf, overflow_area.x, overflow_area.y, label,
+                m.many_tabs.focused ? tstyle(:accent) : tstyle(:text_dim))
+    render(m.many_tabs, Rect(overflow_area.x + length(label) + 1, overflow_area.y,
+                             overflow_area.width - length(label) - 1, 1), buf)
+
+    # Main tab bar
     render(m.tabs, tab_area, buf)
 
     # Content by active tab
@@ -129,8 +160,8 @@ function view(m::TabBarDemoModel, f::Frame)
 
     # Footer
     render(StatusBar(
-        left=[Span("  [←→/Tab]switch tabs ", tstyle(:text_dim))],
-        right=[Span("[q/Esc]quit ", tstyle(:text_dim))],
+        left=[Span("  [←→]tabs [F2]focus overflow [q/Esc]quit ", tstyle(:text_dim))],
+        right=[Span("click tabs to switch ", tstyle(:text_dim))],
     ), footer_area, buf)
 end
 

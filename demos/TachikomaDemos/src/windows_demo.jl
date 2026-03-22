@@ -199,7 +199,7 @@ function _open_detail_popup!(m::WindowsDemoModel, dt::DataTable, row::Int)
     end
 
     let rd = row_data
-        win.on_render = (inner, buf, focused) -> begin
+        win.on_render = (inner, buf, focused, frame) -> begin
             (inner.width < 3 || inner.height < 2) && return
             for (i, (label, val)) in enumerate(rd)
                 y = inner.y + i - 1
@@ -258,14 +258,14 @@ function Tachikoma.view(m::WindowsDemoModel, f::Frame)
         if w.id === :signals
             colors = _WDM_PALETTES[:signals]
             let c = colors
-                w.on_render = (inner, buf, focused) -> begin
+                w.on_render = (inner, buf, focused, frame) -> begin
                     _render_signals!(m, c, inner, buf, focused, m.tick)
                 end
             end
         elseif w.id === :noise
             colors = _WDM_PALETTES[:noise]
             let c = colors
-                w.on_render = (inner, buf, focused) -> begin
+                w.on_render = (inner, buf, focused, frame) -> begin
                     _render_noise!(c, inner, buf, focused, m.tick)
                 end
             end

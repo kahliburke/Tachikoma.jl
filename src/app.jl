@@ -1052,8 +1052,14 @@ function app(model::Model; fps=60, default_bindings=true, on_stdout=nothing, on_
             last_draw_ns = UInt64(0)
 
             while !should_quit(model) && !overlay.restart
-                # Block until ANY source wakes us
-                take!(wake)
+                # Block on wake channel only if frame interval hasn't elapsed.
+                # When skipping (view took longer than frame budget), yield
+                # so the stdin monitor task can deliver key events.
+                if time_ns() - last_draw_ns < frame_ns
+                    take!(wake)
+                else
+                    yield()
+                end
 
                 # Process all buffered stdin
                 while INPUT_ACTIVE[] && bytesavailable(_input_io()) > 0
@@ -1098,6 +1104,7 @@ function app(model::Model; fps=60, default_bindings=true, on_stdout=nothing, on_
                         overlay.notify_ttl = 0
                     end
                 end
+                last_draw_ns = time_ns()
                 Base.invokelatest(pre_render!, model)
                 draw!(t) do f
                     Base.invokelatest() do
@@ -1110,7 +1117,6 @@ function app(model::Model; fps=60, default_bindings=true, on_stdout=nothing, on_
                     end
                 end
                 Base.invokelatest(post_render!, model)
-                last_draw_ns = time_ns()
                 # Process deferred operations AFTER draw so status is visible
                 if default_bindings && overlay.pending_stop
                     overlay.pending_stop = false

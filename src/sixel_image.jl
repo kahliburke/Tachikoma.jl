@@ -68,10 +68,10 @@ Pixel dimensions are computed from terminal cell metrics.
 function PixelImage(cells_w::Int, cells_h::Int;
                     block::Union{Block, Nothing}=nothing,
                     style::Style=tstyle(:primary),
-                    decay::DecayParams=DecayParams())
+                    decay::DecayParams=DecayParams(),
+                    bg::ColorRGB=canvas_bg())
     pw, ph = _pixelimage_pixel_dims(cells_w, cells_h)
     color = _style_to_rgb(style)
-    bg = canvas_bg()
     PixelImage(fill(bg, ph, pw), pw, ph, cells_w, cells_h,
                block, bg, style, color, decay)
 end

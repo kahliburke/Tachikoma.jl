@@ -241,7 +241,10 @@ function encode_kitty(pixels::Matrix{ColorRGB};
     # Skip all-background frames
     any(!=(bg), src) || return UInt8[]
 
-    nbytes = h * w * 3
+    # Check if any bg pixels exist — use RGBA (f=32) for transparency, RGB (f=24) otherwise
+    has_bg = any(==(bg), src)
+    bpp = has_bg ? 4 : 3
+    nbytes = h * w * bpp
 
     # Transpose to row-major layout (Kitty expects top-to-bottom, left-to-right)
     xbuf = _KITTY_XPOSE_BUF[]
@@ -258,20 +261,35 @@ function encode_kitty(pixels::Matrix{ColorRGB};
         _KITTY_RGB_BUF[] = rgb
     end
     resize!(rgb, nbytes)
-    GC.@preserve xbuf begin
-        unsafe_copyto!(pointer(rgb), Ptr{UInt8}(pointer(xbuf)), nbytes)
+    if has_bg
+        # RGBA: set alpha=0 for bg pixels (transparent)
+        idx = 1
+        @inbounds for i in eachindex(xbuf)
+            px = xbuf[i]
+            rgb[idx]     = px.r
+            rgb[idx + 1] = px.g
+            rgb[idx + 2] = px.b
+            rgb[idx + 3] = px == bg ? 0x00 : 0xff
+            idx += 4
+        end
+    else
+        GC.@preserve xbuf begin
+            unsafe_copyto!(pointer(rgb), Ptr{UInt8}(pointer(xbuf)), nbytes)
+        end
     end
 
     # Reuse IOBuffer across frames
     io = _KITTY_IO
     truncate(io, 0)
 
+    fmt = has_bg ? 32 : 24
+
     # ── Shared memory path (t=s): write rgb to shm, Kitty reads and unlinks ──
     shm_name = _kitty_shm_probe!() ? _kitty_shm_write(rgb) : nothing
 
     if shm_name !== nothing
         b64_name = base64encode(shm_name)
-        header = "a=T,f=24,t=s,q=2,s=$(w),v=$(h),S=$(nbytes)"
+        header = "a=T,f=$(fmt),t=s,q=2,s=$(w),v=$(h),S=$(nbytes)"
         if cols > 0
             header *= ",c=$(cols)"
         end
@@ -287,7 +305,7 @@ function encode_kitty(pixels::Matrix{ColorRGB};
         compressed = transcode(_KITTY_ZLIB_CODEC, rgb)
         b64 = base64encode(compressed)
 
-        header = "a=T,f=24,o=z,q=2,s=$(w),v=$(h)"
+        header = "a=T,f=$(fmt),o=z,q=2,s=$(w),v=$(h)"
         if cols > 0
             header *= ",c=$(cols)"
         end
@@ -313,6 +331,63 @@ function encode_kitty(pixels::Matrix{ColorRGB};
             write(io, chunk)
             write(io, "\e\\")
 
+            offset = chunk_end + 1
+        end
+    end
+
+    take!(io)
+end
+
+"""
+    encode_kitty_rgba(rgba::Vector{UInt8}, w::Int, h::Int; cols=0, rows=0) -> Vector{UInt8}
+
+Encode pre-built RGBA pixel data for kitty graphics protocol.
+`rgba` must be `w * h * 4` bytes in row-major order (top-to-bottom, left-to-right).
+Alpha channel is preserved for transparency compositing.
+"""
+function encode_kitty_rgba(rgba::Vector{UInt8}, w::Int, h::Int;
+                           cols::Int=0, rows::Int=0, z::Int=-1)
+    nbytes = w * h * 4
+    length(rgba) < nbytes && return UInt8[]
+    (w == 0 || h == 0) && return UInt8[]
+
+    io = _KITTY_IO
+    truncate(io, 0)
+
+    z_str = ",z=$(z)"
+    shm_name = _kitty_shm_probe!() ? _kitty_shm_write(rgba) : nothing
+
+    if shm_name !== nothing
+        b64_name = base64encode(shm_name)
+        header = "a=T,f=32,t=s,q=2,s=$(w),v=$(h),S=$(nbytes)$(z_str)"
+        cols > 0 && (header *= ",c=$(cols)")
+        rows > 0 && (header *= ",r=$(rows)")
+        write(io, "\e_G")
+        write(io, header, ",m=0;")
+        write(io, b64_name)
+        write(io, "\e\\")
+    else
+        compressed = transcode(_KITTY_ZLIB_CODEC, rgba)
+        b64 = base64encode(compressed)
+        header = "a=T,f=32,o=z,q=2,s=$(w),v=$(h)$(z_str)"
+        cols > 0 && (header *= ",c=$(cols)")
+        rows > 0 && (header *= ",r=$(rows)")
+
+        chunk_size = 4096
+        total = length(b64)
+        offset = 1
+        while offset <= total
+            chunk_end = min(offset + chunk_size - 1, total)
+            is_last = chunk_end >= total
+            chunk = SubString(b64, offset, chunk_end)
+            write(io, "\e_G")
+            if offset == 1
+                write(io, header, is_last ? ",m=0;" : ",m=1;")
+            else
+                write(io, is_last ? "m=0;" : "m=1;")
+            end
+            write(io, chunk)
+            write(io, "\e\\")
             offset = chunk_end + 1
         end
     end

@@ -141,12 +141,12 @@ end
 Render all windows back-to-front within the given area.
 If omitted, `tick` defaults to the manager's internal tick counter.
 """
-function render(wm::WindowManager, area::Rect, buf::Buffer; tick::Union{Int, Nothing}=nothing)
+function render(wm::WindowManager, area::Rect, buf::Buffer; tick::Union{Int, Nothing}=nothing, frame=nothing)
     wm.last_area = area
     advance_layout!(wm)
     tick = tick === nothing ? wm._tick : tick
     for (i, w) in enumerate(wm.windows)
-        render(w, buf; focused=(i == wm.focus), tick=tick)
+        render(w, buf; focused=(i == wm.focus), tick=tick, frame=frame)
     end
 end
 

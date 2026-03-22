@@ -2,51 +2,144 @@
 # Button ── clickable button with pulse animation
 # ═══════════════════════════════════════════════════════════════════════
 
-mutable struct Button
-    label::String
-    focused::Bool
-    tick::Union{Int, Nothing}
-    style::Style
-    focused_style::Style
-    last_area::Rect               # cached from last render for mouse hit testing
-    bordered::Bool                # render with full box border (3 rows)
-    box::NamedTuple               # border style (BOX_ROUNDED, BOX_HEAVY, etc.)
-    flash_remaining::Int          # frames of activation flash remaining (0 = none)
-end
+# ── Decoration types ──────────────────────────────────────────────────
 
 """
-    Button(label; focused=false, bordered=false, box=BOX_ROUNDED, ...)
+    ButtonDecoration
 
-Clickable button with optional pulse animation and optional box border.
-Enter/Space or mouse click to activate.
-The caller handles the action (Elm architecture pattern).
+Abstract type for button rendering styles. Subtype this and implement
+`_render_button!` to create custom button appearances.
 
-Set `bordered=true` for a full-border button (3 rows tall):
+Built-in decorations:
+- `BracketButton()` — `[ Label ]` (default, 1 row)
+- `BorderedButton()` — full box border (3 rows)
+- `PlainButton()` — just the label text, no decoration
+"""
+abstract type ButtonDecoration end
+
+"""
+    BracketButton()
+
+Default button style: `[ Label ]` with brackets. Single-line rendering.
+"""
+struct BracketButton <: ButtonDecoration end
+
+"""
+    BorderedButton(; box=BOX_ROUNDED)
+
+Full box-bordered button (3 rows):
 ```
 ╭──────────╮
 │  Label   │
 ╰──────────╯
 ```
 """
+struct BorderedButton <: ButtonDecoration
+    box::NamedTuple{(:tl, :tr, :bl, :br, :h, :v), NTuple{6, Char}}
+end
+BorderedButton(; box=BOX_ROUNDED) = BorderedButton(box)
+
+"""
+    PlainButton()
+
+Plain text button with no bracket or border decoration. Styled text only.
+"""
+struct PlainButton <: ButtonDecoration end
+
+# ── Button style struct ──────────────────────────────────────────────
+
+"""
+    ButtonStyle{D<:ButtonDecoration}
+
+Visual configuration for a `Button`.
+
+# Examples
+```julia
+ButtonStyle()                                        # default brackets
+ButtonStyle(decoration=BorderedButton())             # rounded border
+ButtonStyle(decoration=BorderedButton(box=BOX_HEAVY)) # heavy border
+ButtonStyle(decoration=PlainButton())                # just text
+```
+"""
+struct ButtonStyle{D<:ButtonDecoration}
+    decoration::D
+    normal::Style
+    focused::Style
+end
+
+function ButtonStyle(;
+    decoration::ButtonDecoration=BracketButton(),
+    normal::Style=tstyle(:text),
+    focused::Style=tstyle(:accent, bold=true),
+)
+    ButtonStyle(decoration, normal, focused)
+end
+
+"""How many rows this decoration needs."""
+button_height(::ButtonDecoration) = 1
+button_height(::BorderedButton) = 3
+
+# ── Button widget ─────────────────────────────────────────────────────
+
+mutable struct Button{D<:ButtonDecoration}
+    label::String
+    focused::Bool
+    tick::Union{Int, Nothing}
+    button_style::ButtonStyle{D}
+    last_area::Rect
+    flash_remaining::Int
+end
+
+"""
+    Button(label; focused=false, button_style=ButtonStyle(), ...)
+
+Clickable button with optional pulse animation.
+Enter/Space or mouse click to activate.
+The caller handles the action (Elm architecture pattern).
+"""
 function Button(label::String;
     focused::Bool=false,
     tick::Union{Int, Nothing}=nothing,
-    style::Style=tstyle(:text),
-    focused_style::Style=tstyle(:accent, bold=true),
-    bordered::Bool=false,
-    box::NamedTuple=BOX_ROUNDED,
+    button_style::ButtonStyle=ButtonStyle(),
+    # Deprecated kwargs
+    style=nothing,
+    focused_style=nothing,
+    bordered=nothing,
+    box=nothing,
 )
-    Button(label, focused, tick, style, focused_style, Rect(), bordered, box, 0)
+    if any(!isnothing, (style, focused_style, bordered, box))
+        Base.depwarn(
+            "Passing style/bordered/box kwargs directly to Button is deprecated. " *
+            "Use `button_style=ButtonStyle(...)` instead.",
+            :Button)
+        dec = if something(bordered, false)
+            BorderedButton(box=something(box, BOX_ROUNDED))
+        else
+            button_style.decoration
+        end
+        button_style = ButtonStyle(
+            decoration=dec,
+            normal=something(style, button_style.normal),
+            focused=something(focused_style, button_style.focused),
+        )
+    end
+    Button(label, focused, tick, button_style, Rect(), 0)
 end
 
 focusable(::Button) = true
-intrinsic_size(btn::Button) = btn.bordered ? (length(btn.label) + 4, 3) : (length(btn.label) + 4, 1)
+
+function intrinsic_size(btn::Button)
+    dec = btn.button_style.decoration
+    h = button_height(dec)
+    w = dec isa BorderedButton ? length(btn.label) + 4 : length(btn.label) + 4
+    (w, h)
+end
 
 function handle_key!(btn::Button, evt::KeyEvent)::Bool
     btn.focused || return false
     if evt.key == :enter || (evt.key == :char && evt.char == ' ')
         btn.flash_remaining = 8
-        return true  # caller handles the action (Elm pattern)
+        return true
     end
     false
 end
@@ -57,18 +150,20 @@ function handle_mouse!(btn::Button, evt::MouseEvent)::Bool
         if r.width > 0 && contains(r, evt.x, evt.y)
             btn.focused = true
             btn.flash_remaining = 8
-            return true  # caller handles the action (Elm pattern)
+            return true
         end
     end
     false
 end
 
+# ── Render dispatch ───────────────────────────────────────────────────
+
 function render(btn::Button, rect::Rect, buf::Buffer)
     (rect.width < 1 || rect.height < 1) && return
+    bs = btn.button_style
+    s = btn.focused ? bs.focused : bs.normal
 
-    s = btn.focused ? btn.focused_style : btn.style
-
-    # Activation flash — bright inversion that fades out
+    # Activation flash
     if btn.flash_remaining > 0
         btn.flash_remaining -= 1
         intensity = btn.flash_remaining / 8.0
@@ -80,21 +175,18 @@ function render(btn::Button, rect::Rect, buf::Buffer)
         )
         s = Style(fg=flash_fg, bg=flash_bg, bold=true)
     elseif btn.focused && btn.tick !== nothing && animations_enabled()
-        # Animated pulse when focused (no flash active)
         base_fg = to_rgb(s.fg)
         p = pulse(btn.tick; period=60, lo=0.0, hi=0.25)
         anim_fg = brighten(base_fg, p)
         s = Style(fg=anim_fg, bold=s.bold)
     end
 
-    if btn.bordered && rect.height >= 3
-        _render_bordered_button(btn, rect, buf, s)
-    else
-        _render_inline_button(btn, rect, buf, s)
-    end
+    _render_button!(btn, bs.decoration, rect, buf, s)
 end
 
-function _render_inline_button(btn::Button, rect::Rect, buf::Buffer, s::Style)
+# ── BracketButton rendering (default) ────────────────────────────────
+
+function _render_button!(btn::Button, ::BracketButton, rect::Rect, buf::Buffer, s::Style)
     display = string("[ ", btn.label, " ]")
     dlen = length(display)
     pos = center(rect, dlen, 1)
@@ -102,30 +194,38 @@ function _render_inline_button(btn::Button, rect::Rect, buf::Buffer, s::Style)
     set_string!(buf, pos.x, pos.y, display, s; max_x=right(rect))
 end
 
-function _render_bordered_button(btn::Button, rect::Rect, buf::Buffer, s::Style)
+# ── PlainButton rendering ────────────────────────────────────────────
+
+function _render_button!(btn::Button, ::PlainButton, rect::Rect, buf::Buffer, s::Style)
     label = btn.label
-    bx = btn.box
+    llen = length(label)
+    pos = center(rect, llen, 1)
+    btn.last_area = Rect(pos.x, pos.y, min(llen, rect.width), 1)
+    set_string!(buf, pos.x, pos.y, label, s; max_x=right(rect))
+end
+
+# ── BorderedButton rendering (3 rows) ────────────────────────────────
+
+function _render_button!(btn::Button, dec::BorderedButton, rect::Rect, buf::Buffer, s::Style)
+    rect.height < 3 && return _render_button!(btn, BracketButton(), rect, buf, s)
+
+    label = btn.label
+    bx = dec.box
     label_len = length(label)
-    # Button width: label + 2 padding + 2 border chars
     btn_w = min(label_len + 4, rect.width)
     btn_h = 3
 
-    # Center the button in the rect
     pos = center(rect, btn_w, btn_h)
     x0 = pos.x
     y0 = pos.y
     x1 = x0 + btn_w - 1
     y1 = y0 + btn_h - 1
 
-    # Update hit area to actual rendered button bounds (not the full layout rect)
     btn.last_area = Rect(x0, y0, btn_w, btn_h)
 
-    border_s = s  # use same style for border as text
+    border_s = s
 
-    # Read the existing (window-blended) bg from the buffer. This was set by
-    # _blend_bg! before content renders, and is the correct bg for this cell.
-    # We use it to explicitly fill the button area, which both clears any stale
-    # flash/focus bg AND ensures seamless blending with the window.
+    # Read existing blended bg from buffer
     sample_bg = if in_bounds(buf, x0, y0)
         bg = @inbounds buf.content[buf_index(buf, x0, y0)].style.bg
         bg isa ColorRGB ? bg : nothing
@@ -135,7 +235,6 @@ function _render_bordered_button(btn::Button, rect::Rect, buf::Buffer, s::Style)
 
     # Fill background based on state
     if btn.flash_remaining > 0 && s.bg isa ColorRGB
-        # Flash: fill entire button with flash bg
         bg_s = Style(bg=s.bg)
         for row in y0:y1
             for col in x0:x1
@@ -144,20 +243,15 @@ function _render_bordered_button(btn::Button, rect::Rect, buf::Buffer, s::Style)
         end
         border_s = Style(fg=s.bg)
     elseif btn.focused
-        # Focused: fill interior only, keep border in accent color
         accent_fg = to_rgb(tstyle(:accent).fg)
         theme_bg = to_rgb(theme().bg)
         bg_s = Style(bg=accent_fg)
-        # Fill only the interior (inside the border)
         for col in (x0 + 1):(x1 - 1)
             in_bounds(buf, col, y0 + 1) && set_char!(buf, col, y0 + 1, ' ', bg_s)
         end
-        # Label text: contrasting fg on accent bg
         s = Style(fg=theme_bg, bg=accent_fg, bold=true)
-        # Border: accent fg, preserve existing bg for seamless blending
         border_s = Style(fg=accent_fg, bold=true)
     elseif sample_bg !== nothing
-        # Unfocused: clear area with the window's blended bg to remove stale flash/focus fills
         bg_s = Style(bg=sample_bg)
         for row in y0:y1
             for col in x0:x1
@@ -173,9 +267,8 @@ function _render_bordered_button(btn::Button, rect::Rect, buf::Buffer, s::Style)
     end
     in_bounds(buf, x1, y0) && set_char!(buf, x1, y0, bx.tr, border_s)
 
-    # Middle row: │ label │
+    # Middle row
     in_bounds(buf, x0, y0 + 1) && set_char!(buf, x0, y0 + 1, bx.v, border_s)
-    # Center label within the button
     label_x = x0 + max(1, (btn_w - label_len) ÷ 2)
     set_string!(buf, label_x, y0 + 1, label, s; max_x=x1 - 1)
     in_bounds(buf, x1, y0 + 1) && set_char!(buf, x1, y0 + 1, bx.v, border_s)

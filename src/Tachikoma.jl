@@ -121,7 +121,9 @@ export # Core types
        # Widgets
        BigText,
        Gauge, Sparkline, BarChart, BarEntry, Table,
-       SelectableList, ListItem, TabBar, Calendar, Scrollbar, inner_area,
+       SelectableList, ListItem, TabBar, TabBarStyle, TabDecoration,
+       BracketTabs, BoxTabs, PlainTabs, tab_height,
+       Calendar, Scrollbar, inner_area,
        ScrollPane, push_line!, set_content!, set_total!, handle_mouse!,
        list_hit, list_scroll,
        TextInput, text, set_text!,
@@ -131,7 +133,8 @@ export # Core types
        TreeView, TreeNode,
        Separator,
        Checkbox, RadioGroup,
-       Button,
+       Button, ButtonStyle, ButtonDecoration,
+       BracketButton, BorderedButton, PlainButton, button_height,
        DropDown,
        TextArea,
        CodeEditor, tokenize_line, TokenKind, Token, editor_mode, pending_command!,
@@ -173,7 +176,7 @@ export # Core types
        PixelCanvas, create_canvas, render_canvas, canvas_dot_size,
        set_pixel!, pixel_line!, fill_pixel_rect!,
        # PixelImage widget
-       PixelImage, fill_rect!, load_pixels!,
+       PixelImage, fill_rect!, load_pixels!, render_rgba!,
        # Background system
        Background, DotWaveBackground, PhyloTreeBackground,
        CladogramBackground,

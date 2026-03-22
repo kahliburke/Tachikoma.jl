@@ -36,7 +36,8 @@ function Form(fields::Vector{FormField};
 )
     # Build focus ring from widgets + submit button
     widgets = Any[f.widget for f in fields]
-    btn = Button(submit_label; focused=false, tick=tick, bordered=bordered_submit)
+    btn_style = bordered_submit ? ButtonStyle(decoration=BorderedButton()) : ButtonStyle()
+    btn = Button(submit_label; focused=false, tick=tick, button_style=btn_style)
     push!(widgets, btn)
     ring = FocusRing(widgets)
 
@@ -156,7 +157,7 @@ function _form_field_height(w)::Int
         2
     elseif w isa DropDown && w.open
         1 + min(length(w.items), w.max_visible)
-    elseif w isa Button && w.bordered
+    elseif w isa Button && w.button_style.decoration isa BorderedButton
         3
     else
         1
@@ -193,7 +194,7 @@ function render(form::Form, rect::Rect, buf::Buffer)
         push!(constraints, Fixed(_form_field_height(field.widget)))
     end
     # Button row height: max of all button heights + submit
-    btn_h = form.submit_button.bordered ? 3 : 1
+    btn_h = button_height(form.submit_button.button_style.decoration)
     if !isempty(button_fields)
         btn_h = max(btn_h, maximum(_form_field_height(f.widget) for f in button_fields))
     end

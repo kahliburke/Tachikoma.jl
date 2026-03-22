@@ -556,9 +556,12 @@ provided, the pixel matrix is stored for raster export (GIF/APNG).
 function render_graphics!(f::Frame, data::Vector{UInt8}, area::Rect;
                           pixels::Union{Matrix{ColorRGB}, Nothing}=nothing,
                           format::GraphicsFormat=gfx_fmt_sixel)
+    # Blank cells directly (bypass set_char! which preserves old bg)
+    buf = f.buffer
     for row in area.y:bottom(area)
         for col in area.x:right(area)
-            set_char!(f.buffer, col, row, ' ', RESET)
+            in_bounds(buf, col, row) || continue
+            @inbounds buf.content[buf_index(buf, col, row)] = _GFX_BLANK
         end
     end
     push!(f.gfx_regions, GraphicsRegion(area.y, area.x, area.width, area.height, data, format))
@@ -566,6 +569,28 @@ function render_graphics!(f::Frame, data::Vector{UInt8}, area::Rect;
         push!(f.pixel_snapshots, (area.y, area.x, pixels))
     end
     nothing
+end
+
+"""
+    render_rgba!(f::Frame, rgba::Vector{UInt8}, w::Int, h::Int, area::Rect;
+                 cols::Int=area.width, rows::Int=area.height)
+
+Render RGBA pixel data directly into a Frame using the kitty graphics protocol.
+`rgba` must be `w * h * 4` bytes in row-major order (top-to-bottom, left-to-right).
+Alpha channel is preserved for transparency compositing.
+
+This is the preferred API for external renderers (e.g., TachiMakie) that produce
+RGBA pixel data and want to display it in the terminal with transparency support.
+"""
+function render_rgba!(f::Frame, rgba::Vector{UInt8}, w::Int, h::Int, area::Rect;
+                      cols::Int=area.width, rows::Int=area.height, z::Int=-1,
+                      scale_to_cells::Bool=true)
+    GRAPHICS_PROTOCOL[] == gfx_kitty || return
+    c = scale_to_cells ? cols : 0
+    r = scale_to_cells ? rows : 0
+    data = encode_kitty_rgba(rgba, w, h; cols=c, rows=r, z=z)
+    isempty(data) && return
+    render_graphics!(f, data, area; format=gfx_fmt_kitty)
 end
 
 # ── Recording badge (drawn after capture, so it's on-screen only) ─────
@@ -598,7 +623,14 @@ function draw!(func::Function, t::Terminal)
     # render_graphics! blanks cells to (' ', RESET); if any cell differs, something
     # rendered over the graphics area (e.g. a modal) and we must not emit the sixel.
     buf = current_buf(t)
-    visible_regions = _filter_visible_gfx(f.gfx_regions, buf)
+    # For kitty, skip the visibility filter — kitty handles z-order natively
+    # and images should render even when windows overlap.
+    # For sixel, keep the filter since overlapping sixels cause artifacts.
+    visible_regions = if t.graphics_protocol == gfx_kitty
+        f.gfx_regions
+    else
+        _filter_visible_gfx(f.gfx_regions, buf)
+    end
     has_gfx = !isempty(visible_regions)
     # Accumulate all output into a single IOBuffer so the terminal receives
     # clear + character redraw + graphics data in one write (no intermediate

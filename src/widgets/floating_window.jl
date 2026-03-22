@@ -19,7 +19,7 @@ Supports animated borders, semi-transparency, and custom content via
 either a `content` widget or an `on_render` callback.
 
 - `content`: any widget with `render(widget, rect, buf)`
-- `on_render`: `(inner::Rect, buf::Buffer, focused::Bool) -> nothing`
+- `on_render`: `(inner::Rect, buf::Buffer, focused::Bool, frame) -> nothing`
 - `opacity`: 0.0 (fully transparent) to 1.0 (fully opaque); defaults to `WINDOW_OPACITY[]` (0.95)
 - `border_color`: override border color (ColorRGB); `nothing` uses theme
 - `bg_color`: override background color; `nothing` uses theme
@@ -32,7 +32,7 @@ mutable struct FloatingWindow
     width::Int
     height::Int
     content::Any                       # widget with render(w, rect, buf), or nothing
-    on_render::Union{Function,Nothing} # (inner, buf, focused) callback
+    on_render::Union{Function,Nothing} # (inner, buf, focused[, frame]) callback
     box::NamedTuple
     visible::Bool
     minimized::Bool
@@ -159,7 +159,7 @@ function _apply_window_opacity!(buf::Buffer, rect::Rect, window_bg::ColorRGB, op
 end
 
 function render(w::FloatingWindow, buf::Buffer;
-                focused::Bool=false, tick::Int=0)
+                focused::Bool=false, tick::Int=0, frame=nothing)
     w.visible || return
     wr = window_rect(w)
 
@@ -208,7 +208,8 @@ function render(w::FloatingWindow, buf::Buffer;
 
     # ── Content ──
     if w.on_render !== nothing
-        w.on_render(inner, buf, focused)
+        # on_render receives (inner, buf, focused, frame) where frame may be nothing
+        w.on_render(inner, buf, focused, frame)
     elseif w.content !== nothing
         render(w.content, inner, buf)
     end
