@@ -631,29 +631,30 @@ function _fb_blend!(fb::PixelFramebuffer, rgba::Vector{UInt8}, w::Int, h::Int,
 
     x_off = (area.x - screen_area.x) * cpw
     y_off = (area.y - screen_area.y) * cph
+    dst_w = area.width * cpw
+    dst_h = area.height * cph
 
     GC.@preserve fb rgba begin
         src_ptr = pointer(rgba)
         dst_ptr = pointer(fb.rgba)
 
-        for sy in 1:h
-            dy = y_off + sy
-            if dy < 1 || dy > fbh
-                src_ptr += w * 4
-                continue
-            end
-            for sx in 1:w
-                dx = x_off + sx
-                if dx < 1 || dx > fbw
-                    src_ptr += 4
-                    continue
-                end
+        # Scale source (w × h) to destination (dst_w × dst_h)
+        for dsy in 1:dst_h
+            dy = y_off + dsy
+            (dy < 1 || dy > fbh) && continue
+            # Map destination row to source row
+            sy = clamp(round(Int, (dsy - 0.5) / dst_h * h + 0.5), 1, h)
+            for dsx in 1:dst_w
+                dx = x_off + dsx
+                (dx < 1 || dx > fbw) && continue
+                # Map destination col to source col
+                sx = clamp(round(Int, (dsx - 0.5) / dst_w * w + 0.5), 1, w)
+                si = ((sy - 1) * w + (sx - 1)) * 4
 
-                r = unsafe_load(src_ptr, 1)
-                g = unsafe_load(src_ptr, 2)
-                b = unsafe_load(src_ptr, 3)
-                a = unsafe_load(src_ptr, 4)
-                src_ptr += 4
+                r = unsafe_load(src_ptr, si + 1)
+                g = unsafe_load(src_ptr, si + 2)
+                b = unsafe_load(src_ptr, si + 3)
+                a = unsafe_load(src_ptr, si + 4)
 
                 a == 0x00 && continue
 
@@ -687,8 +688,8 @@ function _fb_blend!(fb::PixelFramebuffer, rgba::Vector{UInt8}, w::Int, h::Int,
     # Expand dirty region (in pixels)
     x0 = x_off + 1
     y0 = y_off + 1
-    x1 = min(x_off + w, fbw)
-    y1 = min(y_off + h, fbh)
+    x1 = min(x_off + dst_w, fbw)
+    y1 = min(y_off + dst_h, fbh)
     fb.dirty = true
     fb.dirty_x0 = min(fb.dirty_x0, x0)
     fb.dirty_y0 = min(fb.dirty_y0, y0)

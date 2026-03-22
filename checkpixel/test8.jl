@@ -25,7 +25,9 @@ function render_into!(ps::PlotState, inner::Rect, win_rect::Rect,
 
     gfx = Tachikoma.GRAPHICS_PROTOCOL[]
     if gfx == Tachikoma.gfx_kitty
-        # Kitty: render full window with pixel borders (z-index puts under text)
+        # Kitty: render full window with pixel borders at negative z-index.
+        # Text (title, close button) renders on top at z=0.
+        # We must NOT blank the title/border cells — only blank inner cells.
         cp = Tachikoma.CELL_PX[]
         cpw = max(1, cp.w)
         cph = max(1, cp.h)
@@ -67,7 +69,24 @@ function render_into!(ps::PlotState, inner::Rect, win_rect::Rect,
                 idx += 4
             end
         end
-        render_rgba!(frame, full_rgba, full_pw, full_ph, win_rect; z=z, scale_to_cells=true)
+
+        # Encode kitty image covering the full window
+        data = Tachikoma.encode_kitty_rgba(full_rgba, full_pw, full_ph;
+                    cols=win_rect.width, rows=win_rect.height, z=z)
+        if !isempty(data)
+            # Blank only inner cells (preserves title/border text at z=0)
+            buf2 = frame.buffer
+            @inbounds for row in inner.y:Tachikoma.bottom(inner)
+                for col in inner.x:Tachikoma.right(inner)
+                    Tachikoma.in_bounds(buf2, col, row) || continue
+                    buf2.content[Tachikoma.buf_index(buf2, col, row)] = Tachikoma._GFX_BLANK
+                end
+            end
+            # Register graphics at win_rect position (image covers full window)
+            push!(frame.gfx_regions, Tachikoma.GraphicsRegion(
+                win_rect.y, win_rect.x, win_rect.width, win_rect.height,
+                data, Tachikoma.gfx_fmt_kitty))
+        end
     else
         # Sixel: render inner content only (text borders handled by Tachikoma)
         render_rgba!(frame, rgba, pw, ph, inner)
