@@ -270,17 +270,29 @@ function _collect_unique_colors!(src::Matrix{ColorRGB}, lut::Vector{UInt16},
     end
     n = 0
     nd = 0
-    @inbounds for i in eachindex(src)
-        px = src[i]
-        px == bg && continue
-        qpx = _quantize(px, shift)
-        key = _color_key(qpx, shift)
-        if lut[key] == 0
-            lut[key] = UInt16(1)  # mark as seen
-            nd += 1
-            dirty[nd] = key
-            n += 1
-            unique_keys[n] = key
+    npix = length(src)
+    bg_r = bg.r; bg_g = bg.g; bg_b = bg.b
+    GC.@preserve src lut dirty unique_keys begin
+        src_ptr = Ptr{UInt8}(pointer(src))
+        lut_ptr = pointer(lut)
+        for i in 1:npix
+            r = unsafe_load(src_ptr, (i-1)*3 + 1)
+            g = unsafe_load(src_ptr, (i-1)*3 + 2)
+            b = unsafe_load(src_ptr, (i-1)*3 + 3)
+            (r == bg_r && g == bg_g && b == bg_b) && continue
+            # Inline quantize + color_key for shift=2
+            qr = (r >> shift) << shift
+            qg = (g >> shift) << shift
+            qb = (b >> shift) << shift
+            bits = 8 - shift
+            key = (Int(qr >> shift) << (2 * bits)) | (Int(qg >> shift) << bits) | Int(qb >> shift) + 1
+            @inbounds if lut[key] == 0
+                lut[key] = UInt16(1)
+                nd += 1
+                dirty[nd] = key
+                n += 1
+                unique_keys[n] = key
+            end
         end
     end
     # Clean up lut markers
