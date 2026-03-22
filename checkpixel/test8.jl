@@ -12,6 +12,7 @@ const KeyEvent = Tachikoma.KeyEvent
 mutable struct PlotState
     fig::Figure
     t::Observable{Float64}
+    _full_rgba::Vector{UInt8}  # cached border+plot RGBA
 end
 
 function render_into!(ps::PlotState, inner::Rect, win_rect::Rect,
@@ -33,7 +34,11 @@ function render_into!(ps::PlotState, inner::Rect, win_rect::Rect,
         cph = max(1, cp.h)
         full_pw = win_rect.width * cpw
         full_ph = win_rect.height * cph
-        full_rgba = Vector{UInt8}(undef, full_pw * full_ph * 4)
+        nbytes = full_pw * full_ph * 4
+        if length(ps._full_rgba) != nbytes
+            ps._full_rgba = Vector{UInt8}(undef, nbytes)
+        end
+        full_rgba = ps._full_rgba
 
         border_left = (inner.x - win_rect.x) * cpw
         border_top = (inner.y - win_rect.y) * cph
@@ -164,7 +169,7 @@ function init!(m::M, ::Terminal)
         t = Observable(0.0)
         fig = Figure(size=(400, 280), backgroundcolor=fig_bg)
         setup(fig, t)
-        local plot_state = PlotState(fig, t)
+        local plot_state = PlotState(fig, t, UInt8[])
         push!(m.plots, plot_state)
         local model = m
         local my_win = FloatingWindow(
