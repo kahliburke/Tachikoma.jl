@@ -13,6 +13,7 @@ mutable struct SQLitePagedProvider <: PagedDataProvider
     columns::Vector{PagedColumn}
     db_col_names::Vector{String}   # actual DB column names
     _caps::FilterCapabilities
+    default_order::String          # e.g. "timestamp DESC" — used when no user sort active
 end
 
 """
@@ -25,11 +26,13 @@ via `PRAGMA table_info` to determine column names and types.
 - `columns::Vector{PagedColumn}`: override column definitions (default: auto from schema)
 - `filterable::Bool=true`: whether columns are filterable by default
 - `sortable::Bool=true`: whether columns are sortable by default
+- `default_order::String=""`: SQL ORDER BY clause used when no user sort is active (e.g. `"timestamp DESC"`)
 """
 function SQLitePagedProvider(db::SQLite.DB, table_name::String;
     columns::Union{Vector{PagedColumn}, Nothing}=nothing,
     filterable::Bool=true,
     sortable::Bool=true,
+    default_order::String="",
 )
     # Introspect schema
     info = DBInterface.execute(db, "PRAGMA table_info(\"$table_name\")")
@@ -67,7 +70,7 @@ function SQLitePagedProvider(db::SQLite.DB, table_name::String;
     numeric_ops = [filter_eq, filter_neq, filter_gt, filter_gte, filter_lt, filter_lte]
     caps = FilterCapabilities(text_ops, numeric_ops)
 
-    SQLitePagedProvider(db, table_name, cols, db_col_names, caps)
+    SQLitePagedProvider(db, table_name, cols, db_col_names, caps, default_order)
 end
 
 Tachikoma.column_defs(p::SQLitePagedProvider) = p.columns
@@ -133,11 +136,13 @@ function Tachikoma.fetch_page(p::SQLitePagedProvider, req::PageRequest)
     total = first(DBInterface.execute(p.db,
         "SELECT COUNT(*) FROM \"$(p.table_name)\"$where_sql", count_params))[1]
 
-    # ORDER BY
+    # ORDER BY: user sort takes priority; fall back to default_order if set
     order_sql = ""
     if req.sort_col > 0 && req.sort_col <= length(p.db_col_names) && req.sort_dir != Tachikoma.sort_none
         dir = req.sort_dir == Tachikoma.sort_asc ? "ASC" : "DESC"
         order_sql = " ORDER BY \"$(p.db_col_names[req.sort_col])\" $dir"
+    elseif !isempty(p.default_order)
+        order_sql = " ORDER BY $(p.default_order)"
     end
 
     # LIMIT/OFFSET

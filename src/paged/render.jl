@@ -363,6 +363,27 @@ end
 
 # ── Detail view ───────────────────────────────────────────────────────
 
+function _pdt_word_wrap(text::String, width::Int)::Vector{String}
+    width < 1 && return [text]
+    lines = String[]
+    for raw_line in split(text, '\n')
+        words = split(raw_line, ' ')
+        current = ""
+        for word in words
+            if isempty(current)
+                current = word
+            elseif length(current) + 1 + length(word) <= width
+                current = current * " " * word
+            else
+                push!(lines, current)
+                current = word
+            end
+        end
+        push!(lines, current)
+    end
+    isempty(lines) ? [""] : lines
+end
+
 function _pdt_render_detail!(pdt::PagedDataTable, content_area::Rect, buf::Buffer)
     row_idx = pdt.detail_row
     (row_idx < 1 || row_idx > length(pdt.rows)) && return
@@ -372,80 +393,94 @@ function _pdt_render_detail!(pdt::PagedDataTable, content_area::Rect, buf::Buffe
     nf = length(fields)
     nf == 0 && return
 
-    label_w = maximum(length(first(p)) for p in fields) + 2
-    val_w = maximum(length(last(p)) for p in fields)
-    inner_w = label_w + val_w + 1
-    modal_w = min(content_area.width - 4, max(inner_w + 4, 30))
-    modal_h = min(content_area.height - 4, nf + 4)
-    modal_h < 4 && return
+    modal_w = min(content_area.width - 4, max(70, content_area.width * 3 ÷ 4))
+    label_w = min(16, maximum(length(first(p)) for p in fields) + 1)
+    val_w = modal_w - label_w - 4  # -4 for borders + padding
+
+    # Pre-wrap all values to compute total line count
+    wrapped = [_pdt_word_wrap(string(last(p)), val_w) for p in fields]
+    total_lines = sum(length(w) for w in wrapped)
+
+    max_h = content_area.height - 4
+    modal_h = min(max_h, total_lines + 4)  # +4 for top border, sep, help, bottom border
+    modal_h < 5 && return
 
     modal_pos = center(content_area, modal_w, modal_h)
     mx, my = modal_pos.x, modal_pos.y
+    inner_w = modal_w - 2
+    max_row = my + modal_h - 1
 
     border_style = tstyle(:accent)
-    title_style = tstyle(:title, bold=true)
-    label_style = tstyle(:text_dim)
-    value_style = tstyle(:text)
-    bg_style = tstyle(:text)
+    title_style  = tstyle(:title, bold=true)
+    label_style  = tstyle(:text_dim)
+    value_style  = tstyle(:text)
+    bg_col       = ColorRGB(0x12, 0x14, 0x1e)
+    bg_style     = Style(bg=bg_col)
 
-    for ry in my:my+modal_h-1
-        for rx in mx:mx+modal_w-1
-            set_char!(buf, rx, ry, ' ', bg_style)
-        end
+    # Flood fill background
+    blank = repeat(' ', modal_w)
+    for ry in my:max_row
+        set_string!(buf, mx, ry, blank, bg_style)
     end
 
-    # Top border
-    set_char!(buf, mx, my, '┃', border_style)
-    title = " Record Detail "
-    set_string!(buf, mx + 2, my, title, title_style; max_x=mx + modal_w - 2)
-    for rx in mx + 2 + length(title):mx + modal_w - 2
-        set_char!(buf, rx, my, ' ', bg_style)
-    end
-    set_char!(buf, mx + modal_w - 1, my, '┃', border_style)
+    # Top border  ┌─ Record Detail ─┐
+    set_char!(buf, mx, my, '┌', border_style)
+    title_str = " Record Detail "
+    title_pad = inner_w - length(title_str)
+    left_pad  = title_pad ÷ 2
+    right_pad = title_pad - left_pad
+    set_string!(buf, mx + 1, my,
+        repeat('─', left_pad) * title_str * repeat('─', right_pad),
+        border_style; max_x = mx + modal_w - 2)
+    set_char!(buf, mx + modal_w - 1, my, '┐', border_style)
 
-    # Title separator
+    # Separator  ├──────┤
     sep_y = my + 1
-    set_char!(buf, mx, sep_y, '┃', border_style)
+    set_char!(buf, mx, sep_y, '├', border_style)
     for rx in mx+1:mx+modal_w-2
         set_char!(buf, rx, sep_y, '─', border_style)
     end
-    set_char!(buf, mx + modal_w - 1, sep_y, '┃', border_style)
+    set_char!(buf, mx + modal_w - 1, sep_y, '┤', border_style)
 
-    # Field rows
-    vis_fields = modal_h - 4
-    pdt.detail_scroll = clamp(pdt.detail_scroll, 0, max(0, nf - vis_fields))
-    for fi in 1:vis_fields
-        field_idx = pdt.detail_scroll + fi
-        fy = my + 1 + fi
-        fy > my + modal_h - 3 && break
-
-        set_char!(buf, mx, fy, '┃', border_style)
-        if field_idx <= nf
-            label, val = fields[field_idx]
-            label_text = rpad(label * ":", label_w)
-            set_string!(buf, mx + 2, fy, label_text, label_style;
-                        max_x=mx + 2 + label_w - 1)
-            set_string!(buf, mx + 2 + label_w, fy, val, value_style;
-                        max_x=mx + modal_w - 2)
+    # Scrollable field rows
+    vis_rows = modal_h - 4  # rows between separator and bottom border
+    # Build flat list of (label_or_"", line_text) for scrolling
+    flat_lines = Tuple{String,String}[]
+    for (fi, (label, _)) in enumerate(fields)
+        for (li, wline) in enumerate(wrapped[fi])
+            push!(flat_lines, (li == 1 ? label : "", wline))
         end
-        set_char!(buf, mx + modal_w - 1, fy, '┃', border_style)
+    end
+    total_flat = length(flat_lines)
+    pdt.detail_scroll = clamp(pdt.detail_scroll, 0, max(0, total_flat - vis_rows))
+
+    for ri in 1:vis_rows
+        fy = sep_y + ri
+        fy >= max_row && break
+        set_char!(buf, mx, fy, '│', border_style)
+        set_char!(buf, mx + modal_w - 1, fy, '│', border_style)
+        flat_idx = pdt.detail_scroll + ri
+        flat_idx > total_flat && continue
+        lbl, val = flat_lines[flat_idx]
+        if !isempty(lbl)
+            lbl_text = rpad(lbl * ":", label_w)
+            set_string!(buf, mx + 2, fy, lbl_text, label_style;
+                        max_x = mx + 1 + label_w)
+        end
+        set_string!(buf, mx + 2 + label_w, fy, val, value_style;
+                    max_x = mx + modal_w - 2)
     end
 
-    # Bottom separator
-    bsep_y = my + modal_h - 2
-    set_char!(buf, mx, bsep_y, '┃', border_style)
-    for rx in mx+1:mx+modal_w-2
-        set_char!(buf, rx, bsep_y, '─', border_style)
-    end
-    set_char!(buf, mx + modal_w - 1, bsep_y, '┃', border_style)
-
-    # Help row
-    help_y = my + modal_h - 1
-    set_char!(buf, mx, help_y, '┃', border_style)
-    help_text = " [↑↓]scroll [Esc/d]close "
-    set_string!(buf, mx + 2, help_y, help_text, label_style;
-                max_x=mx + modal_w - 2)
-    set_char!(buf, mx + modal_w - 1, help_y, '┃', border_style)
+    # Bottom border  └──── [↑↓]scroll [Esc]close ────┘
+    bot_y = max_row
+    set_char!(buf, mx, bot_y, '└', border_style)
+    help_str = " [↑↓] scroll  [Esc] close "
+    hpad = inner_w - length(help_str)
+    lh = hpad ÷ 2; rh = hpad - lh
+    set_string!(buf, mx + 1, bot_y,
+        repeat('─', lh) * help_str * repeat('─', rh),
+        border_style; max_x = mx + modal_w - 2)
+    set_char!(buf, mx + modal_w - 1, bot_y, '┘', border_style)
 end
 
 # ── Filter modal ─────────────────────────────────────────────────────

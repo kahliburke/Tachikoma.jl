@@ -15,7 +15,6 @@ Pkg = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
 PrecompileTools = "aea7be01-6a6a-4083-8856-8a6e6704d82a"
 Preferences = "21216c6a-2e73-6563-6e65-726566657250"
 REPL = "3fa0cd96-eef1-5676-8a61-b3b8758bbffb"
-Supposition = "5a0628fe-1738-4658-9b6d-0b7605a9755b"
 
 [weakdeps]
 ColorTypes = "3da002f7-5984-5a60-b8a6-cbb66c0b333f"
