@@ -374,14 +374,6 @@ function encode_sixel(pixels::Matrix{ColorRGB};
     dirty = _ENC_DIRTY
     n_dirty = 0
 
-    # Reuse idx matrix — reallocate only on dimension change
-    enc_idx = _ENC_IDX[]
-    if size(enc_idx) != (h, w)
-        enc_idx = Matrix{UInt16}(undef, h, w)
-        _ENC_IDX[] = enc_idx
-    end
-    fill!(enc_idx, zero(UInt16))
-
     has_any = false
 
     # Adaptive color quantization: start at shift=2 (64 levels/channel,
@@ -412,35 +404,7 @@ function encode_sixel(pixels::Matrix{ColorRGB};
         end
     end
 
-    # Map every pixel to its palette index
-    @inbounds for i in eachindex(src)
-        px = src[i]
-        px == bg && continue
-        qpx = _quantize(px, shift)
-        key = _color_key(qpx, shift)
-        ci = lut[key]
-        if ci == 0
-            # Not a palette color — find nearest and cache
-            ci = _nearest_palette_color(qpx, palette)
-            lut[key] = ci
-            n_dirty += 1
-            if n_dirty <= length(dirty)
-                dirty[n_dirty] = key
-            end
-        end
-        enc_idx[i] = ci
-        has_any = true
-    end
-
-    # Clean up LUT dirty entries for next frame
-    if n_dirty <= length(dirty)
-        @inbounds for j in 1:n_dirty
-            lut[dirty[j]] = zero(UInt16)
-        end
-    else
-        fill!(lut, zero(UInt16))
-    end
-
+    has_any = n_palette > 0
     has_any || return UInt8[]
 
     # Reuse IOBuffer across frames — avoids allocation every call
@@ -545,11 +509,22 @@ function encode_sixel(pixels::Matrix{ColorRGB};
             for bit in 0:5
                 row_idx = y0 + bit + 1
                 row_idx > h && continue
-                ci = Int(enc_idx[row_idx, col])
-                ci == 0 && continue
+                px = src[row_idx, col]
+                px == bg && continue
+                qpx = _quantize(px, shift)
+                key = _color_key(qpx, shift)
+                ci = Int(lut[key])
+                if ci == 0
+                    ci = Int(_nearest_palette_color(qpx, palette))
+                    lut[key] = UInt16(ci)
+                    n_dirty += 1
+                    if n_dirty <= length(dirty)
+                        dirty[n_dirty] = key
+                    end
+                end
                 band_bits[ci, col] |= UInt8(1) << bit
                 n_band_dirty += 1
-                band_dirty[n_band_dirty] = (ci - 1) * w + col  # linear index for reset
+                band_dirty[n_band_dirty] = (ci - 1) * w + col
                 if !color_seen[ci]
                     color_seen[ci] = true
                     n_band_colors += 1
@@ -615,6 +590,15 @@ function encode_sixel(pixels::Matrix{ColorRGB};
 
     # ST (String Terminator)
     write(io, "\e\\")
+
+    # Clean up LUT dirty entries for next frame
+    if n_dirty <= length(dirty)
+        @inbounds for j in 1:n_dirty
+            lut[dirty[j]] = zero(UInt16)
+        end
+    else
+        fill!(lut, zero(UInt16))
+    end
 
     take!(io)
 end
