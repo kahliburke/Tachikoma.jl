@@ -74,7 +74,7 @@ export # Core types
        spawn_task!, spawn_timer!, drain_tasks!,
        cancel!, is_cancelled,
        # Rendering primitives
-       render, set_char!, set_string!, set_theme!,
+       render, set_char!, set_string!, set_style!, set_theme!,
        tstyle, theme, bottom, right, inner,
        pixel_size,
        cell_pixels, text_area_pixels, text_area_cells, sixel_scale, sixel_area_pixels,

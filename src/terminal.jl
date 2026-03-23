@@ -763,7 +763,37 @@ function _fb_flush!(fb::PixelFramebuffer, f::Frame, screen_area::Rect)
     r1 = screen_area.y + (y1 - 1) ÷ cph
     cell_area = Rect(c0, r0, c1 - c0 + 1, r1 - r0 + 1)
 
-    render_graphics!(f, data, cell_area; pixels=pixels, format=gfx_fmt_sixel)
+    # Only blank cells where the framebuffer has opaque content.
+    # This preserves window title/border text in cells where
+    # the framebuffer is transparent (never written to).
+    buf = f.buffer
+    for row in r0:r1
+        for col in c0:c1
+            in_bounds(buf, col, row) || continue
+            # Check if this cell has any opaque pixels in the framebuffer
+            px_x0 = (col - screen_area.x) * cpw + 1
+            px_y0 = (row - screen_area.y) * cph + 1
+            has_content = false
+            @inbounds for py in px_y0:min(px_y0 + cph - 1, fb.height)
+                for px in px_x0:min(px_x0 + cpw - 1, fb.width)
+                    di = ((py - 1) * fbw + (px - 1)) * 4
+                    if fb.rgba[di + 4] > 0x00
+                        has_content = true
+                        @goto cell_done
+                    end
+                end
+            end
+            @label cell_done
+            if has_content
+                @inbounds buf.content[buf_index(buf, col, row)] = _GFX_BLANK
+            end
+        end
+    end
+
+    push!(f.gfx_regions, GraphicsRegion(r0, c0, c1 - c0 + 1, r1 - r0 + 1, data, gfx_fmt_sixel))
+    if pixels !== nothing
+        push!(f.pixel_snapshots, (r0, c0, pixels))
+    end
 end
 
 # ── render_rgba! — public API ─────────────────────────────────────────
