@@ -20,7 +20,7 @@ GraphicsRegion(row, col, width, height, data) =
     GraphicsRegion(row, col, width, height, data, gfx_fmt_sixel)
 
 # Pixel snapshot for raster export: (row, col, pixel_matrix)
-const PixelSnapshot = Tuple{Int, Int, Matrix{ColorRGB}}
+const PixelSnapshot = Tuple{Int, Int, Matrix{ColorRGBA}}
 
 mutable struct CastRecorder
     active::Bool

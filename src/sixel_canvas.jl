@@ -10,14 +10,14 @@
 mutable struct PixelCanvas
     width::Int               # terminal columns
     height::Int              # terminal rows
-    pixels::Matrix{ColorRGB} # pixel_h × pixel_w (row-major)
+    pixels::Matrix{ColorRGBA} # pixel_h × pixel_w (row-major)
     pixel_w::Int             # total pixel width
     pixel_h::Int             # total pixel height
     dot_w::Int               # braille-compatible: width * 2
     dot_h::Int               # braille-compatible: height * 4
-    bg::ColorRGB             # current empty/background pixel color
+    bg::ColorRGBA             # current empty/background pixel color
     style::Style
-    color::ColorRGB
+    color::ColorRGBA
 end
 
 
@@ -61,9 +61,9 @@ function Base.show(io::IO, ::MIME"text/plain", c::PixelCanvas)
 end
 
 function _style_to_rgb(s::Style)
-    s.fg isa ColorRGB && return s.fg
-    s.fg isa Color256 && return to_rgb(s.fg)
-    ColorRGB(0xff, 0xff, 0xff)
+    s.fg isa ColorRGB && return ColorRGBA(s.fg)
+    s.fg isa Color256 && return ColorRGBA(to_rgb(s.fg))
+    ColorRGBA(0xff, 0xff, 0xff, 0xff)
 end
 
 function _sync_canvas_bg!(c::PixelCanvas)
@@ -93,24 +93,24 @@ function set_pixel!(c::PixelCanvas, px::Int, py::Int)
 end
 
 """
-    set_pixel!(c::PixelCanvas, px::Int, py::Int, color::ColorRGB)
+    set_pixel!(c::PixelCanvas, px::Int, py::Int, color::ColorRGBA)
 
 Set a single pixel with an explicit color.
 """
-function set_pixel!(c::PixelCanvas, px::Int, py::Int, color::ColorRGB)
+function set_pixel!(c::PixelCanvas, px::Int, py::Int, color::ColorRGBA)
     (px >= 1 && py >= 1 && px <= c.pixel_w && py <= c.pixel_h) || return
     c.pixels[py, px] = color
     nothing
 end
 
 """
-    fill_pixel_rect!(c::PixelCanvas, x0::Int, y0::Int, x1::Int, y1::Int, color::ColorRGB)
+    fill_pixel_rect!(c::PixelCanvas, x0::Int, y0::Int, x1::Int, y1::Int, color::ColorRGBA)
 
 Fill a rectangle of pixels with a single color. Coordinates are 1-based
 and clamped to canvas bounds. Use this instead of looping `set_pixel!`
 for block fills — avoids per-pixel bounds checking overhead.
 """
-function fill_pixel_rect!(c::PixelCanvas, x0::Int, y0::Int, x1::Int, y1::Int, color::ColorRGB)
+function fill_pixel_rect!(c::PixelCanvas, x0::Int, y0::Int, x1::Int, y1::Int, color::ColorRGBA)
     px0 = max(1, x0)
     py0 = max(1, y0)
     px1 = min(c.pixel_w, x1)
@@ -252,13 +252,20 @@ function render(c::PixelCanvas, rect::Rect, f::Frame;
                 tick::Int=0, decay::DecayParams=DecayParams())
     (rect.width < 1 || rect.height < 1) && return
     _sync_canvas_bg!(c)
+    # Convert RGBA to RGB for encoders (final render step)
+    rgb_pixels = Matrix{ColorRGB}(undef, size(c.pixels))
+    @inbounds for i in eachindex(c.pixels)
+        px = c.pixels[i]
+        rgb_pixels[i] = ColorRGB(px.r, px.g, px.b)
+    end
+    bg_rgb = ColorRGB(c.bg.r, c.bg.g, c.bg.b)
     gfx = GRAPHICS_PROTOCOL[]
     if gfx == gfx_kitty
-        data = encode_kitty(c.pixels; decay=decay, tick=tick, bg=c.bg,
+        data = encode_kitty(rgb_pixels; decay=decay, tick=tick, bg=bg_rgb,
                             cols=rect.width, rows=rect.height)
         fmt = gfx_fmt_kitty
     else
-        data = encode_sixel(c.pixels; decay=decay, tick=tick, bg=c.bg)
+        data = encode_sixel(rgb_pixels; decay=decay, tick=tick, bg=bg_rgb)
         fmt = gfx_fmt_sixel
     end
     isempty(data) || render_graphics!(f, data, rect; pixels=c.pixels, format=fmt)

@@ -554,7 +554,7 @@ reserving the character buffer area with blanks. When `pixels` is
 provided, the pixel matrix is stored for raster export (GIF/APNG).
 """
 function render_graphics!(f::Frame, data::Vector{UInt8}, area::Rect;
-                          pixels::Union{Matrix{ColorRGB}, Nothing}=nothing,
+                          pixels::Union{Matrix{ColorRGBA}, Matrix{ColorRGB}, Nothing}=nothing,
                           format::GraphicsFormat=gfx_fmt_sixel)
     # Blank cells directly (bypass set_char! which preserves old bg)
     buf = f.buffer
@@ -566,7 +566,12 @@ function render_graphics!(f::Frame, data::Vector{UInt8}, area::Rect;
     end
     push!(f.gfx_regions, GraphicsRegion(area.y, area.x, area.width, area.height, data, format))
     if pixels !== nothing
-        push!(f.pixel_snapshots, (area.y, area.x, pixels))
+        rgba_pixels = if pixels isa Matrix{ColorRGBA}
+            pixels
+        else
+            ColorRGBA.(pixels, 0xff)
+        end
+        push!(f.pixel_snapshots, (area.y, area.x, rgba_pixels))
     end
     nothing
 end
@@ -588,12 +593,9 @@ mutable struct PixelFramebuffer
     dirty_y0::Int
     dirty_x1::Int
     dirty_y1::Int
-    # Cached output buffer to avoid per-frame allocation
-    _flush_pixels::Matrix{ColorRGB}
 end
 
-const _PIXEL_FB = PixelFramebuffer(UInt8[], 0, 0, false, 0, 0, 0, 0,
-                                   Matrix{ColorRGB}(undef, 0, 0))
+const _PIXEL_FB = PixelFramebuffer(UInt8[], 0, 0, false, 0, 0, 0, 0)
 
 """Clear/resize framebuffer, filling with cell background colors from the buffer."""
 function _fb_init!(fb::PixelFramebuffer, buf::Buffer, area::Rect)
@@ -695,6 +697,7 @@ function _fb_blend!(fb::PixelFramebuffer, rgba::Vector{UInt8}, w::Int, h::Int,
     fb.dirty_y0 = min(fb.dirty_y0, y0)
     fb.dirty_x1 = max(fb.dirty_x1, x1)
     fb.dirty_y1 = max(fb.dirty_y1, y1)
+    # Record this window's cell rect for separate sixel emission
 end
 
 """Encode dirty framebuffer region as sixel and emit as graphics."""
@@ -705,7 +708,6 @@ function _fb_flush!(fb::PixelFramebuffer, f::Frame, screen_area::Rect)
     cpw = max(1, cp.w)
     cph = max(1, cp.h)
 
-    # Clamp dirty region
     x0 = max(1, fb.dirty_x0)
     y0 = max(1, fb.dirty_y0)
     x1 = min(fb.width, fb.dirty_x1)
@@ -715,85 +717,54 @@ function _fb_flush!(fb::PixelFramebuffer, f::Frame, screen_area::Rect)
     dw = x1 - x0 + 1
     dh = y1 - y0 + 1
     fbw = fb.width
-    fallback_bg = canvas_bg()
-
-    sentinel = ColorRGB(0x01, 0x00, 0x01)
-    if size(fb._flush_pixels) != (dh, dw)
-        fb._flush_pixels = Matrix{ColorRGB}(undef, dh, dw)
-    end
-    pixels = fb._flush_pixels
-    fallback_bg = canvas_bg()
+    # Extract dirty region as RGBA — alpha=0 pixels are transparent
+    # (sixel encoder skips them, terminal text shows through)
+    pixels = Matrix{ColorRGBA}(undef, dh, dw)
     @inbounds for dy in 1:dh
         for dx in 1:dw
             di = ((y0 + dy - 2) * fbw + (x0 + dx - 2)) * 4
-            a = fb.rgba[di + 4]
-            if a == 0xff
-                pixels[dy, dx] = ColorRGB(fb.rgba[di + 1], fb.rgba[di + 2], fb.rgba[di + 3])
-            elseif a == 0x00
-                pixels[dy, dx] = sentinel
-            else
-                # Semi-transparent: composite against cell bg now
-                r = fb.rgba[di + 1]
-                g = fb.rgba[di + 2]
-                b = fb.rgba[di + 3]
-                af = a / 255.0
-                inv_af = 1.0 - af
-                # Look up cell bg for this pixel position
-                px_x = x0 + dx - 1
-                px_y = y0 + dy - 1
-                cell_col = screen_area.x + (px_x - 1) ÷ cpw
-                cell_row = screen_area.y + (px_y - 1) ÷ cph
-                cell_bg = fallback_bg  # fast default
-                pixels[dy, dx] = ColorRGB(
-                    unsafe_trunc(UInt8, min(r * af + cell_bg.r * inv_af, 255.0)),
-                    unsafe_trunc(UInt8, min(g * af + cell_bg.g * inv_af, 255.0)),
-                    unsafe_trunc(UInt8, min(b * af + cell_bg.b * inv_af, 255.0)),
-                )
-            end
+            pixels[dy, dx] = ColorRGBA(
+                fb.rgba[di + 1], fb.rgba[di + 2],
+                fb.rgba[di + 3], fb.rgba[di + 4])
         end
     end
 
-    data = encode_sixel(pixels; bg=sentinel)
+    data = encode_sixel(pixels)
     isempty(data) && return
 
-    # Map pixel dirty region back to cell coords
     c0 = screen_area.x + (x0 - 1) ÷ cpw
     r0 = screen_area.y + (y0 - 1) ÷ cph
     c1 = screen_area.x + (x1 - 1) ÷ cpw
     r1 = screen_area.y + (y1 - 1) ÷ cph
     cell_area = Rect(c0, r0, c1 - c0 + 1, r1 - r0 + 1)
 
-    # Only blank cells where the framebuffer has opaque content.
-    # This preserves window title/border text in cells where
-    # the framebuffer is transparent (never written to).
+    # Only blank cells where framebuffer has opaque content.
+    # Title/border cells stay intact — sixel skips transparent pixels
+    # so the text shows through. Filter is skipped for framebuffer output.
     buf = f.buffer
-    for row in r0:r1
+    @inbounds for row in r0:r1
         for col in c0:c1
             in_bounds(buf, col, row) || continue
-            # Check if this cell has any opaque pixels in the framebuffer
-            px_x0 = (col - screen_area.x) * cpw + 1
-            px_y0 = (row - screen_area.y) * cph + 1
+            # Check if ANY pixel in this cell has content
+            cpx0 = (col - screen_area.x) * cpw + 1
+            cpy0 = (row - screen_area.y) * cph + 1
             has_content = false
-            @inbounds for py in px_y0:min(px_y0 + cph - 1, fb.height)
-                for px in px_x0:min(px_x0 + cpw - 1, fb.width)
+            for py in cpy0:min(cpy0 + cph - 1, fb.height)
+                for px in cpx0:min(cpx0 + cpw - 1, fb.width)
                     di = ((py - 1) * fbw + (px - 1)) * 4
-                    if fb.rgba[di + 4] > 0x00
+                    if fb.rgba[di + 1] != 0x00 || fb.rgba[di + 2] != 0x00 ||
+                       fb.rgba[di + 3] != 0x00 || fb.rgba[di + 4] != 0x00
                         has_content = true
-                        @goto cell_done
+                        @goto found
                     end
                 end
             end
-            @label cell_done
-            if has_content
-                @inbounds buf.content[buf_index(buf, col, row)] = _GFX_BLANK
-            end
+            @label found
+            has_content && (buf.content[buf_index(buf, col, row)] = _GFX_BLANK)
         end
     end
-
     push!(f.gfx_regions, GraphicsRegion(r0, c0, c1 - c0 + 1, r1 - r0 + 1, data, gfx_fmt_sixel))
-    if pixels !== nothing
-        push!(f.pixel_snapshots, (r0, c0, pixels))
-    end
+    push!(f.pixel_snapshots, (r0, c0, pixels))
 end
 
 # ── render_rgba! — public API ─────────────────────────────────────────
@@ -801,7 +772,7 @@ end
 """
     render_rgba!(f::Frame, rgba::Vector{UInt8}, w::Int, h::Int, area::Rect;
                  cols::Int=area.width, rows::Int=area.height, z::Int=-1,
-                 scale_to_cells::Bool=true, bg::ColorRGB=canvas_bg())
+                 scale_to_cells::Bool=true, bg::ColorRGB=canvas_bg_rgb())
 
 Render RGBA pixel data into a Frame. On kitty, uses native RGBA with z-index
 for layered compositing. On sixel, blends into a virtual framebuffer that
@@ -812,7 +783,7 @@ gets composited and encoded at frame end.
 function render_rgba!(f::Frame, rgba::Vector{UInt8}, w::Int, h::Int, area::Rect;
                       cols::Int=area.width, rows::Int=area.height, z::Int=-1,
                       scale_to_cells::Bool=true,
-                      bg::ColorRGB=canvas_bg())
+                      bg::ColorRGB=canvas_bg_rgb())
     gfx = GRAPHICS_PROTOCOL[]
     gfx == gfx_none && return
 
@@ -866,10 +837,10 @@ function draw!(func::Function, t::Terminal)
     # render_graphics! blanks cells to (' ', RESET); if any cell differs, something
     # rendered over the graphics area (e.g. a modal) and we must not emit the sixel.
     buf = current_buf(t)
-    # For kitty, skip the visibility filter — kitty handles z-order natively
-    # and images should render even when windows overlap.
-    # For sixel, keep the filter since overlapping sixels cause artifacts.
-    visible_regions = if t.graphics_protocol == gfx_kitty
+    # Skip the visibility filter when using the framebuffer compositor
+    # (kitty handles z-order natively, sixel framebuffer handles compositing).
+    # Only use the filter for non-framebuffer sixel rendering (e.g. PixelImage).
+    visible_regions = if t.graphics_protocol == gfx_kitty || _PIXEL_FB.dirty
         f.gfx_regions
     else
         _filter_visible_gfx(f.gfx_regions, buf)

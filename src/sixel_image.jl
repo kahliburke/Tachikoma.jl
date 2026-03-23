@@ -8,15 +8,15 @@
 # ═══════════════════════════════════════════════════════════════════════
 
 mutable struct PixelImage
-    pixels::Matrix{ColorRGB}        # pixel_h × pixel_w (row-major)
+    pixels::Matrix{ColorRGBA}        # pixel_h × pixel_w (row-major)
     pixel_w::Int
     pixel_h::Int
     cells_w::Int                    # cell dims this buffer was sized for
     cells_h::Int
     block::Union{Block, Nothing}
-    bg::ColorRGB                    # current empty/background pixel color
+    bg::ColorRGBA                    # current empty/background pixel color
     style::Style                    # braille fallback style
-    color::ColorRGB                 # current drawing color
+    color::ColorRGBA                 # current drawing color
     decay::DecayParams              # per-widget decay (default: off)
 end
 
@@ -69,7 +69,7 @@ function PixelImage(cells_w::Int, cells_h::Int;
                     block::Union{Block, Nothing}=nothing,
                     style::Style=tstyle(:primary),
                     decay::DecayParams=DecayParams(),
-                    bg::ColorRGB=canvas_bg())
+                    bg::ColorRGBA=canvas_bg())
     pw, ph = _pixelimage_pixel_dims(cells_w, cells_h)
     color = _style_to_rgb(style)
     PixelImage(fill(bg, ph, pw), pw, ph, cells_w, cells_h,
@@ -94,7 +94,7 @@ end
 
 Set a single pixel at 1-based coordinates. Bounds-checked.
 """
-function set_pixel!(img::PixelImage, px::Int, py::Int, color::ColorRGB)
+function set_pixel!(img::PixelImage, px::Int, py::Int, color::ColorRGBA)
     (px >= 1 && py >= 1 && px <= img.pixel_w && py <= img.pixel_h) || return
     img.pixels[py, px] = color
     nothing
@@ -116,7 +116,7 @@ end
 
 Fill a rectangle of pixels. Coordinates are 1-based and clamped.
 """
-function fill_rect!(img::PixelImage, x0::Int, y0::Int, x1::Int, y1::Int, color::ColorRGB)
+function fill_rect!(img::PixelImage, x0::Int, y0::Int, x1::Int, y1::Int, color::ColorRGBA)
     px0 = max(1, x0)
     py0 = max(1, y0)
     px1 = min(img.pixel_w, x1)
@@ -137,7 +137,7 @@ end
 
 Bresenham line drawing at pixel resolution (1-based).
 """
-function pixel_line!(img::PixelImage, x0::Int, y0::Int, x1::Int, y1::Int, color::ColorRGB)
+function pixel_line!(img::PixelImage, x0::Int, y0::Int, x1::Int, y1::Int, color::ColorRGBA)
     dx = abs(x1 - x0)
     dy = abs(y1 - y0)
     sx = x0 < x1 ? 1 : -1
@@ -178,12 +178,12 @@ function clear!(img::PixelImage)
 end
 
 """
-    load_pixels!(img::PixelImage, src::Matrix{ColorRGB})
+    load_pixels!(img::PixelImage, src::Matrix{ColorRGBA})
 
 Nearest-neighbor scale source matrix to fill widget pixel buffer.
 Source is indexed [row, col].
 """
-function load_pixels!(img::PixelImage, src::Matrix{ColorRGB})
+function load_pixels!(img::PixelImage, src::Matrix{ColorRGBA})
     sh, sw = size(src)
     (sh == 0 || sw == 0) && return
     ph, pw = img.pixel_h, img.pixel_w
@@ -234,12 +234,19 @@ function render(si::PixelImage, rect::Rect, f::Frame; tick::Int=0)
         render(si, content, buf)
         return
     end
+    # Convert RGBA to RGB for encoders (final render step)
+    rgb_pixels = Matrix{ColorRGB}(undef, size(si.pixels))
+    @inbounds for i in eachindex(si.pixels)
+        px = si.pixels[i]
+        rgb_pixels[i] = ColorRGB(px.r, px.g, px.b)
+    end
+    bg_rgb = ColorRGB(si.bg.r, si.bg.g, si.bg.b)
     if gfx == gfx_kitty
-        data = encode_kitty(si.pixels; decay=si.decay, tick=tick, bg=si.bg,
+        data = encode_kitty(rgb_pixels; decay=si.decay, tick=tick, bg=bg_rgb,
                             cols=content.width, rows=content.height)
         fmt = gfx_fmt_kitty
     else
-        data = encode_sixel(si.pixels; decay=si.decay, tick=tick, bg=si.bg)
+        data = encode_sixel(rgb_pixels; decay=si.decay, tick=tick, bg=bg_rgb)
         fmt = gfx_fmt_sixel
     end
     isempty(data) || render_graphics!(f, data, content; pixels=si.pixels, format=fmt)

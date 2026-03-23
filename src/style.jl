@@ -78,11 +78,20 @@ abstract type AbstractColor end
 struct NoColor  <: AbstractColor end
 struct Color256 <: AbstractColor; code::UInt8; end
 struct ColorRGB <: AbstractColor; r::UInt8; g::UInt8; b::UInt8; end
+struct ColorRGBA; r::UInt8; g::UInt8; b::UInt8; a::UInt8; end
+
+ColorRGBA(r::UInt8, g::UInt8, b::UInt8) = ColorRGBA(r, g, b, 0xff)
+ColorRGBA(r::Integer, g::Integer, b::Integer) = ColorRGBA(UInt8(r), UInt8(g), UInt8(b), 0xff)
+ColorRGBA(r::Integer, g::Integer, b::Integer, a::Integer) = ColorRGBA(UInt8(r), UInt8(g), UInt8(b), UInt8(a))
+ColorRGBA(c::ColorRGB, a::UInt8=0xff) = ColorRGBA(c.r, c.g, c.b, a)
+ColorRGB(c::ColorRGBA) = ColorRGB(c.r, c.g, c.b)
 
 Color256(n::Int) = Color256(UInt8(n))
 
 Base.:(==)(::NoColor, ::NoColor) = true
 Base.:(==)(a::Color256, b::Color256) = a.code == b.code
+Base.:(==)(a::ColorRGBA, b::ColorRGBA) = (
+    a.r == b.r && a.g == b.g && a.b == b.b && a.a == b.a)
 Base.:(==)(a::ColorRGB, b::ColorRGB) = (
     a.r == b.r && a.g == b.g && a.b == b.b
 )
@@ -698,7 +707,8 @@ function set_theme!(name::Symbol)
 end
 
 """Background color for pixel canvases — black in dark mode, white in light mode."""
-canvas_bg() = LIGHT_MODE[] ? ColorRGB(0xff, 0xff, 0xff) : BLACK
+canvas_bg() = LIGHT_MODE[] ? ColorRGBA(0xff, 0xff, 0xff, 0xff) : ColorRGBA(0x00, 0x00, 0x00, 0xff)
+canvas_bg_rgb() = LIGHT_MODE[] ? ColorRGB(0xff, 0xff, 0xff) : BLACK
 
 # ── Persistence via Preferences.jl ────────────────────────────────────
 

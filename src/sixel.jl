@@ -6,7 +6,8 @@
 # Uses noise(), fbm(), hue_shift(), color_lerp() from animation.jl.
 # ═══════════════════════════════════════════════════════════════════════
 
-const BLACK = ColorRGB(0x00, 0x00, 0x00)
+const BLACK = ColorRGBA(0x00, 0x00, 0x00, 0xff)
+const TRANSPARENT = ColorRGBA(0x00, 0x00, 0x00, 0x00)
 const _SIXEL_IO = IOBuffer(sizehint=256_000)
 
 # ── Color quantization & fast palette lookup ─────────────────────────
@@ -346,7 +347,7 @@ Performance: reuses module-level buffers across frames to minimize allocations.
 """
 function encode_sixel(pixels::Matrix{ColorRGB};
                       decay::DecayParams=DecayParams(), tick::Int=0,
-                      bg::ColorRGB=canvas_bg())
+                      bg::ColorRGB=canvas_bg_rgb())
     h, w = size(pixels)
     (h == 0 || w == 0) && return UInt8[]
 
@@ -601,4 +602,40 @@ function encode_sixel(pixels::Matrix{ColorRGB};
     end
 
     take!(io)
+end
+
+"""
+    encode_sixel(pixels::Matrix{ColorRGBA}) → Vector{UInt8}
+
+Encode RGBA pixels as sixel. `(0,0,0,0)` pixels are skipped (transparent).
+Semi-transparent pixels are premultiplied against canvas background.
+"""
+function encode_sixel(pixels::Matrix{ColorRGBA};
+                      decay::DecayParams=DecayParams(), tick::Int=0)
+    h, w = size(pixels)
+    (h == 0 || w == 0) && return UInt8[]
+
+    # Convert RGBA → RGB for the sixel encoder.
+    # TRANSPARENT (0,0,0,0) → sentinel (skipped by encoder)
+    # Semi-transparent → premultiplied against canvas bg
+    _sentinel = ColorRGB(0x01, 0x00, 0x01)
+    cbg = canvas_bg_rgb()
+    rgb = Matrix{ColorRGB}(undef, h, w)
+    @inbounds for i in eachindex(pixels)
+        px = pixels[i]
+        if px.r == 0x00 && px.g == 0x00 && px.b == 0x00 && px.a == 0x00
+            rgb[i] = _sentinel
+        elseif px.a == 0xff
+            rgb[i] = ColorRGB(px.r, px.g, px.b)
+        else
+            af = px.a / 255.0
+            inv_af = 1.0 - af
+            rgb[i] = ColorRGB(
+                unsafe_trunc(UInt8, min(px.r * af + cbg.r * inv_af, 255.0)),
+                unsafe_trunc(UInt8, min(px.g * af + cbg.g * inv_af, 255.0)),
+                unsafe_trunc(UInt8, min(px.b * af + cbg.b * inv_af, 255.0)),
+            )
+        end
+    end
+    encode_sixel(rgb; decay=decay, tick=tick, bg=_sentinel)
 end

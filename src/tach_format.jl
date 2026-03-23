@@ -154,10 +154,10 @@ function write_tach(filename::String, width::Int, height::Int,
                 write(zstream, htol(UInt16(col)))
                 write(zstream, htol(UInt16(pxh)))
                 write(zstream, htol(UInt16(pxw)))
-                # Write RGB pixels row-major
+                # Write RGBA pixels row-major
                 for r in 1:pxh, c in 1:pxw
                     color = px[r, c]
-                    write(zstream, color.r, color.g, color.b)
+                    write(zstream, color.r, color.g, color.b, color.a)
                 end
             end
         end
@@ -209,12 +209,13 @@ function load_tach(filename::String)
                 col = Int(ltoh(read(zstream, UInt16)))
                 pxh = Int(ltoh(read(zstream, UInt16)))
                 pxw = Int(ltoh(read(zstream, UInt16)))
-                px = Matrix{ColorRGB}(undef, pxh, pxw)
+                px = Matrix{ColorRGBA}(undef, pxh, pxw)
                 for r in 1:pxh, c in 1:pxw
                     pr = read(zstream, UInt8)
                     pg = read(zstream, UInt8)
                     pb = read(zstream, UInt8)
-                    px[r, c] = ColorRGB(pr, pg, pb)
+                    pa = read(zstream, UInt8)
+                    px[r, c] = ColorRGBA(pr, pg, pb, pa)
                 end
                 sixels[s] = (row, col, px)
             end

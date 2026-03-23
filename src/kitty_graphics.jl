@@ -216,7 +216,7 @@ Returns `UInt8[]` for all-background images (matches `encode_sixel` behavior).
 function encode_kitty(pixels::Matrix{ColorRGB};
                       decay::DecayParams=DecayParams(), tick::Int=0,
                       cols::Int=0, rows::Int=0,
-                      bg::ColorRGB=canvas_bg())
+                      bg::ColorRGB=canvas_bg_rgb())
     h, w = size(pixels)
     (h == 0 || w == 0) && return UInt8[]
 

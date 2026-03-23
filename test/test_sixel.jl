@@ -5,7 +5,7 @@
     @testset "Sixel encoder: red pixels" begin
         orig_mode = T.light_mode()
         T.set_light_mode!(false)
-        red = T.ColorRGB(0xff, 0x00, 0x00)
+        red = T.ColorRGBA(0xff, 0x00, 0x00)
         pixels = fill(red, 6, 4)  # 6 rows, 4 cols
         data = T.encode_sixel(pixels)
         str = String(copy(data))
@@ -20,19 +20,19 @@
     end
 
     @testset "Sixel encoder: empty input" begin
-        pixels = Matrix{T.ColorRGB}(undef, 0, 0)
+        pixels = Matrix{T.ColorRGBA}(undef, 0, 0)
         @test isempty(T.encode_sixel(pixels))
     end
 
     @testset "Sixel encoder: all black (no palette)" begin
-        black = T.ColorRGB(0x00, 0x00, 0x00)
+        black = T.ColorRGBA(0x00, 0x00, 0x00)
         pixels = fill(black, 6, 4)
         @test isempty(T.encode_sixel(pixels; bg=black))
     end
 
     @testset "Sixel encoder: multi-color palette" begin
-        red = T.ColorRGB(0xff, 0x00, 0x00)
-        green = T.ColorRGB(0x00, 0xff, 0x00)
+        red = T.ColorRGBA(0xff, 0x00, 0x00)
+        green = T.ColorRGBA(0x00, 0xff, 0x00)
         pixels = fill(red, 6, 4)
         pixels[1:3, :] .= Ref(green)
         data = T.encode_sixel(pixels)
@@ -51,7 +51,7 @@
     # ═════════════════════════════════════════════════════════════════
 
     @testset "Decay: zero decay is no-op" begin
-        red = T.ColorRGB(0xff, 0x00, 0x00)
+        red = T.ColorRGBA(0xff, 0x00, 0x00)
         pixels = fill(red, 4, 4)
         original = copy(pixels)
         T.apply_decay!(pixels, T.DecayParams(), 0)
@@ -59,17 +59,17 @@
     end
 
     @testset "Decay: jitter mutates pixels" begin
-        red = T.ColorRGB(0xff, 0x00, 0x00)
+        red = T.ColorRGBA(0xff, 0x00, 0x00)
         pixels = fill(red, 10, 10)
         params = T.DecayParams(1.0, 1.0, 0.0, 0.0)
         T.apply_decay!(pixels, params, 42)
         # At least some pixels should have changed
-        changed = count(px -> px != red && px != T.ColorRGB(0,0,0), pixels)
+        changed = count(px -> px != red && px != T.ColorRGBA(0,0,0), pixels)
         @test changed > 0
     end
 
     @testset "Decay: rot corrupts pixels" begin
-        red = T.ColorRGB(0xff, 0x00, 0x00)
+        red = T.ColorRGBA(0xff, 0x00, 0x00)
         pixels = fill(red, 10, 10)
         params = T.DecayParams(1.0, 0.0, 1.0, 0.0)
         T.apply_decay!(pixels, params, 42)
@@ -103,22 +103,22 @@
         T.set_light_mode!(false)
         sc = T.PixelCanvas(5, 3)
         # All black initially
-        @test all(px == T.ColorRGB(0,0,0) for px in sc.pixels)
+        @test all(px == T.ColorRGBA(0,0,0) for px in sc.pixels)
 
         # Set a point
         T.set_point!(sc, 0, 0)
-        @test any(px != T.ColorRGB(0,0,0) for px in sc.pixels)
+        @test any(px != T.ColorRGBA(0,0,0) for px in sc.pixels)
 
         # Unset it
         T.unset_point!(sc, 0, 0)
-        @test all(px == T.ColorRGB(0,0,0) for px in sc.pixels)
+        @test all(px == T.ColorRGBA(0,0,0) for px in sc.pixels)
         T.set_light_mode!(orig_mode)
     end
 
     @testset "PixelCanvas line!" begin
         sc = T.PixelCanvas(5, 3)
         T.line!(sc, 0, 0, 9, 11)
-        @test any(px != T.ColorRGB(0,0,0) for px in sc.pixels)
+        @test any(px != T.ColorRGBA(0,0,0) for px in sc.pixels)
     end
 
     @testset "PixelCanvas clear!" begin
@@ -127,7 +127,7 @@
         sc = T.PixelCanvas(5, 3)
         T.set_point!(sc, 0, 0)
         T.clear!(sc)
-        @test all(px == T.ColorRGB(0,0,0) for px in sc.pixels)
+        @test all(px == T.ColorRGBA(0,0,0) for px in sc.pixels)
         T.set_light_mode!(orig_mode)
     end
 
@@ -196,16 +196,16 @@
 
     @testset "PixelImage set_pixel!" begin
         img = T.PixelImage(5, 3)
-        T.set_pixel!(img, 1, 1, T.ColorRGB(0xff, 0x00, 0x00))
-        @test img.pixels[1, 1] == T.ColorRGB(0xff, 0x00, 0x00)
+        T.set_pixel!(img, 1, 1, T.ColorRGBA(0xff, 0x00, 0x00))
+        @test img.pixels[1, 1] == T.ColorRGBA(0xff, 0x00, 0x00)
         # Out of bounds is silently ignored
-        T.set_pixel!(img, 0, 0, T.ColorRGB(0xff, 0x00, 0x00))
-        T.set_pixel!(img, img.pixel_w + 1, 1, T.ColorRGB(0xff, 0x00, 0x00))
+        T.set_pixel!(img, 0, 0, T.ColorRGBA(0xff, 0x00, 0x00))
+        T.set_pixel!(img, img.pixel_w + 1, 1, T.ColorRGBA(0xff, 0x00, 0x00))
     end
 
     @testset "PixelImage fill_rect!" begin
         img = T.PixelImage(5, 3)
-        color = T.ColorRGB(0x00, 0xff, 0x00)
+        color = T.ColorRGBA(0x00, 0xff, 0x00)
         T.fill_rect!(img, 1, 1, 3, 3, color)
         @test img.pixels[1, 1] == color
         @test img.pixels[2, 2] == color
@@ -213,7 +213,7 @@
 
     @testset "PixelImage pixel_line!" begin
         img = T.PixelImage(5, 3)
-        color = T.ColorRGB(0x00, 0x00, 0xff)
+        color = T.ColorRGBA(0x00, 0x00, 0xff)
         T.pixel_line!(img, 1, 1, min(img.pixel_w, 10), min(img.pixel_h, 5), color)
         @test img.pixels[1, 1] == color
     end
@@ -222,7 +222,7 @@
         orig_mode = T.light_mode()
         T.set_light_mode!(false)
         img = T.PixelImage(5, 3)
-        T.set_pixel!(img, 1, 1, T.ColorRGB(0xff, 0xff, 0xff))
+        T.set_pixel!(img, 1, 1, T.ColorRGBA(0xff, 0xff, 0xff))
         T.clear!(img)
         @test img.pixels[1, 1] == T.BLACK
         T.set_light_mode!(orig_mode)
@@ -245,7 +245,7 @@
 
     @testset "PixelImage render to Frame" begin
         img = T.PixelImage(5, 3)
-        T.set_pixel!(img, 1, 1, T.ColorRGB(0xff, 0x00, 0x00))
+        T.set_pixel!(img, 1, 1, T.ColorRGBA(0xff, 0x00, 0x00))
         buf = T.Buffer(T.Rect(1, 1, 10, 5))
         frame = T.Frame(buf, T.Rect(1, 1, 10, 5), T.GraphicsRegion[], T.PixelSnapshot[])
         T.render(img, T.Rect(1, 1, 5, 3), frame; tick=0)
@@ -255,7 +255,7 @@
 
     @testset "PixelImage render to Buffer (braille fallback)" begin
         img = T.PixelImage(5, 3)
-        T.set_pixel!(img, 1, 1, T.ColorRGB(0xff, 0x00, 0x00))
+        T.set_pixel!(img, 1, 1, T.ColorRGBA(0xff, 0x00, 0x00))
         buf = T.Buffer(T.Rect(1, 1, 10, 5))
         T.render(img, T.Rect(1, 1, 5, 3), buf)
         # Should have set some braille characters
@@ -284,9 +284,9 @@
 
     @testset "PixelImage load_pixels!" begin
         img = T.PixelImage(5, 3)
-        src = fill(T.ColorRGB(0xff, 0x00, 0x00), 4, 4)
+        src = fill(T.ColorRGBA(0xff, 0x00, 0x00), 4, 4)
         T.load_pixels!(img, src)
-        @test img.pixels[1, 1] == T.ColorRGB(0xff, 0x00, 0x00)
+        @test img.pixels[1, 1] == T.ColorRGBA(0xff, 0x00, 0x00)
     end
 
     # ═════════════════════════════════════════════════════════════════
@@ -402,7 +402,7 @@
     end
 
     @testset "Background color adjustment" begin
-        c = T.ColorRGB(0xff, 0x80, 0x00)
+        c = T.ColorRGBA(0xff, 0x80, 0x00)
 
         # Brightness 0.5, full saturation → colors dimmed
         adj = T._apply_bg_adjustments(c, 0.5, 1.0)
@@ -458,7 +458,7 @@
     end
 
     @testset "desaturate" begin
-        c = T.ColorRGB(0xff, 0x00, 0x00)  # pure red
+        c = T.ColorRGBA(0xff, 0x00, 0x00)  # pure red
         gray = T.desaturate(c, 1.0)  # full desaturation
         # Luminance of pure red: 0.299*255 ≈ 76
         @test abs(Int(gray.r) - Int(gray.g)) <= 1

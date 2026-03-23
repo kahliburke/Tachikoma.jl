@@ -85,14 +85,14 @@ export # Core types
        GRUVBOX, FROST, MEADOW, DUNE, LAVENDER, HORIZON,
        OVERCAST, DUSK,
        DARK_THEMES, LIGHT_THEMES, ALL_THEMES, THEME, RESET,
-       light_mode, set_light_mode!, active_themes, canvas_bg,
+       light_mode, set_light_mode!, active_themes, canvas_bg, canvas_bg_rgb,
        # Visual constants
        DOT, BARS_V, BARS_H, BLOCKS, SCANLINE, MARKER,
        SPINNER_BRAILLE, SPINNER_DOTS,
        # Geometry helpers
        margin, shrink, center, anchor,
        # Colors
-       ColorRGB, to_rgb, color_lerp, color_wave,
+       ColorRGB, ColorRGBA, BLACK, TRANSPARENT, to_rgb, color_lerp, color_wave,
        brighten, dim_color, hue_shift,
        # Tailwind palettes
        TailwindPalette, hex_to_color256,
