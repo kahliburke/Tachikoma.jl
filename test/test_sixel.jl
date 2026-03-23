@@ -9,8 +9,8 @@
         pixels = fill(red, 6, 4)  # 6 rows, 4 cols
         data = T.encode_sixel(pixels)
         str = String(copy(data))
-        # DCS framing (P2=0 explicit background)
-        @test startswith(str, "\eP0;0q")
+        # DCS framing (P2=1 transparent background)
+        @test startswith(str, "\eP0;1q")
         @test endswith(str, "\e\\")
         # Should contain color 0 (black filler) and color 1 (red data)
         @test occursin("#0;2;0;0;0", str)
@@ -26,8 +26,12 @@
 
     @testset "Sixel encoder: all black (no palette)" begin
         black = T.ColorRGBA(0x00, 0x00, 0x00)
+        # All-transparent → empty output
+        trans = fill(T.TRANSPARENT, 6, 4)
+        @test isempty(T.encode_sixel(trans))
+        # All-black opaque → has output (black is not transparent)
         pixels = fill(black, 6, 4)
-        @test isempty(T.encode_sixel(pixels; bg=black))
+        @test !isempty(T.encode_sixel(pixels))
     end
 
     @testset "Sixel encoder: multi-color palette" begin
@@ -543,4 +547,90 @@
         @test T.BG_CONFIG[].speed == 0.0
 
         T.BG_CONFIG[] = orig
+    end
+
+    # ═════════════════════════════════════════════════════════════════
+    # Sixel framebuffer text mask — rects must not overlap text
+    # ═════════════════════════════════════════════════════════════════
+
+    @testset "fb_flush sixel rects avoid text cells" begin
+        sw, sh = 40, 20
+        screen_area = T.Rect(1, 1, sw, sh)
+        cpw, cph = T.CELL_PX[].w, T.CELL_PX[].h
+        pw, ph = sw * cpw, sh * cph
+
+        # Create framebuffer filled with opaque red pixels everywhere
+        # render_rects covers the full screen (simulates render_rgba! targeting all cells)
+        fb = T.PixelFramebuffer(
+            Vector{UInt8}(undef, pw * ph * 4),
+            pw, ph, true, 1, 1, pw, ph, [screen_area])
+        for i in 0:(pw * ph - 1)
+            fb.rgba[i * 4 + 1] = 0xff  # R
+            fb.rgba[i * 4 + 2] = 0x00  # G
+            fb.rgba[i * 4 + 3] = 0x00  # B
+            fb.rgba[i * 4 + 4] = 0xff  # A (opaque)
+        end
+
+        # Place text at deterministic pseudo-random cells using LCG
+        buf = T.Buffer(screen_area)
+        text_cells = Set{Tuple{Int,Int}}()
+        seed = 12345
+        for _ in 1:30
+            seed = mod(seed * 1103515245 + 12345, 2^31)
+            col = mod(seed, sw) + 1
+            seed = mod(seed * 1103515245 + 12345, 2^31)
+            row = mod(seed, sh) + 1
+            ch = Char(mod(seed, 26) + Int('A'))
+            T.set_string!(buf, col, row, string(ch),
+                          T.Style(fg=T.Color256(196)))
+            push!(text_cells, (row, col))
+        end
+
+        # Also place a longer string to create a horizontal run of text
+        label = "HELLO.TEXT!"
+        T.set_string!(buf, 5, 10, label,
+                      T.Style(fg=T.Color256(46)))
+        for (i, ch) in enumerate(label)
+            c = 4 + i
+            c <= sw && ch != ' ' && push!(text_cells, (10, c))
+        end
+
+        frame = T.Frame(buf, screen_area, T.GraphicsRegion[], T.PixelSnapshot[])
+        T._fb_flush!(fb, frame, screen_area)
+
+        # Every emitted sixel rect must NOT overlap any text cell
+        for gr in frame.gfx_regions
+            for r in gr.row:(gr.row + gr.height - 1)
+                for c in gr.col:(gr.col + gr.width - 1)
+                    row_idx = r - screen_area.y + 1
+                    col_idx = c - screen_area.x + 1
+                    @test !((row_idx, col_idx) in text_cells)
+                end
+            end
+        end
+
+        # Verify we actually emitted some sixel regions
+        @test length(frame.gfx_regions) > 0
+
+        # Verify non-text cells with pixel content ARE covered.
+        # Gap-closing protects single spaces between text cells, so those
+        # won't be covered by sixel either — exclude them from the check.
+        covered = Set{Tuple{Int,Int}}()
+        for gr in frame.gfx_regions
+            for r in gr.row:(gr.row + gr.height - 1)
+                for c in gr.col:(gr.col + gr.width - 1)
+                    push!(covered, (r - screen_area.y + 1, c - screen_area.x + 1))
+                end
+            end
+        end
+        for row in 1:sh, col in 1:sw
+            in_text = (row, col) in text_cells
+            in_covered = (row, col) in covered
+            in_text && continue
+            in_covered && continue
+            # Only acceptable if it's a gap-closed space (between two text cells)
+            left_text = col > 1 && (row, col-1) in text_cells
+            right_text = col < sw && (row, col+1) in text_cells
+            @test left_text && right_text
+        end
     end

@@ -21,8 +21,9 @@
         end
 
         @testset "encode_kitty all-black → empty" begin
-            pixels = fill(T.BLACK, 4, 4)
-            data = T.encode_kitty(pixels; bg=T.BLACK)
+            black = T.ColorRGB(0x00, 0x00, 0x00)
+            pixels = fill(black, 4, 4)
+            data = T.encode_kitty(pixels; bg=black)
             @test isempty(data)
         end
 

@@ -524,6 +524,11 @@ function hue_shift(c::ColorRGB, degrees::Float64)
     ColorRGB(round(UInt8, r2 * 255), round(UInt8, g2 * 255), round(UInt8, b2 * 255))
 end
 
+function hue_shift(c::ColorRGBA, degrees::Float64)
+    rgb = hue_shift(ColorRGB(c), degrees)
+    ColorRGBA(rgb, c.a)
+end
+
 function hue_shift(c::Color256, degrees::Float64)
     hue_shift(to_rgb(c), degrees)
 end

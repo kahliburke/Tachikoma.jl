@@ -223,17 +223,26 @@ function encode_kitty(pixels::Matrix{ColorRGB};
     # Only copy pixels when decay will modify them
     needs_decay = decay.decay > 0.0
     if needs_decay
+        # Decay operates on ColorRGBA — convert, decay, convert back
+        rgba_buf = Matrix{ColorRGBA}(undef, h, w)
+        @inbounds for i in eachindex(pixels)
+            px = pixels[i]
+            rgba_buf[i] = px == bg ? TRANSPARENT : ColorRGBA(px)
+        end
+        npix = h * w
+        decay_step = npix > 500_000 ? max(1, round(Int, sqrt(npix / 500_000))) : 1
+        apply_decay_subsampled!(rgba_buf, decay, tick, decay_step)
+        # Convert back to ColorRGB
         enc_buf = _KITTY_ENC_BUF[]
         if size(enc_buf) != (h, w)
             enc_buf = Matrix{ColorRGB}(undef, h, w)
             _KITTY_ENC_BUF[] = enc_buf
         end
-        copyto!(enc_buf, pixels)
+        @inbounds for i in eachindex(rgba_buf)
+            px = rgba_buf[i]
+            enc_buf[i] = px.a == 0x00 ? ColorRGB(bg.r, bg.g, bg.b) : ColorRGB(px)
+        end
         src = enc_buf
-
-        npix = h * w
-        decay_step = npix > 500_000 ? max(1, round(Int, sqrt(npix / 500_000))) : 1
-        apply_decay_subsampled!(src, decay, tick, decay_step; bg=bg)
     else
         src = pixels
     end

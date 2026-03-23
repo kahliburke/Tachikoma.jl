@@ -19,6 +19,10 @@ const _SIXEL_IO = IOBuffer(sizehint=256_000)
     (c.r >> shift) << shift,
     (c.g >> shift) << shift,
     (c.b >> shift) << shift)
+@inline _quantize(c::ColorRGBA, shift::Int) = ColorRGB(
+    (c.r >> shift) << shift,
+    (c.g >> shift) << shift,
+    (c.b >> shift) << shift)
 
 # Color key for LUT lookup. Packs quantized channels into a single
 # integer index (1-based). Max key depends on shift:
@@ -28,6 +32,7 @@ const _SIXEL_IO = IOBuffer(sizehint=256_000)
     bits = 8 - shift
     (Int(c.r >> shift) << (2 * bits)) | (Int(c.g >> shift) << bits) | Int(c.b >> shift) + 1
 end
+@inline _color_key(c::ColorRGBA, shift::Int) = _color_key(ColorRGB(c.r, c.g, c.b), shift)
 
 # Compile-time constant shift specializations for the common case
 @inline _quantize_2(c::ColorRGB) = ColorRGB(
@@ -49,8 +54,8 @@ end
 In-place bit-rot effects on pixel buffer. All effects are scaled by
 the master `params.decay` intensity. Skips black (background) pixels.
 """
-function apply_decay!(pixels::Matrix{ColorRGB}, params::DecayParams, tick::Int;
-                      bg::ColorRGB=BLACK)
+function apply_decay!(pixels::Matrix{ColorRGBA}, params::DecayParams, tick::Int;
+                      )
     params.decay <= 0.0 && return pixels
     h, w = size(pixels)
     master = params.decay
@@ -64,7 +69,7 @@ function apply_decay!(pixels::Matrix{ColorRGB}, params::DecayParams, tick::Int;
 
     @inbounds for cy in 1:h, cx in 1:w
         px = pixels[cy, cx]
-        px == bg && continue
+        px == TRANSPARENT && continue
 
         x = Float64(cx)
         y = Float64(cy)
@@ -77,16 +82,16 @@ function apply_decay!(pixels::Matrix{ColorRGB}, params::DecayParams, tick::Int;
             r = clamp(Int(px.r) + round(Int, nr * j * 255), 0, 255)
             g = clamp(Int(px.g) + round(Int, ng * j * 255), 0, 255)
             b = clamp(Int(px.b) + round(Int, nb * j * 255), 0, 255)
-            px = ColorRGB(UInt8(r), UInt8(g), UInt8(b))
+            px = ColorRGBA(UInt8(r), UInt8(g), UInt8(b), px.a)
         end
 
         # Rot: stochastic pixel corruption
         if do_rot
             n = noise(x * 13.7, y * 17.3 + tick_f * 0.01)
             if n < rot_threshold
-                # Flip to black or hue-shifted version
+                # Flip to transparent or hue-shifted version
                 if n < rot_threshold * 0.5
-                    px = bg
+                    px = TRANSPARENT
                 else
                     px = hue_shift(px, n * 360.0)
                 end
@@ -97,7 +102,7 @@ function apply_decay!(pixels::Matrix{ColorRGB}, params::DecayParams, tick::Int;
         if do_noise
             f = fbm(x * ns * 0.1, y * ns * 0.1 + tick_f * 0.003) * master
             gray_val = UInt8(round(Int(px.r) * 0.299 + Int(px.g) * 0.587 + Int(px.b) * 0.114))
-            gray = ColorRGB(gray_val, gray_val, gray_val)
+            gray = ColorRGBA(gray_val, gray_val, gray_val, px.a)
             px = color_lerp(px, gray, f)
         end
 
@@ -115,10 +120,10 @@ Subsampled decay: compute effects every `step` pixels and fill blocks.
 Gives step² speedup for decay-heavy frames at the cost of block artifacts
 (acceptable since decay is itself a distortion effect).
 """
-function apply_decay_subsampled!(pixels::Matrix{ColorRGB}, params::DecayParams,
-                                 tick::Int, step::Int; bg::ColorRGB=BLACK)
+function apply_decay_subsampled!(pixels::Matrix{ColorRGBA}, params::DecayParams,
+                                 tick::Int, step::Int; )
     params.decay <= 0.0 && return pixels
-    step <= 1 && return apply_decay!(pixels, params, tick; bg=bg)
+    step <= 1 && return apply_decay!(pixels, params, tick)
     h, w = size(pixels)
     master = params.decay
     do_jitter = params.jitter > 0.0
@@ -133,7 +138,7 @@ function apply_decay_subsampled!(pixels::Matrix{ColorRGB}, params::DecayParams,
         y = Float64(cy)
         for cx in 1:step:w
             px = pixels[cy, cx]
-            px == bg && continue
+            px == TRANSPARENT && continue
 
             x = Float64(cx)
 
@@ -144,14 +149,14 @@ function apply_decay_subsampled!(pixels::Matrix{ColorRGB}, params::DecayParams,
                 r = clamp(Int(px.r) + round(Int, nr * j * 255), 0, 255)
                 g = clamp(Int(px.g) + round(Int, ng * j * 255), 0, 255)
                 b = clamp(Int(px.b) + round(Int, nb * j * 255), 0, 255)
-                px = ColorRGB(UInt8(r), UInt8(g), UInt8(b))
+                px = ColorRGBA(UInt8(r), UInt8(g), UInt8(b), px.a)
             end
 
             if do_rot
                 n = noise(x * 13.7, y * 17.3 + tick_f * 0.01)
                 if n < rot_threshold
                     if n < rot_threshold * 0.5
-                        px = bg
+                        px = TRANSPARENT
                     else
                         px = hue_shift(px, n * 360.0)
                     end
@@ -161,7 +166,7 @@ function apply_decay_subsampled!(pixels::Matrix{ColorRGB}, params::DecayParams,
             if do_noise
                 f = fbm(x * ns * 0.1, y * ns * 0.1 + tick_f * 0.003) * master
                 gray_val = UInt8(round(Int(px.r) * 0.299 + Int(px.g) * 0.587 + Int(px.b) * 0.114))
-                gray = ColorRGB(gray_val, gray_val, gray_val)
+                gray = ColorRGBA(gray_val, gray_val, gray_val, px.a)
                 px = color_lerp(px, gray, f)
             end
 
@@ -261,9 +266,8 @@ end
 # unique_keys[1:count] and also marked in lut (cleaned up by caller).
 const _UNIQUE_KEYS = Ref(Vector{Int}(undef, 0))
 
-function _collect_unique_colors!(src::Matrix{ColorRGB}, lut::Vector{UInt16},
-                                  dirty::Vector{Int}, shift::Int=2;
-                                  bg::ColorRGB=BLACK)
+function _collect_unique_colors!(src::Matrix{ColorRGBA}, lut::Vector{UInt16},
+                                  dirty::Vector{Int}, shift::Int=2)
     unique_keys = _UNIQUE_KEYS[]
     if length(unique_keys) < 262144
         unique_keys = Vector{Int}(undef, 262144)
@@ -272,15 +276,16 @@ function _collect_unique_colors!(src::Matrix{ColorRGB}, lut::Vector{UInt16},
     n = 0
     nd = 0
     npix = length(src)
-    bg_r = bg.r; bg_g = bg.g; bg_b = bg.b
     GC.@preserve src lut dirty unique_keys begin
         src_ptr = Ptr{UInt8}(pointer(src))
         lut_ptr = pointer(lut)
         for i in 1:npix
-            r = unsafe_load(src_ptr, (i-1)*3 + 1)
-            g = unsafe_load(src_ptr, (i-1)*3 + 2)
-            b = unsafe_load(src_ptr, (i-1)*3 + 3)
-            (r == bg_r && g == bg_g && b == bg_b) && continue
+            r = unsafe_load(src_ptr, (i-1)*4 + 1)
+            g = unsafe_load(src_ptr, (i-1)*4 + 2)
+            b = unsafe_load(src_ptr, (i-1)*4 + 3)
+            a = unsafe_load(src_ptr, (i-1)*4 + 4)
+            # Skip transparent pixels (alpha = 0)
+            a == 0x00 && continue
             # Inline quantize + color_key for shift=2
             qr = (r >> shift) << shift
             qg = (g >> shift) << shift
@@ -350,6 +355,18 @@ function encode_sixel(pixels::Matrix{ColorRGB};
                       bg::ColorRGB=canvas_bg_rgb())
     h, w = size(pixels)
     (h == 0 || w == 0) && return UInt8[]
+    rgba = Matrix{ColorRGBA}(undef, h, w)
+    @inbounds for i in eachindex(pixels)
+        px = pixels[i]
+        rgba[i] = px == bg ? TRANSPARENT : ColorRGBA(px)
+    end
+    encode_sixel(rgba; decay=decay, tick=tick)
+end
+
+function encode_sixel(pixels::Matrix{ColorRGBA};
+                      decay::DecayParams=DecayParams(), tick::Int=0)
+    h, w = size(pixels)
+    (h == 0 || w == 0) && return UInt8[]
 
     # Only copy pixels when decay will modify them
     needs_decay = decay.decay > 0.0
@@ -365,7 +382,7 @@ function encode_sixel(pixels::Matrix{ColorRGB};
         # Subsampled decay for large images
         npix = h * w
         decay_step = npix > 500_000 ? max(1, round(Int, sqrt(npix / 500_000))) : 1
-        apply_decay_subsampled!(src, decay, tick, decay_step; bg=bg)
+        apply_decay_subsampled!(src, decay, tick, decay_step)
     else
         src = pixels
     end
@@ -384,10 +401,10 @@ function encode_sixel(pixels::Matrix{ColorRGB};
     # coarsening brings the count under 255, and also reduces the number
     # of band passes (fewer colors = smaller output).
     shift = 2
-    n_unique = _collect_unique_colors!(src, lut, dirty, shift; bg=bg)
+    n_unique = _collect_unique_colors!(src, lut, dirty, shift)
     while n_unique > 255 && shift < 4
         shift += 1
-        n_unique = _collect_unique_colors!(src, lut, dirty, shift; bg=bg)
+        n_unique = _collect_unique_colors!(src, lut, dirty, shift)
     end
     unique_keys = _UNIQUE_KEYS[]
     palette = _select_palette(unique_keys, n_unique, shift)
@@ -413,8 +430,8 @@ function encode_sixel(pixels::Matrix{ColorRGB};
     truncate(io, 0)
 
     # DCS P1;P2;P3 q  (Device Control String, sixel mode)
-    # P2=0: use explicit background painting (most compatible)
-    write(io, "\eP0;0q")
+    # P2=1: transparent background — unpainted pixels leave existing content
+    write(io, "\eP0;1q")
 
     # Raster attributes: 1:1 pixel aspect ratio, image dimensions
     write(io, "\"1;1;")
@@ -424,9 +441,10 @@ function encode_sixel(pixels::Matrix{ColorRGB};
 
     # Color 0: background — explicitly painted each band to ensure
     # clean background regardless of terminal P2 support.
-    bg_r = round(Int, Int(bg.r) / 255 * 100)
-    bg_g = round(Int, Int(bg.g) / 255 * 100)
-    bg_b = round(Int, Int(bg.b) / 255 * 100)
+    _cbg = canvas_bg_rgb()
+    bg_r = round(Int, Int(_cbg.r) / 255 * 100)
+    bg_g = round(Int, Int(_cbg.g) / 255 * 100)
+    bg_b = round(Int, Int(_cbg.b) / 255 * 100)
     write(io, "#0;2;")
     _write_decimal(io, bg_r)
     write(io, UInt8(';'))
@@ -489,14 +507,19 @@ function encode_sixel(pixels::Matrix{ColorRGB};
         bg_bits_val = UInt8((1 << band_rows) - 1)
         bg_char = 0x3F + bg_bits_val
 
-        # Pass 0: solid black background for the entire band width
+        # Pass 0: paint background only for columns that have content.
+        # Build a per-column mask: paint bg bits only where pixels are opaque.
         write(io, "#0")
-        if w >= 4
-            write(io, UInt8('!'))
-            _write_decimal(io, w)
-            write(io, bg_char)
-        else
-            for _ in 1:w; write(io, bg_char); end
+        @inbounds for col in 1:w
+            col_bits = UInt8(0)
+            for bit in 0:(band_rows - 1)
+                row_idx = y0 + bit + 1
+                px = src[row_idx, col]
+                if px.a > 0x00
+                    col_bits |= UInt8(1) << bit
+                end
+            end
+            write(io, UInt8(0x3F + col_bits))
         end
 
         # Scan band: build per-color per-column bit masks
@@ -511,7 +534,7 @@ function encode_sixel(pixels::Matrix{ColorRGB};
                 row_idx = y0 + bit + 1
                 row_idx > h && continue
                 px = src[row_idx, col]
-                px == bg && continue
+                px.a == 0x00 && continue
                 qpx = _quantize(px, shift)
                 key = _color_key(qpx, shift)
                 ci = Int(lut[key])
@@ -604,38 +627,3 @@ function encode_sixel(pixels::Matrix{ColorRGB};
     take!(io)
 end
 
-"""
-    encode_sixel(pixels::Matrix{ColorRGBA}) → Vector{UInt8}
-
-Encode RGBA pixels as sixel. `(0,0,0,0)` pixels are skipped (transparent).
-Semi-transparent pixels are premultiplied against canvas background.
-"""
-function encode_sixel(pixels::Matrix{ColorRGBA};
-                      decay::DecayParams=DecayParams(), tick::Int=0)
-    h, w = size(pixels)
-    (h == 0 || w == 0) && return UInt8[]
-
-    # Convert RGBA → RGB for the sixel encoder.
-    # TRANSPARENT (0,0,0,0) → sentinel (skipped by encoder)
-    # Semi-transparent → premultiplied against canvas bg
-    _sentinel = ColorRGB(0x01, 0x00, 0x01)
-    cbg = canvas_bg_rgb()
-    rgb = Matrix{ColorRGB}(undef, h, w)
-    @inbounds for i in eachindex(pixels)
-        px = pixels[i]
-        if px.r == 0x00 && px.g == 0x00 && px.b == 0x00 && px.a == 0x00
-            rgb[i] = _sentinel
-        elseif px.a == 0xff
-            rgb[i] = ColorRGB(px.r, px.g, px.b)
-        else
-            af = px.a / 255.0
-            inv_af = 1.0 - af
-            rgb[i] = ColorRGB(
-                unsafe_trunc(UInt8, min(px.r * af + cbg.r * inv_af, 255.0)),
-                unsafe_trunc(UInt8, min(px.g * af + cbg.g * inv_af, 255.0)),
-                unsafe_trunc(UInt8, min(px.b * af + cbg.b * inv_af, 255.0)),
-            )
-        end
-    end
-    encode_sixel(rgb; decay=decay, tick=tick, bg=_sentinel)
-end

@@ -134,6 +134,18 @@ function color_lerp(a::ColorRGB, b::ColorRGB, t::Float64)
     )
 end
 
+function color_lerp(a::ColorRGBA, b::ColorRGBA, t::Float64)
+    t = clamp(t, 0.0, 1.0)
+    ColorRGBA(
+        round(UInt8, a.r * (1 - t) + b.r * t),
+        round(UInt8, a.g * (1 - t) + b.g * t),
+        round(UInt8, a.b * (1 - t) + b.b * t),
+        round(UInt8, a.a * (1 - t) + b.a * t),
+    )
+end
+color_lerp(a::ColorRGBA, b::ColorRGB, t::Float64) = color_lerp(a, ColorRGBA(b), t)
+color_lerp(a::ColorRGB, b::ColorRGBA, t::Float64) = color_lerp(ColorRGBA(a), b, t)
+
 function color_lerp(a::Color256, b::Color256, t::Float64)
     color_lerp(to_rgb(a), to_rgb(b), t)
 end

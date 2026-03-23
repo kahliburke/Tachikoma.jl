@@ -55,9 +55,19 @@ function desaturate(c::ColorRGB, amount::Float64)
     )
 end
 
+function desaturate(c::ColorRGBA, amount::Float64)
+    rgb = desaturate(ColorRGB(c), amount)
+    ColorRGBA(rgb, c.a)
+end
+
 function _apply_bg_adjustments(c::ColorRGB, brightness::Float64, saturation::Float64)
     c = desaturate(c, 1.0 - saturation)
     dim_color(c, 1.0 - brightness)
+end
+
+function _apply_bg_adjustments(c::ColorRGBA, brightness::Float64, saturation::Float64)
+    rgb = _apply_bg_adjustments(ColorRGB(c), brightness, saturation)
+    ColorRGBA(rgb, c.a)
 end
 
 # ── Public API ────────────────────────────────────────────────────────

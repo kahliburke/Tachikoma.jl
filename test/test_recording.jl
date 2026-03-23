@@ -210,9 +210,9 @@
         timestamps = [0.0, 0.5]
 
         # Build pixel data: one frame with a 2x3 pixel region, one empty
-        px = Matrix{T.ColorRGB}(undef, 2, 3)
+        px = Matrix{T.ColorRGBA}(undef, 2, 3)
         for r in 1:2, c in 1:3
-            px[r, c] = T.ColorRGB(UInt8(r * 40), UInt8(c * 60), UInt8(100))
+            px[r, c] = T.ColorRGBA(UInt8(r * 40), UInt8(c * 60), UInt8(100))
         end
         pixel_snapshots = [[(1, 2, px)], T.PixelSnapshot[]]
 

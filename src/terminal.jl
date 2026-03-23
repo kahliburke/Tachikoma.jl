@@ -593,9 +593,11 @@ mutable struct PixelFramebuffer
     dirty_y0::Int
     dirty_x1::Int
     dirty_y1::Int
+    # Per-render cell rects for separate sixel emission
+    render_rects::Vector{Rect}
 end
 
-const _PIXEL_FB = PixelFramebuffer(UInt8[], 0, 0, false, 0, 0, 0, 0)
+const _PIXEL_FB = PixelFramebuffer(UInt8[], 0, 0, false, 0, 0, 0, 0, Rect[])
 
 """Clear/resize framebuffer, filling with cell background colors from the buffer."""
 function _fb_init!(fb::PixelFramebuffer, buf::Buffer, area::Rect)
@@ -616,6 +618,7 @@ function _fb_init!(fb::PixelFramebuffer, buf::Buffer, area::Rect)
     fill!(fb.rgba, 0x00)
 
     fb.dirty = false
+    empty!(fb.render_rects)
     fb.dirty_x0 = pw + 1
     fb.dirty_y0 = ph + 1
     fb.dirty_x1 = 0
@@ -693,6 +696,7 @@ function _fb_blend!(fb::PixelFramebuffer, rgba::Vector{UInt8}, w::Int, h::Int,
     x1 = min(x_off + dst_w, fbw)
     y1 = min(y_off + dst_h, fbh)
     fb.dirty = true
+    push!(fb.render_rects, area)
     fb.dirty_x0 = min(fb.dirty_x0, x0)
     fb.dirty_y0 = min(fb.dirty_y0, y0)
     fb.dirty_x1 = max(fb.dirty_x1, x1)
@@ -707,64 +711,153 @@ function _fb_flush!(fb::PixelFramebuffer, f::Frame, screen_area::Rect)
     cp = CELL_PX[]
     cpw = max(1, cp.w)
     cph = max(1, cp.h)
-
-    x0 = max(1, fb.dirty_x0)
-    y0 = max(1, fb.dirty_y0)
-    x1 = min(fb.width, fb.dirty_x1)
-    y1 = min(fb.height, fb.dirty_y1)
-    (x0 > x1 || y0 > y1) && return
-
-    dw = x1 - x0 + 1
-    dh = y1 - y0 + 1
     fbw = fb.width
-    # Extract dirty region as RGBA — alpha=0 pixels are transparent
-    # (sixel encoder skips them, terminal text shows through)
-    pixels = Matrix{ColorRGBA}(undef, dh, dw)
-    @inbounds for dy in 1:dh
-        for dx in 1:dw
-            di = ((y0 + dy - 2) * fbw + (x0 + dx - 2)) * 4
-            pixels[dy, dx] = ColorRGBA(
-                fb.rgba[di + 1], fb.rgba[di + 2],
-                fb.rgba[di + 3], fb.rgba[di + 4])
+    buf = f.buffer
+    sw = screen_area.width
+    sh = screen_area.height
+
+    # Step 1: Build text mask — true means "text here, don't cover with sixel"
+    # Only non-space characters count as text. Styled spaces (e.g. background
+    # fills from Block/FloatingWindow) are visual chrome that sixel can safely
+    # cover — the pixel content IS the intended content for those cells.
+    # Border chars (│─┌ etc.), titles, labels, and braille dots are all
+    # non-space and will be preserved.
+    text_mask = Matrix{Bool}(undef, sh, sw)
+    @inbounds for row in 1:sh
+        for col in 1:sw
+            cr = screen_area.y + row - 1
+            cc = screen_area.x + col - 1
+            if in_bounds(buf, cc, cr)
+                cell = buf.content[buf_index(buf, cc, cr)]
+                text_mask[row, col] = cell.char != ' '
+            else
+                text_mask[row, col] = false
+            end
         end
     end
 
-    data = encode_sixel(pixels)
-    isempty(data) && return
+    # Close single-space gaps within text runs on each row — spaces inside
+    # titles like "Spiral (opaque)" should be protected, not covered by sixel.
+    # Only fills gaps of exactly 1 space between two text cells.
+    @inbounds for row in 1:sh
+        for col in 2:(sw - 1)
+            if !text_mask[row, col] && text_mask[row, col - 1] && text_mask[row, col + 1]
+                text_mask[row, col] = true
+            end
+        end
+    end
 
-    c0 = screen_area.x + (x0 - 1) ÷ cpw
-    r0 = screen_area.y + (y0 - 1) ÷ cph
-    c1 = screen_area.x + (x1 - 1) ÷ cpw
-    r1 = screen_area.y + (y1 - 1) ÷ cph
-    cell_area = Rect(c0, r0, c1 - c0 + 1, r1 - r0 + 1)
+    # Step 2: Build pixel_mask from render_rects — any cell that was targeted
+    # by render_rgba! should get sixel coverage, even if pixels are transparent.
+    # This prevents flicker on transparent-background plots where the content
+    # moves between frames (old sixel persists, new has gaps → flash).
+    pixel_mask = falses(sh, sw)
+    @inbounds for rr in fb.render_rects
+        r0 = max(1, rr.y - screen_area.y + 1)
+        r1 = min(sh, rr.y + rr.height - 1 - screen_area.y + 1)
+        c0 = max(1, rr.x - screen_area.x + 1)
+        c1 = min(sw, rr.x + rr.width - 1 - screen_area.x + 1)
+        for row in r0:r1, col in c0:c1
+            pixel_mask[row, col] = true
+        end
+    end
 
-    # Only blank cells where framebuffer has opaque content.
-    # Title/border cells stay intact — sixel skips transparent pixels
-    # so the text shows through. Filter is skipped for framebuffer output.
-    buf = f.buffer
-    @inbounds for row in r0:r1
-        for col in c0:c1
-            in_bounds(buf, col, row) || continue
-            # Check if ANY pixel in this cell has content
-            cpx0 = (col - screen_area.x) * cpw + 1
-            cpy0 = (row - screen_area.y) * cph + 1
-            has_content = false
-            for py in cpy0:min(cpy0 + cph - 1, fb.height)
-                for px in cpx0:min(cpx0 + cpw - 1, fb.width)
+    # Step 3: Sixel-ok cells = targeted by render_rgba! AND no text on top
+    sixel_ok = pixel_mask .& .!text_mask
+
+    # Zero framebuffer pixels where text exists, preventing pixel leakage
+    # at sixel rectangle boundaries (e.g. window title over behind-window pixels)
+    @inbounds for row in 1:sh
+        for col in 1:sw
+            text_mask[row, col] || continue
+            px_x0 = (col - 1) * cpw + 1
+            px_y0 = (row - 1) * cph + 1
+            for py in px_y0:min(px_y0 + cph - 1, fb.height)
+                for px in px_x0:min(px_x0 + cpw - 1, fb.width)
                     di = ((py - 1) * fbw + (px - 1)) * 4
-                    if fb.rgba[di + 1] != 0x00 || fb.rgba[di + 2] != 0x00 ||
-                       fb.rgba[di + 3] != 0x00 || fb.rgba[di + 4] != 0x00
-                        has_content = true
-                        @goto found
-                    end
+                    fb.rgba[di + 1] = 0x00
+                    fb.rgba[di + 2] = 0x00
+                    fb.rgba[di + 3] = 0x00
+                    fb.rgba[di + 4] = 0x00
                 end
             end
-            @label found
-            has_content && (buf.content[buf_index(buf, col, row)] = _GFX_BLANK)
         end
     end
-    push!(f.gfx_regions, GraphicsRegion(r0, c0, c1 - c0 + 1, r1 - r0 + 1, data, gfx_fmt_sixel))
-    push!(f.pixel_snapshots, (r0, c0, pixels))
+
+    # Step 4: Find maximal horizontal runs of sixel-ok cells per row,
+    # then merge vertically where runs align — forming rectangles.
+    # Simple greedy: scan row by row, emit horizontal strips.
+    # Each strip becomes its own sixel image.
+    emitted = falses(sh, sw)
+    @inbounds for row in 1:sh
+        col = 1
+        while col <= sw
+            if sixel_ok[row, col] && !emitted[row, col]
+                # Found start of a run — extend right
+                col_end = col
+                while col_end < sw && sixel_ok[row, col_end + 1] && !emitted[row, col_end + 1]
+                    col_end += 1
+                end
+                # Extend down while the same column range is all sixel-ok
+                row_end = row
+                while row_end < sh
+                    all_ok = true
+                    for c in col:col_end
+                        if !sixel_ok[row_end + 1, c] || emitted[row_end + 1, c]
+                            all_ok = false
+                            break
+                        end
+                    end
+                    all_ok || break
+                    row_end += 1
+                end
+                # Mark as emitted
+                for r in row:row_end, c in col:col_end
+                    emitted[r, c] = true
+                end
+                # Extract pixel data for this rectangle
+                rect_w = col_end - col + 1
+                rect_h = row_end - row + 1
+                px_x0 = (col - 1) * cpw + 1
+                px_y0 = (row - 1) * cph + 1
+                pw = rect_w * cpw
+                ph = rect_h * cph
+                px_x1 = min(px_x0 + pw - 1, fb.width)
+                px_y1 = min(px_y0 + ph - 1, fb.height)
+                aw = px_x1 - px_x0 + 1
+                ah = px_y1 - px_y0 + 1
+
+                # Extract pixels, replacing transparent with canvas bg so
+                # every sixel is fully opaque — eliminates flash on redraw.
+                cbg = canvas_bg()
+                pixels = Matrix{ColorRGBA}(undef, ah, aw)
+                @inbounds for dy in 1:ah
+                    for dx in 1:aw
+                        di = ((px_y0 + dy - 2) * fbw + (px_x0 + dx - 2)) * 4
+                        a = fb.rgba[di + 4]
+                        if a == 0x00
+                            pixels[dy, dx] = cbg
+                        else
+                            pixels[dy, dx] = ColorRGBA(
+                                fb.rgba[di + 1], fb.rgba[di + 2],
+                                fb.rgba[di + 3], a)
+                        end
+                    end
+                end
+
+                data = encode_sixel(pixels)
+                if !isempty(data)
+                    cell_rect = Rect(screen_area.x + col - 1, screen_area.y + row - 1,
+                                     rect_w, rect_h)
+                    render_graphics!(f, data, cell_rect; pixels=pixels, format=gfx_fmt_sixel)
+                end
+
+                col = col_end + 1
+            else
+                col += 1
+            end
+        end
+    end
 end
 
 # ── render_rgba! — public API ─────────────────────────────────────────
@@ -772,18 +865,18 @@ end
 """
     render_rgba!(f::Frame, rgba::Vector{UInt8}, w::Int, h::Int, area::Rect;
                  cols::Int=area.width, rows::Int=area.height, z::Int=-1,
-                 scale_to_cells::Bool=true, bg::ColorRGB=canvas_bg_rgb())
+                 scale_to_cells::Bool=true)
 
 Render RGBA pixel data into a Frame. On kitty, uses native RGBA with z-index
 for layered compositing. On sixel, blends into a virtual framebuffer that
-gets composited and encoded at frame end.
+gets composited and encoded at frame end. Pixels with `(0,0,0,0)` are
+transparent and will not be rendered.
 
 `rgba` must be `w * h * 4` bytes in row-major order (top-to-bottom, left-to-right).
 """
 function render_rgba!(f::Frame, rgba::Vector{UInt8}, w::Int, h::Int, area::Rect;
                       cols::Int=area.width, rows::Int=area.height, z::Int=-1,
-                      scale_to_cells::Bool=true,
-                      bg::ColorRGB=canvas_bg_rgb())
+                      scale_to_cells::Bool=true)
     gfx = GRAPHICS_PROTOCOL[]
     gfx == gfx_none && return
 
