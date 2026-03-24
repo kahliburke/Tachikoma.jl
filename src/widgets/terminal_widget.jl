@@ -992,9 +992,11 @@ function render(tw::TerminalWidget, rect::Rect, buf::Buffer)
             cx = rect.x + screen.cursor_col - 1
             cy = rect.y + screen.cursor_row - 1
             existing = screen.cells[screen.cursor_row, screen.cursor_col]
-            # Invert colors for cursor block
-            cursor_fg = existing.style.bg isa NoColor ? Color256(0) : existing.style.bg
-            cursor_bg = existing.style.fg isa NoColor ? Color256(7) : existing.style.fg
+            # Invert colors for cursor block — use theme colors as fallback
+            # so the cursor is visible on both dark and light backgrounds
+            t = theme()
+            cursor_fg = existing.style.bg isa NoColor ? t.bg : existing.style.bg
+            cursor_bg = existing.style.fg isa NoColor ? t.text : existing.style.fg
             set!(buf, cx, cy, Cell(existing.char, Style(fg=cursor_fg, bg=cursor_bg,
                 bold=existing.style.bold, dim=existing.style.dim,
                 italic=existing.style.italic, underline=existing.style.underline,
