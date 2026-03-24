@@ -234,19 +234,12 @@ function render(si::PixelImage, rect::Rect, f::Frame; tick::Int=0)
         render(si, content, buf)
         return
     end
-    # Convert RGBA to RGB for encoders (final render step)
-    rgb_pixels = Matrix{ColorRGB}(undef, size(si.pixels))
-    @inbounds for i in eachindex(si.pixels)
-        px = si.pixels[i]
-        rgb_pixels[i] = ColorRGB(px.r, px.g, px.b)
-    end
-    bg_rgb = ColorRGB(si.bg.r, si.bg.g, si.bg.b)
     if gfx == gfx_kitty
-        data = encode_kitty(rgb_pixels; decay=si.decay, tick=tick, bg=bg_rgb,
+        data = encode_kitty(si.pixels; decay=si.decay, tick=tick,
                             cols=content.width, rows=content.height)
         fmt = gfx_fmt_kitty
     else
-        data = encode_sixel(rgb_pixels; decay=si.decay, tick=tick, bg=bg_rgb)
+        data = encode_sixel(si.pixels; decay=si.decay, tick=tick)
         fmt = gfx_fmt_sixel
     end
     isempty(data) || render_graphics!(f, data, content; pixels=si.pixels, format=fmt)

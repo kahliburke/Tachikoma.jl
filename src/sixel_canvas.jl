@@ -252,20 +252,13 @@ function render(c::PixelCanvas, rect::Rect, f::Frame;
                 tick::Int=0, decay::DecayParams=DecayParams())
     (rect.width < 1 || rect.height < 1) && return
     _sync_canvas_bg!(c)
-    # Convert RGBA to RGB for encoders (final render step)
-    rgb_pixels = Matrix{ColorRGB}(undef, size(c.pixels))
-    @inbounds for i in eachindex(c.pixels)
-        px = c.pixels[i]
-        rgb_pixels[i] = ColorRGB(px.r, px.g, px.b)
-    end
-    bg_rgb = ColorRGB(c.bg.r, c.bg.g, c.bg.b)
     gfx = GRAPHICS_PROTOCOL[]
     if gfx == gfx_kitty
-        data = encode_kitty(rgb_pixels; decay=decay, tick=tick, bg=bg_rgb,
+        data = encode_kitty(c.pixels; decay=decay, tick=tick,
                             cols=rect.width, rows=rect.height)
         fmt = gfx_fmt_kitty
     else
-        data = encode_sixel(rgb_pixels; decay=decay, tick=tick, bg=bg_rgb)
+        data = encode_sixel(c.pixels; decay=decay, tick=tick)
         fmt = gfx_fmt_sixel
     end
     isempty(data) || render_graphics!(f, data, rect; pixels=c.pixels, format=fmt)

@@ -335,34 +335,6 @@ end
 
 # ── Main encoder ──────────────────────────────────────────────────────
 
-"""
-    encode_sixel(pixels::Matrix{ColorRGB}; decay::DecayParams=DecayParams(), tick::Int=0) → Vector{UInt8}
-
-Full pipeline: optionally copy pixels (only when decay is active), apply decay,
-build palette via flat LUT, encode sixel escape sequence. Returns the complete
-DCS ... ST byte sequence.
-
-Pixel matrix is indexed [row, col] with row 1 at top.
-
-Each sixel band writes an explicit background layer (color 0 = bg)
-before data colors, ensuring old sixel data is properly overwritten
-between frames.
-
-Performance: reuses module-level buffers across frames to minimize allocations.
-"""
-function encode_sixel(pixels::Matrix{ColorRGB};
-                      decay::DecayParams=DecayParams(), tick::Int=0,
-                      bg::ColorRGB=canvas_bg_rgb())
-    h, w = size(pixels)
-    (h == 0 || w == 0) && return UInt8[]
-    rgba = Matrix{ColorRGBA}(undef, h, w)
-    @inbounds for i in eachindex(pixels)
-        px = pixels[i]
-        rgba[i] = px == bg ? TRANSPARENT : ColorRGBA(px)
-    end
-    encode_sixel(rgba; decay=decay, tick=tick)
-end
-
 function encode_sixel(pixels::Matrix{ColorRGBA};
                       decay::DecayParams=DecayParams(), tick::Int=0)
     h, w = size(pixels)

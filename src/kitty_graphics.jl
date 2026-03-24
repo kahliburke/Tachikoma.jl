@@ -16,10 +16,10 @@ using Base64: base64encode
 using CodecZlib: ZlibCompressor
 
 # Reusable buffer for decay (separate from sixel's to avoid contention)
-const _KITTY_ENC_BUF = Ref(Matrix{ColorRGB}(undef, 0, 0))
+const _KITTY_ENC_BUF = Ref(Matrix{ColorRGBA}(undef, 0, 0))
 
 # Reusable buffers for encoding (avoid per-frame allocations)
-const _KITTY_XPOSE_BUF = Ref(Matrix{ColorRGB}(undef, 0, 0))  # transposed pixels
+const _KITTY_XPOSE_BUF = Ref(Matrix{ColorRGBA}(undef, 0, 0))  # transposed pixels
 const _KITTY_RGB_BUF = Ref(Vector{UInt8}(undef, 0))           # raw RGB bytes
 const _KITTY_ZLIB_CODEC = ZlibCompressor(level=1)             # fastest compression
 const _KITTY_IO = IOBuffer()                                   # APC output
@@ -201,64 +201,52 @@ function _kitty_shm_write(rgb::Vector{UInt8})
 end
 
 """
-    encode_kitty(pixels::Matrix{ColorRGB};
-                 decay::DecayParams=DecayParams(), tick::Int=0,
-                 cols::Int=0, rows::Int=0) → Vector{UInt8}
+    encode_kitty(pixels::Matrix{ColorRGBA};
+                 decay=DecayParams(), tick=0, cols=0, rows=0) → Vector{UInt8}
 
 Encode a pixel matrix as a Kitty graphics protocol APC sequence.
 
-Uses `a=T` (transmit + display), `f=24` (raw RGB), `q=2` (suppress OK).
+Uses `a=T` (transmit + display), `q=2` (suppress OK). Pixels with `a==0x00`
+are transparent (`f=32` RGBA); if all pixels are opaque, uses `f=24` (RGB).
 Passes `s=width,v=height` for pixel dimensions and `c=cols,r=rows` for
 cell placement when provided.
 
-Returns `UInt8[]` for all-background images (matches `encode_sixel` behavior).
+Returns `UInt8[]` for all-transparent images.
 """
-function encode_kitty(pixels::Matrix{ColorRGB};
+function encode_kitty(pixels::Matrix{ColorRGBA};
                       decay::DecayParams=DecayParams(), tick::Int=0,
-                      cols::Int=0, rows::Int=0,
-                      bg::ColorRGB=canvas_bg_rgb())
+                      cols::Int=0, rows::Int=0)
     h, w = size(pixels)
     (h == 0 || w == 0) && return UInt8[]
 
-    # Only copy pixels when decay will modify them
     needs_decay = decay.decay > 0.0
     if needs_decay
-        # Decay operates on ColorRGBA — convert, decay, convert back
-        rgba_buf = Matrix{ColorRGBA}(undef, h, w)
-        @inbounds for i in eachindex(pixels)
-            px = pixels[i]
-            rgba_buf[i] = px == bg ? TRANSPARENT : ColorRGBA(px)
-        end
-        npix = h * w
-        decay_step = npix > 500_000 ? max(1, round(Int, sqrt(npix / 500_000))) : 1
-        apply_decay_subsampled!(rgba_buf, decay, tick, decay_step)
-        # Convert back to ColorRGB
         enc_buf = _KITTY_ENC_BUF[]
         if size(enc_buf) != (h, w)
-            enc_buf = Matrix{ColorRGB}(undef, h, w)
+            enc_buf = Matrix{ColorRGBA}(undef, h, w)
             _KITTY_ENC_BUF[] = enc_buf
         end
-        @inbounds for i in eachindex(rgba_buf)
-            px = rgba_buf[i]
-            enc_buf[i] = px.a == 0x00 ? ColorRGB(bg.r, bg.g, bg.b) : ColorRGB(px)
-        end
+        copyto!(enc_buf, pixels)
+        npix = h * w
+        decay_step = npix > 500_000 ? max(1, round(Int, sqrt(npix / 500_000))) : 1
+        apply_decay_subsampled!(enc_buf, decay, tick, decay_step)
         src = enc_buf
     else
         src = pixels
     end
 
-    # Skip all-background frames
-    any(!=(bg), src) || return UInt8[]
+    # Skip all-transparent frames
+    any(px -> px.a > 0x00, src) || return UInt8[]
 
-    # Check if any bg pixels exist — use RGBA (f=32) for transparency, RGB (f=24) otherwise
-    has_bg = any(==(bg), src)
-    bpp = has_bg ? 4 : 3
+    # Use RGBA (f=32) when any transparent pixels exist, RGB (f=24) otherwise
+    has_alpha = any(px -> px.a < 0xff, src)
+    bpp = has_alpha ? 4 : 3
     nbytes = h * w * bpp
 
     # Transpose to row-major layout (Kitty expects top-to-bottom, left-to-right)
     xbuf = _KITTY_XPOSE_BUF[]
     if size(xbuf) != (w, h)
-        xbuf = Matrix{ColorRGB}(undef, w, h)
+        xbuf = Matrix{ColorRGBA}(undef, w, h)
         _KITTY_XPOSE_BUF[] = xbuf
     end
     permutedims!(xbuf, src, (2, 1))
@@ -270,20 +258,25 @@ function encode_kitty(pixels::Matrix{ColorRGB};
         _KITTY_RGB_BUF[] = rgb
     end
     resize!(rgb, nbytes)
-    if has_bg
-        # RGBA: set alpha=0 for bg pixels (transparent)
+    if has_alpha
         idx = 1
         @inbounds for i in eachindex(xbuf)
             px = xbuf[i]
             rgb[idx]     = px.r
             rgb[idx + 1] = px.g
             rgb[idx + 2] = px.b
-            rgb[idx + 3] = px == bg ? 0x00 : 0xff
+            rgb[idx + 3] = px.a
             idx += 4
         end
     else
-        GC.@preserve xbuf begin
-            unsafe_copyto!(pointer(rgb), Ptr{UInt8}(pointer(xbuf)), nbytes)
+        # All opaque — write RGB only (3 bytes per pixel)
+        idx = 1
+        @inbounds for i in eachindex(xbuf)
+            px = xbuf[i]
+            rgb[idx]     = px.r
+            rgb[idx + 1] = px.g
+            rgb[idx + 2] = px.b
+            idx += 3
         end
     end
 
@@ -291,7 +284,7 @@ function encode_kitty(pixels::Matrix{ColorRGB};
     io = _KITTY_IO
     truncate(io, 0)
 
-    fmt = has_bg ? 32 : 24
+    fmt = has_alpha ? 32 : 24
 
     # ── Shared memory path (t=s): write rgb to shm, Kitty reads and unlinks ──
     shm_name = _kitty_shm_probe!() ? _kitty_shm_write(rgb) : nothing

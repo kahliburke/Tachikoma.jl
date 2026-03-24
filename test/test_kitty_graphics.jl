@@ -1,12 +1,12 @@
     @testset "Kitty graphics encoder" begin
         @testset "encode_kitty red pixels → valid APC" begin
-            # 2×2 red pixels
-            pixels = fill(T.ColorRGB(0xff, 0x00, 0x00), 2, 2)
+            # 2×2 red opaque pixels
+            pixels = fill(T.ColorRGBA(0xff, 0x00, 0x00), 2, 2)
             data = T.encode_kitty(pixels; cols=2, rows=2)
             str = String(copy(data))
             # Must contain APC start
             @test occursin("\e_G", str)
-            # Must contain transmit+display, raw RGB, suppress OK
+            # Must contain transmit+display, raw RGB (all opaque), suppress OK
             @test occursin("a=T", str)
             @test occursin("f=24", str)
             @test occursin("q=2", str)
@@ -20,15 +20,14 @@
             @test data[end-1] == UInt8('\e') && data[end] == UInt8('\\')
         end
 
-        @testset "encode_kitty all-black → empty" begin
-            black = T.ColorRGB(0x00, 0x00, 0x00)
-            pixels = fill(black, 4, 4)
-            data = T.encode_kitty(pixels; bg=black)
+        @testset "encode_kitty all-transparent → empty" begin
+            pixels = fill(T.TRANSPARENT, 4, 4)
+            data = T.encode_kitty(pixels)
             @test isempty(data)
         end
 
         @testset "encode_kitty empty matrix → empty" begin
-            pixels = Matrix{T.ColorRGB}(undef, 0, 0)
+            pixels = Matrix{T.ColorRGBA}(undef, 0, 0)
             data = T.encode_kitty(pixels)
             @test isempty(data)
         end
@@ -37,9 +36,9 @@
             # Force inline path to test chunking
             T._KITTY_SHM_AVAILABLE[] = false
             # Use varied pixel data — uniform fills compress too well with zlib.
-            pixels = [T.ColorRGB(UInt8(mod(r * 7 + c * 13, 256)),
-                                 UInt8(mod(r * 11 + c * 3, 256)),
-                                 UInt8(mod(r * 5 + c * 17, 256)))
+            pixels = [T.ColorRGBA(UInt8(mod(r * 7 + c * 13, 256)),
+                                  UInt8(mod(r * 11 + c * 3, 256)),
+                                  UInt8(mod(r * 5 + c * 17, 256)))
                       for r in 1:200, c in 1:200]
             data = T.encode_kitty(pixels)
             str = String(copy(data))
@@ -57,7 +56,7 @@
         end
 
         @testset "encode_kitty no cols/rows → omits placement" begin
-            pixels = fill(T.ColorRGB(0xff, 0xff, 0xff), 1, 1)
+            pixels = fill(T.ColorRGBA(0xff, 0xff, 0xff), 1, 1)
             data = T.encode_kitty(pixels)
             str = String(copy(data))
             @test !occursin("c=", str)
@@ -65,11 +64,20 @@
         end
 
         @testset "encode_kitty with decay" begin
-            pixels = fill(T.ColorRGB(0x80, 0x80, 0x80), 4, 4)
+            pixels = fill(T.ColorRGBA(0x80, 0x80, 0x80), 4, 4)
             decay = T.DecayParams(0.5, 0.3, 0.0, 0.15)
             data = T.encode_kitty(pixels; decay=decay, tick=10)
             # Should still produce output (decay modifies but doesn't zero everything)
             @test !isempty(data)
+        end
+
+        @testset "encode_kitty mixed alpha → RGBA format" begin
+            # Mix of opaque and transparent → should use f=32
+            pixels = fill(T.ColorRGBA(0xff, 0x00, 0x00), 2, 2)
+            pixels[1, 1] = T.TRANSPARENT
+            data = T.encode_kitty(pixels)
+            str = String(copy(data))
+            @test occursin("f=32", str)
         end
     end
 
@@ -134,7 +142,7 @@
 
         @testset "encode_kitty with shm produces t=s header" begin
             T._KITTY_SHM_AVAILABLE[] = nothing
-            pixels = fill(T.ColorRGB(0xff, 0x00, 0x00), 2, 2)
+            pixels = fill(T.ColorRGBA(0xff, 0x00, 0x00), 2, 2)
             data = T.encode_kitty(pixels; cols=2, rows=2)
             str = String(copy(data))
             if T._KITTY_SHM_AVAILABLE[] === true
@@ -154,7 +162,7 @@
 
         @testset "encode_kitty falls back when shm disabled" begin
             T._KITTY_SHM_AVAILABLE[] = false
-            pixels = fill(T.ColorRGB(0xff, 0x00, 0x00), 2, 2)
+            pixels = fill(T.ColorRGBA(0xff, 0x00, 0x00), 2, 2)
             data = T.encode_kitty(pixels; cols=2, rows=2)
             str = String(copy(data))
             @test occursin("o=z", str)
