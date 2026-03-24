@@ -55,7 +55,7 @@ Tachikoma.jl and [Ratatui](https://ratatui.rs/) share the immediate-mode renderi
 | **Buffer fills** | `fill_gradient!`, `fill_noise!`, `border_shimmer!` |
 | **Backgrounds** | `DotWaveBackground`, `PhyloTreeBackground`, `CladogramBackground` |
 | **Pixel graphics** | `PixelImage`, `PixelCanvas` for pixel-perfect raster rendering (Kitty or sixel) |
-| **Theme system** | 11 built-in themes (`kokaku`, `esper`, `motoko`, etc.) with live switching |
+| **Theme system** | 24 built-in themes (11 dark + 13 light) with live switching |
 | **Settings overlay** | Ctrl+S opens in-app settings (theme, animations, backgrounds) |
 | **Async tasks** | `TaskQueue` / `spawn_task!` for non-blocking background work |
 | **MarkdownPane** | CommonMark rendering with scroll support |
