@@ -4,8 +4,10 @@
         @warn "demos directory not found, skipping"
         @test_skip false
     else
-        code = raw"""
+        tachikoma_dir = joinpath(@__DIR__, "..")
+        code = """
         using Pkg
+        Pkg.develop(; path=$(repr(tachikoma_dir)), io=devnull)
         Pkg.instantiate(; io=devnull)
         using TachikomaDemos
         m = TachikomaDemos.LauncherModel()
@@ -16,9 +18,10 @@
         """
         out = IOBuffer()
         err = IOBuffer()
-        p = run(pipeline(`julia --project=$demos_dir -e $code`, stdout=out, stderr=err), wait=true)
+        p = run(pipeline(`julia --project=$demos_dir -e $code`, stdout=out, stderr=err); wait=false)
+        wait(p)
         if p.exitcode != 0
-            @error "Demo load failed" stderr=String(take!(err))
+            println("DEMO LOAD STDERR:\n", String(take!(err)))
         end
         @test p.exitcode == 0
         n_demos = tryparse(Int, String(take!(out)))
