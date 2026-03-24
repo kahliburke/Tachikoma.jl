@@ -124,6 +124,12 @@ function to_rgb(c::Color256)
     end
 end
 to_rgb(c::ColorRGB) = c
+to_rgb(c::ColorRGBA) = ColorRGB(c.r, c.g, c.b)
+to_rgba(c::ColorRGBA) = c
+to_rgba(c::ColorRGB) = ColorRGBA(c)
+
+"""Convert Tachikoma color to ColorTypes.jl equivalent. Requires ColorTypes loaded."""
+function to_colortype end
 
 function color_lerp(a::ColorRGB, b::ColorRGB, t::Float64)
     t = clamp(t, 0.0, 1.0)

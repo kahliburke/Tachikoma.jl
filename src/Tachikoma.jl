@@ -92,7 +92,8 @@ export # Core types
        # Geometry helpers
        margin, shrink, center, anchor,
        # Colors
-       ColorRGB, ColorRGBA, BLACK, TRANSPARENT, to_rgb, color_lerp, color_wave,
+       ColorRGB, ColorRGBA, BLACK, TRANSPARENT, to_rgb, to_rgba, to_colortype,
+       color_lerp, color_wave,
        brighten, dim_color, hue_shift,
        # Tailwind palettes
        TailwindPalette, hex_to_color256,

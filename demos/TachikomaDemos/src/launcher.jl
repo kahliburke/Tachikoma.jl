@@ -193,6 +193,9 @@ const DEMO_ENTRIES = DemoEntry[
     DemoEntry("Julia REPL",
         "Multiple in-process Julia REPLs in floating windows. Each REPL shares the host's modules and variables. Ctrl+N spawns new REPLs, Ctrl+T tiles them.",
         () -> repl_demo()),
+    DemoEntry("ColorTypes Interop",
+        "Verify ColorTypes.jl extension: to_rgb, to_rgba, to_colortype conversions between Tachikoma and ColorTypes color types. Roundtrip tests.",
+        () -> colortypes_demo()),
 ]
 
 # ── Launcher model ───────────────────────────────────────────────────
