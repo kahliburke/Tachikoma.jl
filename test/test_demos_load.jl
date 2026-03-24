@@ -15,7 +15,11 @@
         print(length(TachikomaDemos.DEMO_ENTRIES))
         """
         out = IOBuffer()
-        p = run(pipeline(`julia --project=$demos_dir -e $code`, stdout=out, stderr=devnull), wait=true)
+        err = IOBuffer()
+        p = run(pipeline(`julia --project=$demos_dir -e $code`, stdout=out, stderr=err), wait=true)
+        if p.exitcode != 0
+            @error "Demo load failed" stderr=String(take!(err))
+        end
         @test p.exitcode == 0
         n_demos = tryparse(Int, String(take!(out)))
         @test n_demos !== nothing && n_demos > 0

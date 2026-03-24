@@ -7,7 +7,6 @@
 # ═══════════════════════════════════════════════════════════════════════
 
 import Tachikoma
-using Infiltrator
 
 @kwdef mutable struct REPLDemoModel <: Tachikoma.Model
     quit::Bool = false
