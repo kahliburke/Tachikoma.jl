@@ -723,7 +723,10 @@ Button("Cancel"; button_style=ButtonStyle(decoration=PlainButton()))
 
 `BorderedButton` accepts a `box` keyword (e.g. `BOX_ROUNDED`, `BOX_HEAVY`, `BOX_DOUBLE`). It requires at least 3 rows of height; if given less it falls back to `BracketButton`.
 
-Buttons animate with a pulse when focused and flash on activation.
+Buttons can play a flash animation when focused using the following parameters:
+
+- `flash_frames::Int`: Number of frames the animation lasts.
+- `flash_style::Function`: A function with the signature `flash_style(btn::Button)::Style` that returns the button style during the animation. The field `btn.flash_remaining` can be used to check how many frames remain.
 
 ### ScrollPane
 

@@ -375,6 +375,16 @@
         @test !T.handle_key!(btn, T.KeyEvent('a'))
     end
 
+    @testset "Button: default flash style" begin
+        btn = T.Button("X")
+        btn.flash_remaining = 3
+        s = btn.flash_style(btn)
+
+        @test s.bg == ColorRGB(0x70, 0x48, 0x18)
+        @test s.fg == ColorRGB(0xff, 0xff, 0xff)
+        @test s.bold == true
+    end
+
     # ─────────────────────────────────────────────────────────────────
     # Sparkline
     # ─────────────────────────────────────────────────────────────────
