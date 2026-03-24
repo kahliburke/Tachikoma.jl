@@ -4,7 +4,7 @@ layout: home
 
 hero:
   text: "Terminal UI Framework for Julia"
-  tagline: Build rich, interactive terminal applications with an Elm-inspired architecture, 30+ widgets, constraint layouts, animation, and kitty/sixel graphics.
+  tagline: Build rich, interactive terminal applications with an Elm-inspired architecture, 40+ widgets, constraint layouts, animation, RGBA pixel pipeline, and kitty/sixel graphics.
   actions:
     - theme: brand
       text: Get Started
@@ -46,8 +46,16 @@ features:
     details: Double-buffered differential rendering at 60fps. Only changed cells hit the terminal — sub-millisecond frame budgets even for complex dashboards.
     link: /performance
   - icon: 🎨
-    title: 11 Built-in Themes
-    details: Cyberpunk, retro, and classic palettes with hot-swappable theme switching and full persistence via Preferences.jl.
+    title: 24 Built-in Themes
+    details: 11 dark + 13 light palettes — cyberpunk, retro, classic, and more — with hot-swappable theme switching and full persistence via Preferences.jl.
+    link: /styling
+  - icon: 🖥️
+    title: Full RGBA Pixel Pipeline
+    details: ColorRGBA-typed pixel pipeline with sixel virtual framebuffer compositor (text mask compositing), and Kitty graphics RGBA with z-index layering.
+    link: /canvas
+  - icon: 🎛️
+    title: Type-Parameterized Widget Styling
+    details: TabBarStyle, ButtonStyle, and other typed style structs let you customize widget appearance with full type safety and zero runtime overhead.
     link: /styling
 ---
 ```
@@ -136,7 +144,7 @@ app(Life())
 | [Getting Started](getting-started.md) | Build your first app in 25 lines |
 | [Architecture](architecture.md) | The Elm architecture pattern in depth |
 | [Layout](layout.md) | Constraint-based layout system |
-| [Styling & Themes](styling.md) | Colors, styles, and the 11 built-in themes |
+| [Styling & Themes](styling.md) | Colors, styles, and the 24 built-in themes |
 | [Input & Events](events.md) | Keyboard and mouse event handling |
 | [Animation](animation.md) | Tweens, springs, timelines, and organic effects |
 | [Graphics & Pixel Rendering](canvas.md) | Canvas, BlockCanvas, PixelImage, PixelCanvas |

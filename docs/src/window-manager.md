@@ -19,7 +19,7 @@ If you want a strict single-flow layout instead, prefer container-based layouts 
 `FloatingWindow` represents one draggable window:
 
 - `content` is usually a widget (`TextArea`, `Form`, `ScrollPane`, etc.).
-- `on_render(inner, buf, focused)` lets you draw arbitrary content manually.
+- `on_render(inner, buf, focused, frame)` lets you draw arbitrary content manually. `frame` is the current `Frame` (or `nothing` when called outside a frame context) and enables pixel graphics such as `PixelImage`, kitty, and sixel rendering inside the window.
 - `x/y/width/height` define geometry in absolute terminal coordinates.
 - `border_color`, `bg_color`, `box`, `resizable`, and `opacity` tune the look and behavior.
 
@@ -136,9 +136,10 @@ function _ensure_demo_windows!(wm::Tachikoma.WindowManager)
         title="Stats",
         x=18, y=9, width=32, height=10, opacity=0.9,
         border_color=Tachikoma.ColorRGB(0x90, 0xd0, 0x80),
-        on_render=(area, buf, focused) -> begin
-            # area::Rect = content region inside the border
+        on_render=(area, buf, focused, frame) -> begin
+            # area::Rect  = content region inside the border
             # buf::Buffer = draw target
+            # frame       = current Frame (nothing when called without a Frame context)
             s = focused ? Tachikoma.tstyle(:accent) : Tachikoma.tstyle(:text_dim)
             Tachikoma.set_string!(buf, area.x+1, area.y,   "focused: $focused", s)
             Tachikoma.set_string!(buf, area.x+1, area.y+1, "size: $(area.width)×$(area.height)", s)
@@ -179,4 +180,4 @@ Tachikoma.app(_WMAnim())
 - `tile!(wm, area; animate=true, duration=15)`
 - `cascade!(wm, area; animate=true, duration=15)`
 - `window_opacity()`, `set_window_opacity!(v)`
-- `FloatingWindow(; id, title, x, y, width, height, content, box, opacity, bg_color, border_color, resizable=true, closeable=false, on_close=nothing, on_render=nothing)`
+- `FloatingWindow(; id, title, x, y, width, height, content, box, opacity, bg_color, border_color, resizable=true, closeable=false, on_close=nothing, on_render=nothing)` — `on_render` signature: `(inner::Rect, buf::Buffer, focused::Bool, frame) -> nothing`; `frame` is `nothing` when called outside a Frame context

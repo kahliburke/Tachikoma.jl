@@ -468,6 +468,33 @@ value(tabs)                # selected tab index (1-based)
 set_value!(tabs, 2)        # set active tab programmatically
 ```
 
+Tab appearance is controlled by a `TabBarStyle{D}` with one of three built-in decoration types:
+
+<!-- tachi:noeval -->
+```julia
+# Default bracket style: [Active]  Inactive
+TabBar(["Tab 1", "Tab 2"])
+
+# Box tabs with heavy borders (requires height ≥ 3)
+TabBar(["Tab 1", "Tab 2"]; tab_style=TabBarStyle(decoration=BoxTabs(box=BOX_HEAVY)))
+
+# Plain text tabs
+TabBar(["Tab 1", "Tab 2"]; tab_style=TabBarStyle(decoration=PlainTabs()))
+```
+
+`TabBarStyle` keyword arguments:
+
+| Argument | Default | Description |
+|---|---|---|
+| `decoration` | `BracketTabs()` | `BracketTabs()`, `BoxTabs(; box=…)`, or `PlainTabs()` |
+| `active` | `tstyle(:accent, bold=true)` | Style for the active tab label |
+| `inactive` | `tstyle(:text_dim)` | Style for inactive tab labels |
+| `separator` | `" │ "` | String placed between tabs (not used for `BoxTabs`) |
+| `overflow_char` | `'…'` | Character shown when tabs overflow the available width |
+| `tab_colors` | `Style[]` | Per-tab color overrides (empty = use `active`/`inactive`) |
+
+`BoxTabs` requires at least 3 rows of height. If given less, it falls back to `BracketTabs`.
+
 When there are more tabs than fit in the available width, overflow indicators (`…`) appear automatically and the visible window scrolls to keep the active tab in view.
 
 Store the `TabBar` in your model to preserve state across frames:
@@ -662,14 +689,41 @@ Clickable button:
 
 <!-- tachi:widget button_basic w=20 h=1 -->
 ```julia
-btn = Button("Submit"; style=tstyle(:primary), focused=true)
+btn = Button("Submit"; focused=true)
 render(btn, area, buf)
 ```
 
 <!-- tachi:noeval -->
 ```julia
 handle_key!(btn, evt)      # enter/space triggers
+handle_mouse!(btn, evt)    # left-click triggers; returns true if hit
 ```
+
+Button appearance is controlled by a `ButtonStyle{D}` with one of three built-in decoration types:
+
+<!-- tachi:noeval -->
+```julia
+# Default bracket button: [ Label ]
+Button("Click me")
+
+# Bordered button with rounded box (requires height ≥ 3)
+Button("Submit"; button_style=ButtonStyle(decoration=BorderedButton()))
+
+# Plain text button
+Button("Cancel"; button_style=ButtonStyle(decoration=PlainButton()))
+```
+
+`ButtonStyle` keyword arguments:
+
+| Argument | Default | Description |
+|---|---|---|
+| `decoration` | `BracketButton()` | `BracketButton()`, `BorderedButton(; box=…)`, or `PlainButton()` |
+| `normal` | `tstyle(:text)` | Style when unfocused |
+| `focused` | `tstyle(:accent, bold=true)` | Style when focused |
+
+`BorderedButton` accepts a `box` keyword (e.g. `BOX_ROUNDED`, `BOX_HEAVY`, `BOX_DOUBLE`). It requires at least 3 rows of height; if given less it falls back to `BracketButton`.
+
+Buttons animate with a pulse when focused and flash on activation.
 
 ### ScrollPane
 

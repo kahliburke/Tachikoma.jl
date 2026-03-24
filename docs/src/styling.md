@@ -62,6 +62,25 @@ ColorRGB(255, 100, 50)   # orange
 ColorRGB(0x1a, 0x1b, 0x2e)  # dark blue
 ```
 
+### ColorRGBA
+
+A 4-byte pixel color with red, green, blue, and alpha channels (each a `UInt8`). Used internally by `PixelImage`, `PixelCanvas`, and the raw RGBA rendering pipeline — **not** a subtype of `AbstractColor` and cannot be used in `Style` for terminal text.
+
+<!-- tachi:noeval -->
+```julia
+ColorRGBA(255, 0, 0)        # opaque red  (alpha defaults to 0xff)
+ColorRGBA(255, 0, 0, 128)   # semi-transparent red
+ColorRGBA(c::ColorRGB)      # promote ColorRGB → ColorRGBA (opaque)
+ColorRGB(c::ColorRGBA)      # drop alpha channel → ColorRGB
+```
+
+Predefined constants:
+
+```julia
+BLACK       # ColorRGBA(0x00, 0x00, 0x00, 0xff)  — opaque black
+TRANSPARENT # ColorRGBA(0x00, 0x00, 0x00, 0x00)  — fully transparent
+```
+
 ### NoColor
 
 Transparent / terminal default:
@@ -207,12 +226,30 @@ end
 <!-- tachi:noeval -->
 ```julia
 color_lerp(a::ColorRGB, b::ColorRGB, t)    # interpolate, t ∈ [0,1]
-to_rgb(c::Color256) → ColorRGB              # convert palette → RGB
+color_lerp(a::ColorRGBA, b::ColorRGBA, t)  # interpolate with alpha
 brighten(c::ColorRGB, amount) → ColorRGB    # brighten by 0–1
 dim_color(c::ColorRGB, amount) → ColorRGB   # dim by 0–1
 hue_shift(c::ColorRGB, degrees) → ColorRGB  # rotate hue
 desaturate(c::ColorRGB, amount) → ColorRGB  # reduce saturation
 ```
+
+### Color Conversion
+
+<!-- tachi:noeval -->
+```julia
+to_rgb(c::Color256) → ColorRGB    # ANSI palette → 24-bit RGB
+to_rgb(c::ColorRGBA) → ColorRGB   # drop alpha channel
+to_rgba(c::ColorRGB) → ColorRGBA  # promote to RGBA (opaque)
+to_rgba(c::ColorRGBA) → ColorRGBA # identity
+
+# Requires ColorTypes.jl (loaded via TachikomaColorTypesExt):
+to_colortype(c::ColorRGB)  → RGB{N0f8}   # Tachikoma → ColorTypes
+to_colortype(c::ColorRGBA) → RGBA{N0f8}  # Tachikoma → ColorTypes
+to_rgb(c::RGB{N0f8})       → ColorRGB    # ColorTypes → Tachikoma
+to_rgba(c::RGBA{N0f8})     → ColorRGBA   # ColorTypes → Tachikoma
+```
+
+`TachikomaColorTypesExt` is a package extension that activates automatically when `ColorTypes` (or a package that re-exports it, such as Colors.jl or Makie) is loaded alongside Tachikoma. It provides two-way conversion between Tachikoma color types and the ColorTypes.jl ecosystem.
 
 ### Animated Color
 

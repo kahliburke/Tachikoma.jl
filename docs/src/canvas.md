@@ -61,10 +61,10 @@ BlockCanvas produces visually denser output than braille — better for filled s
 img = PixelImage(40, 20)    # 40 cells × 20 cells
 
 # Pixel API (1-based coordinates, up to pixel_w × pixel_h)
-set_pixel!(img, px, py)                      # use current color
-set_pixel!(img, px, py, ColorRGB(255, 0, 0)) # explicit color
-fill_rect!(img, x0, y0, x1, y1, color)       # filled rectangle
-load_pixels!(img, pixel_matrix)               # bulk load from Matrix{ColorRGB}
+set_pixel!(img, px, py)                        # use current color
+set_pixel!(img, px, py, ColorRGBA(255, 0, 0))  # explicit color (opaque)
+fill_rect!(img, x0, y0, x1, y1, color)         # filled rectangle
+load_pixels!(img, pixel_matrix)                 # bulk load from Matrix{ColorRGBA}
 
 # With a border
 img = PixelImage(40, 20; block=Block(title="Image"))
@@ -102,7 +102,7 @@ pixel_line!(canvas, x0, y0, x1, y1)
 fill_pixel_rect!(canvas, x0, y0, x1, y1, color)
 
 # Set drawing color
-canvas.color = ColorRGB(0, 200, 255)
+canvas.color = ColorRGBA(0, 200, 255)
 
 # Render
 render(canvas, area, buf)
@@ -116,6 +116,30 @@ canvas.pixel_w    # total pixel width
 canvas.pixel_h    # total pixel height
 canvas.dot_w      # braille-compatible width (width * 2)
 canvas.dot_h      # braille-compatible height (height * 4)
+```
+
+## Raw RGBA Rendering
+
+For direct pixel rendering — for example, from a Makie plot or an external image decoder — use `render_rgba!` to push raw RGBA pixel data into a `Frame`:
+
+<!-- tachi:noeval -->
+```julia
+render_rgba!(f::Frame, rgba::Vector{UInt8}, w::Int, h::Int, area::Rect;
+             cols::Int=area.width, rows::Int=area.height,
+             z::Int=-1, scale_to_cells::Bool=true)
+```
+
+`rgba` must be `w * h * 4` bytes in row-major order (top-to-bottom, left-to-right). Pixels with all-zero bytes `(r=0, g=0, b=0, a=0)` are treated as transparent and are not rendered.
+
+**Kitty terminals:** uses the native RGBA Kitty graphics protocol with z-index layering. Multiple `render_rgba!` calls at different z-levels are composited by the terminal.
+
+**Sixel terminals:** blends the RGBA data into a per-frame virtual framebuffer. All `render_rgba!` calls within a single `view` pass are alpha-composited together. Text cells are preserved via a text mask — wherever the buffer contains non-space characters, the pixel data beneath them is suppressed so text remains readable. Transparent pixels (alpha = 0) show the terminal background. The composited framebuffer is encoded and emitted as sixel data after `view` returns.
+
+<!-- tachi:noeval -->
+```julia
+# Example: render a 320×240 RGBA buffer into a 40×15 cell area
+rgba = Vector{UInt8}(undef, 320 * 240 * 4)  # fill with pixel data
+render_rgba!(frame, rgba, 320, 240, area)
 ```
 
 ## Render Backend Switching
