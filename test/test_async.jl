@@ -86,16 +86,20 @@
     @testset "spawn_timer! with cancellation" begin
         q = T.TaskQueue()
         token = T.spawn_timer!(q, :tick, 0.05; repeat=true)
-        sleep(0.25)
-        T.cancel!(token)
-        sleep(0.1)
+        # Wait for events to actually arrive rather than sleeping a fixed duration.
+        # This avoids flakiness on slow CI runners.
         ticks = 0
-        T.drain_tasks!(q) do evt
-            @test evt.id == :tick
-            @test evt.value isa Float64
-            ticks += 1
+        deadline = time() + 5.0  # generous timeout
+        while ticks < 3 && time() < deadline
+            T.drain_tasks!(q) do evt
+                @test evt.id == :tick
+                @test evt.value isa Float64
+                ticks += 1
+            end
+            ticks < 3 && sleep(0.02)
         end
-        @test ticks >= 2   # at least a couple ticks in 250ms at 50ms interval
+        T.cancel!(token)
+        @test ticks >= 3
         @test T.is_cancelled(token)
         # active count should return to 0 after cancel
         deadline = time() + 2.0
