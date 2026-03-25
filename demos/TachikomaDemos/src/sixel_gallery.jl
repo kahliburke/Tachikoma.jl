@@ -176,7 +176,7 @@ function _draw_cpu_heatmap!(img::PixelImage, m::SixelGalleryModel)
                 t = (util - 0.7) / 0.3
                 (UInt8(round(0xe0 + 0x1f * t)), UInt8(round(0xe0 * (1.0 - t * 0.7))), UInt8(0x00))
             end
-            pixels[py, px] = ColorRGB(r, g, b)
+            pixels[py, px] = ColorRGBA(r, g, b)
         end
     end
 end
@@ -202,7 +202,7 @@ function _draw_latency_heatmap!(img::PixelImage, m::SixelGalleryModel)
             g = UInt8(round(0x20 + 0xd0 * v))
             b = UInt8(round(0x30 + 0xcf * v))
             if v > 0.05
-                pixels[py, px] = ColorRGB(r, g, b)
+                pixels[py, px] = ColorRGBA(r, g, b)
             end
         end
     end
@@ -222,14 +222,14 @@ function _draw_memory_map!(img::PixelImage, m::SixelGalleryModel)
             age = pages[gy, gx]
             if age == 0.0
                 # Free: very dark
-                pixels[py, px] = ColorRGB(0x08, 0x08, 0x08)
+                pixels[py, px] = ColorRGBA(0x08, 0x08, 0x08)
             else
                 # Allocated: green (fresh) → blue (old)
                 t = clamp(age / 200.0, 0.0, 1.0)
                 r = UInt8(round(0x20 * (1.0 - t)))
                 g = UInt8(round(0xc0 * (1.0 - t) + 0x30 * t))
                 b = UInt8(round(0x30 * (1.0 - t) + 0xc0 * t))
-                pixels[py, px] = ColorRGB(r, g, b)
+                pixels[py, px] = ColorRGBA(r, g, b)
             end
         end
     end
@@ -295,7 +295,7 @@ function _draw_flame_graph!(img::PixelImage, tick::Int)
             else
                 (val * sat + m_hsv, m_hsv, x_hsv + m_hsv)
             end
-            color = ColorRGB(UInt8(round(r1 * 255)), UInt8(round(g1 * 255)), UInt8(round(b1 * 255)))
+            color = ColorRGBA(UInt8(round(r1 * 255)), UInt8(round(g1 * 255)), UInt8(round(b1 * 255)))
 
             @inbounds for py in py_start:py_end
                 for px in x0:min(x1, pw)
@@ -306,7 +306,7 @@ function _draw_flame_graph!(img::PixelImage, tick::Int)
             # 1px border between functions
             if x1 < pw
                 @inbounds for py in py_start:py_end
-                    pixels[py, min(x1 + 1, pw)] = ColorRGB(0x10, 0x10, 0x10)
+                    pixels[py, min(x1 + 1, pw)] = ColorRGBA(0x10, 0x10, 0x10)
                 end
             end
         end

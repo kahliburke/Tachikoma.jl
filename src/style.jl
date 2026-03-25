@@ -85,6 +85,8 @@ ColorRGBA(r::Integer, g::Integer, b::Integer) = ColorRGBA(UInt8(r), UInt8(g), UI
 ColorRGBA(r::Integer, g::Integer, b::Integer, a::Integer) = ColorRGBA(UInt8(r), UInt8(g), UInt8(b), UInt8(a))
 ColorRGBA(c::ColorRGB, a::UInt8=0xff) = ColorRGBA(c.r, c.g, c.b, a)
 ColorRGB(c::ColorRGBA) = ColorRGB(c.r, c.g, c.b)
+Base.convert(::Type{ColorRGBA}, c::ColorRGB) = ColorRGBA(c)
+Base.convert(::Type{ColorRGB}, c::ColorRGBA) = ColorRGB(c)
 
 Color256(n::Int) = Color256(UInt8(n))
 

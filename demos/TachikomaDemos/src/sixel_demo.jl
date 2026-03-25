@@ -62,7 +62,7 @@ function _draw_plasma!(img::PixelImage, tick::Int)
 
             h = mod(v * 360.0 + t * 15.0, 360.0)
             r, g, b = _hsv_to_rgb(h, 0.85, 0.6 + 0.4 * sin(v * π))
-            color = ColorRGB(r, g, b)
+            color = ColorRGBA(r, g, b)
             fill_rect!(img, px, py, px + step - 1, py + step - 1, color)
         end
     end
@@ -121,7 +121,7 @@ function _draw_terrain!(img::PixelImage, tick::Int)
             g = UInt8(clamp(round(Int, Float64(g) * light), 0, 255))
             b = UInt8(clamp(round(Int, Float64(b) * light), 0, 255))
 
-            fill_rect!(img, px, py, px + step - 1, py + step - 1, ColorRGB(r, g, b))
+            fill_rect!(img, px, py, px + step - 1, py + step - 1, ColorRGBA(r, g, b))
         end
     end
 end
@@ -155,13 +155,13 @@ function _draw_mandelbrot!(img::PixelImage, tick::Int)
             end
 
             color = if iter == max_iter
-                ColorRGB(0x00, 0x00, 0x00)
+                ColorRGBA(0x00, 0x00, 0x00)
             else
                 smooth_i = Float64(iter) + 1.0 - log2(max(1.0, log2(zr * zr + zi * zi)))
                 h = mod(smooth_i * 7.0 + t * 20.0, 360.0)
                 v = clamp(smooth_i / Float64(max_iter) * 3.0, 0.3, 1.0)
                 r, g, b = _hsv_to_rgb(h, 0.9, v)
-                ColorRGB(r, g, b)
+                ColorRGBA(r, g, b)
             end
             fill_rect!(img, px, py, px + step - 1, py + step - 1, color)
         end
