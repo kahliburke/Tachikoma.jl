@@ -130,7 +130,7 @@ end
 function handle_key!(btn::Button, evt::KeyEvent)::Bool
     btn.focused || return false
     if evt.key == :enter || (evt.key == :char && evt.char == ' ')
-        btn.flash_remaining = 8
+        btn.flash_remaining = btn.flash_frames
         return true
     end
     false
@@ -274,7 +274,5 @@ function _default_button_flash_style(btn::Button)
         round(UInt8, 0xc0 * intensity),
         round(UInt8, 0x40 * intensity),
     )
-    s = Style(fg=flash_fg, bg=flash_bg, bold=true)
-
-    return s
+    Style(fg=flash_fg, bg=flash_bg, bold=true)
 end
