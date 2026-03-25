@@ -88,10 +88,12 @@ mutable struct Button{D<:ButtonDecoration}
     button_style::ButtonStyle{D}
     last_area::Rect
     flash_remaining::Int
+    flash_frames::Int
+    flash_style::Function
 end
 
 """
-    Button(label; focused=false, button_style=ButtonStyle(), ...)
+    Button(label; focused=false, button_style=ButtonStyle(), flash_frames::Int=8, flash_style::Function=_default_button_flash_style, ...)
 
 Clickable button with optional pulse animation.
 Enter/Space or mouse click to activate.
@@ -101,8 +103,19 @@ function Button(label::String;
     focused::Bool=false,
     tick::Union{Int, Nothing}=nothing,
     button_style::ButtonStyle=ButtonStyle(),
+    flash_frames::Int=8,
+    flash_style::Function=_default_button_flash_style,
 )
-    Button(label, focused, tick, button_style, Rect(), 0)
+    Button(
+        label,
+        focused,
+        tick,
+        button_style,
+        Rect(),
+        0,
+        flash_frames,
+        flash_style
+    )
 end
 
 focusable(::Button) = true
@@ -128,7 +141,7 @@ function handle_mouse!(btn::Button, evt::MouseEvent)::Bool
         r = btn.last_area
         if r.width > 0 && contains(r, evt.x, evt.y)
             btn.focused = true
-            btn.flash_remaining = 8
+            btn.flash_remaining = btn.flash_frames
             return true
         end
     end
@@ -145,14 +158,7 @@ function render(btn::Button, rect::Rect, buf::Buffer)
     # Activation flash
     if btn.flash_remaining > 0
         btn.flash_remaining -= 1
-        intensity = btn.flash_remaining / 8.0
-        flash_fg = ColorRGB(0xff, 0xff, 0xff)
-        flash_bg = ColorRGB(
-            round(UInt8, 0x40 + 0x80 * intensity),
-            round(UInt8, 0xc0 * intensity),
-            round(UInt8, 0x40 * intensity),
-        )
-        s = Style(fg=flash_fg, bg=flash_bg, bold=true)
+        s = btn.flash_style(btn)
     elseif btn.focused && btn.tick !== nothing && animations_enabled()
         base_fg = to_rgb(s.fg)
         p = pulse(btn.tick; period=60, lo=0.0, hi=0.25)
@@ -258,4 +264,17 @@ function _render_button!(btn::Button, dec::BorderedButton, rect::Rect, buf::Buff
         in_bounds(buf, col, y1) && set_char!(buf, col, y1, bx.h, border_s)
     end
     in_bounds(buf, x1, y1) && set_char!(buf, x1, y1, bx.br, border_s)
+end
+
+function _default_button_flash_style(btn::Button)
+    intensity = clamp(btn.flash_remaining / btn.flash_frames, 0, 1)
+    flash_fg = ColorRGB(0xff, 0xff, 0xff)
+    flash_bg = ColorRGB(
+        round(UInt8, 0x40 + 0x80 * intensity),
+        round(UInt8, 0xc0 * intensity),
+        round(UInt8, 0x40 * intensity),
+    )
+    s = Style(fg=flash_fg, bg=flash_bg, bold=true)
+
+    return s
 end
