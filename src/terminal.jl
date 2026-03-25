@@ -1211,6 +1211,46 @@ end
 
 # ── TUI mode lifecycle ────────────────────────────────────────────────
 
+"""
+    _detect_graphics_from_env() -> GraphicsProtocol
+
+Infer graphics protocol from terminal environment variables, without
+sending any escape sequences. Used as:
+- Primary detection for remote TTY sessions (where probing is unsafe).
+- Fast-path before probing for known terminals in local sessions.
+
+Detection priority (kitty > sixel):
+- Kitty: `TERM=xterm-kitty`, `KITTY_WINDOW_ID` set, `TERM_PROGRAM=kitty`
+- Ghostty: `TERM=xterm-ghostty`, `GHOSTTY_RESOURCES_DIR` set
+- WezTerm: `TERM_PROGRAM=WezTerm` → sixel (kitty support incomplete)
+- iTerm2: `TERM_PROGRAM=iTerm.app` → sixel
+- foot: `TERM=foot` or `TERM=foot-extra` → sixel
+- mlterm: `TERM=mlterm` → sixel
+"""
+function _detect_graphics_from_env()
+    term      = get(ENV, "TERM", "")
+    term_prog = get(ENV, "TERM_PROGRAM", "")
+
+    # Kitty: canonical env signals
+    if term == "xterm-kitty" || haskey(ENV, "KITTY_WINDOW_ID") ||
+            term_prog == "kitty"
+        return gfx_kitty
+    end
+    # Ghostty: kitty graphics protocol
+    if term == "xterm-ghostty" || haskey(ENV, "GHOSTTY_RESOURCES_DIR")
+        return gfx_kitty
+    end
+    # WezTerm / iTerm2: prefer their native sixel path
+    if term_prog in ("WezTerm", "iTerm.app")
+        return gfx_sixel
+    end
+    # foot, mlterm: sixel
+    if term in ("foot", "foot-extra", "mlterm", "mlterm-256color")
+        return gfx_sixel
+    end
+    return gfx_none
+end
+
 function enter_tui!(t::Terminal; remote_tty::Bool = false)
     print(t.io, ALT_SCREEN_ON, CURSOR_HIDE, CLEAR_SCREEN)
     Base.flush(t.io)
@@ -1249,27 +1289,40 @@ function enter_tui!(t::Terminal; remote_tty::Bool = false)
         elseif gfx_env == "none"
             t.graphics_protocol = gfx_none
         else
-            # WezTerm and iTerm2 support sixel natively but have incomplete
-            # or slow Kitty graphics — skip the Kitty query to avoid
-            # misdetection and use their faster sixel path instead.
-            term_prog = get(ENV, "TERM_PROGRAM", "")
-            skip_kitty = term_prog == "WezTerm" || term_prog == "iTerm.app"
-            kitty_gfx = !skip_kitty && _detect_kitty_graphics!(t.io)
-            if kitty_gfx
-                t.graphics_protocol = gfx_kitty
-            elseif SIXEL_AREA_PX[].w > 0
-                t.graphics_protocol = gfx_sixel
+            # Fast path: ENV-based detection for well-known terminals avoids
+            # the 100ms kitty probe round-trip (and correctly skips kitty probing
+            # for WezTerm/iTerm2 which have incomplete kitty graphics support).
+            env_proto = _detect_graphics_from_env()
+            if env_proto != gfx_none
+                t.graphics_protocol = env_proto
             else
-                t.graphics_protocol = gfx_none
+                # Unknown terminal: probe for Kitty graphics support, then
+                # fall back to sixel if the XTSMGRAPHICS query succeeded.
+                kitty_gfx = _detect_kitty_graphics!(t.io)
+                if kitty_gfx
+                    t.graphics_protocol = gfx_kitty
+                elseif SIXEL_AREA_PX[].w > 0
+                    t.graphics_protocol = gfx_sixel
+                else
+                    t.graphics_protocol = gfx_none
+                end
             end
         end
     else
         # Remote TTY: skip all terminal queries (responses would buffer in the
         # remote TTY's input and corrupt its shell after the TUI exits).
-        # Honour TACHIKOMA_GFX env override only; default to none.
+        # Honour TACHIKOMA_GFX env override first; fall back to ENV-based
+        # detection which is safe to use without sending any escape sequences.
         gfx_env = lowercase(get(ENV, "TACHIKOMA_GFX", ""))
-        t.graphics_protocol = gfx_env == "kitty"  ? gfx_kitty  :
-                               gfx_env == "sixel" ? gfx_sixel : gfx_none
+        t.graphics_protocol = if gfx_env == "kitty"
+            gfx_kitty
+        elseif gfx_env == "sixel"
+            gfx_sixel
+        elseif gfx_env == "none"
+            gfx_none
+        else
+            _detect_graphics_from_env()
+        end
     end
     GRAPHICS_PROTOCOL[] = t.graphics_protocol
     # Clear any probe artifacts (some terminals render APC/CSI probe bytes as
