@@ -140,6 +140,7 @@ end
 Container(children::Vector, layout::Layout) = Container(Any[children...], layout, nothing)
 
 include("form.jl")
+include("widget_scroll.jl")
 
 function render(c::Container, rect::Rect, buf::Buffer)
     area = if c.block !== nothing
