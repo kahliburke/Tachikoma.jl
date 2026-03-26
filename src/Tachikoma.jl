@@ -116,7 +116,7 @@ export # Core types
        # Texture fills
        fill_gradient!, fill_noise!, border_shimmer!,
        # Widget protocol
-       intrinsic_size, focusable, FocusRing, Container,
+       intrinsic_size, focusable, FocusRing, Container, WidgetScroll,
        next!, prev!, current, handle_key!,
        value, set_value!, valid,
        # Widgets
