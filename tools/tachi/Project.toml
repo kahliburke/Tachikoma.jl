@@ -1,0 +1,19 @@
+name = "Tachi"
+uuid = "b8e3f7a1-4c2d-4e5f-9a1b-3d7c8e2f6a0b"
+version = "0.1.0"
+
+[deps]
+ColorTypes = "3da002f7-5984-5a60-b8a6-cbb66c0b333f"
+FreeTypeAbstraction = "663a7486-cb36-511b-a19d-713bb74d65c9"
+Tachikoma = "468859d6-42d8-48b7-8ad9-1d312e0e3b0a"
+
+[sources]
+Tachikoma = {path = "../.."}
+
+[compat]
+ColorTypes = "0.11, 0.12"
+FreeTypeAbstraction = "0.10, 0.11"
+julia = "1.12"
+
+[apps.tachi]
+julia_command = "main"
