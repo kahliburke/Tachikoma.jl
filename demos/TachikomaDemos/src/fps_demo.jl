@@ -652,7 +652,7 @@ end
     r = clamp(2.0 * v - 1.0, 0.0, 1.0)
     g = v < 0.5 ? 2.0 * v : 2.0 * (1.0 - v)
     b = clamp(1.0 - 2.0 * v, 0.0, 1.0)
-    ColorRGBA(round(UInt8, r * 255), round(UInt8, g * 255), round(UInt8, b * 255))
+    ColorRGB(round(UInt8, r * 255), round(UInt8, g * 255), round(UInt8, b * 255))
 end
 
 function _fps_draw_noise_sixel(m::FPSModel, f::Frame, inner::Rect)
