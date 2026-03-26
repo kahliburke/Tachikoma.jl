@@ -47,7 +47,7 @@ function print_usage()
       --skip <n>                Use every Nth frame (default: 1)
       --compress                Compress dead space before rendering
       --bg <color>              Background: black, dark (default), white, or r,g,b
-      --format <fmt>            Output format: gif (default), apng
+      --format <fmt>            Output format: gif (default), mp4
       --fps <n>                 Override frame rate
       --cell-w <n>              Cell width in pixels (default: 10)
       --cell-h <n>              Cell height in pixels (default: 20)

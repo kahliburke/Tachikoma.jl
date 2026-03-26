@@ -73,8 +73,10 @@ function render_tach(opts::Dict{Symbol, Any})
         Tachikoma.export_gif_from_snapshots(output, w, h, cells, ts; kwargs...)
     elseif fmt == "apng"
         Tachikoma.export_apng_from_snapshots(output, w, h, cells, ts; kwargs...)
+    elseif fmt == "mp4"
+        render_mp4(output, w, h, cells, ts, kwargs; fps=opts[:fps])
     else
-        printstyled(stderr, "Unknown format: $fmt (supported: gif, apng)\n"; color=:red)
+        printstyled(stderr, "Unknown format: $fmt (supported: gif, apng, mp4)\n"; color=:red)
         exit(1)
     end
     elapsed = time() - t0
