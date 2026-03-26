@@ -498,31 +498,83 @@ function _write_gif(filename::String, frames::Vector{Matrix{RGB{N0f8}}};
         write(f, UInt16(0))  # infinite loop
         write(f, UInt8(0))
 
+        prev_img = nothing
+        accum_delay = UInt16(0)
+
         for (i, img) in enumerate(frames)
             frame_delay = delays !== nothing && i <= length(delays) ? delays[i] : default_delay
-            # Graphic Control Extension
-            write(f, UInt8(0x21), UInt8(0xf9), UInt8(4))
-            write(f, UInt8(0x00))  # disposal=none
-            write(f, frame_delay)
-            write(f, UInt8(0), UInt8(0))  # transparent idx + terminator
 
-            # Image Descriptor
-            write(f, UInt8(0x2c))
-            write(f, UInt16(0), UInt16(0), UInt16(w), UInt16(h))
+            if prev_img !== nothing
+                # Find bounding rect of changed pixels
+                x0, y0, x1, y1 = w + 1, h + 1, 0, 0
+                @inbounds for py in 1:h, px in 1:w
+                    if img[py, px] != prev_img[py, px]
+                        x0 = min(x0, px); y0 = min(y0, py)
+                        x1 = max(x1, px); y1 = max(y1, py)
+                    end
+                end
 
-            local_palette, indices = _quantize_frame(img)
-            write(f, UInt8(0x87))  # LCT flag=1, size=7
+                if x0 > x1
+                    # Identical frame — accumulate delay, skip encoding
+                    accum_delay += frame_delay
+                    continue
+                end
 
-            for c in local_palette
-                write(f, UInt8(round(UInt8, Float32(c.r) * 255)))
-                write(f, UInt8(round(UInt8, Float32(c.g) * 255)))
-                write(f, UInt8(round(UInt8, Float32(c.b) * 255)))
+                # Extract the changed subrect
+                sub_w = x1 - x0 + 1
+                sub_h = y1 - y0 + 1
+                sub_img = img[y0:y1, x0:x1]
+
+                frame_delay += accum_delay
+                accum_delay = UInt16(0)
+
+                # Graphic Control Extension — disposal=1 (do not dispose)
+                write(f, UInt8(0x21), UInt8(0xf9), UInt8(4))
+                write(f, UInt8(0x04))  # disposal=1 (do not dispose), no transparency
+                write(f, frame_delay)
+                write(f, UInt8(0), UInt8(0))
+
+                # Image Descriptor with subrect position
+                write(f, UInt8(0x2c))
+                write(f, UInt16(x0 - 1), UInt16(y0 - 1), UInt16(sub_w), UInt16(sub_h))
+
+                local_palette, indices = _quantize_frame(sub_img)
+                write(f, UInt8(0x87))  # LCT flag=1, size=7
+                for c in local_palette
+                    write(f, UInt8(round(UInt8, Float32(c.r) * 255)))
+                    write(f, UInt8(round(UInt8, Float32(c.g) * 255)))
+                    write(f, UInt8(round(UInt8, Float32(c.b) * 255)))
+                end
+                write(f, UInt8(8))
+                write(f, _lzw_encode(indices, UInt8(8)))
+            else
+                # First frame — write full image
+                frame_delay += accum_delay
+                accum_delay = UInt16(0)
+
+                write(f, UInt8(0x21), UInt8(0xf9), UInt8(4))
+                write(f, UInt8(0x00))  # disposal=none
+                write(f, frame_delay)
+                write(f, UInt8(0), UInt8(0))
+
+                write(f, UInt8(0x2c))
+                write(f, UInt16(0), UInt16(0), UInt16(w), UInt16(h))
+
+                local_palette, indices = _quantize_frame(img)
+                write(f, UInt8(0x87))
+                for c in local_palette
+                    write(f, UInt8(round(UInt8, Float32(c.r) * 255)))
+                    write(f, UInt8(round(UInt8, Float32(c.g) * 255)))
+                    write(f, UInt8(round(UInt8, Float32(c.b) * 255)))
+                end
+                write(f, UInt8(8))
+                write(f, _lzw_encode(indices, UInt8(8)))
             end
 
-            write(f, UInt8(8))  # LZW min code size
-            write(f, _lzw_encode(indices, UInt8(8)))
+            prev_img = img
         end
 
+        # Flush any remaining accumulated delay (shouldn't happen normally)
         write(f, UInt8(0x3b))  # trailer
     end
     nothing
