@@ -729,7 +729,7 @@ function _fb_flush!(fb::PixelFramebuffer, f::Frame, screen_area::Rect)
             cc = screen_area.x + col - 1
             if in_bounds(buf, cc, cr)
                 cell = buf.content[buf_index(buf, cc, cr)]
-                text_mask[row, col] = cell.char != ' '
+                text_mask[row, col] = cell.char != ' ' || !isempty(cell.suffix)
             else
                 text_mask[row, col] = false
             end
@@ -1086,10 +1086,16 @@ function flush!(t::Terminal, io::IO)
                 last_hyperlink = hl
             end
 
-            write(io, cc.char)
-            # Wide chars advance the terminal cursor by 2 columns
-            w = textwidth(cc.char)
-            last_col = col + w - 1
+            if isempty(cc.suffix)
+                write(io, cc.char)
+                w = textwidth(cc.char)
+            else
+                glyph = cell_glyph(cc)
+                write(io, glyph)
+                w = textwidth(glyph)
+            end
+            # Wide chars advance the terminal cursor by 2 columns.
+            last_col = col + max(w, 1) - 1
             last_row = row
         end
     end

@@ -110,6 +110,22 @@
         @test buf.content[2].char == 'X'
     end
 
+    @testset "Buffer zero-width graphemes" begin
+        buf = T.Buffer(T.Rect(1, 1, 10, 1))
+        T.set_string!(buf, 1, 1, "ṅx")
+        @test buf.content[1].char == 'n'
+        @test buf.content[1].suffix == "̇"
+        @test buf.content[2].char == 'x'
+        @test T.buffer_to_text(buf, T.Rect(1, 1, 10, 1)) == "ṅx"
+
+        buf = T.Buffer(T.Rect(1, 1, 10, 1))
+        T.set_string!(buf, 1, 1, "a\u0307b")
+        @test buf.content[1].char == 'a'
+        @test buf.content[1].suffix == "\u0307"
+        @test buf.content[2].char == 'b'
+        @test buf.content[3].char == ' '
+    end
+
     @testset "Layout" begin
         r = T.Rect(1, 1, 100, 24)
 
@@ -435,4 +451,3 @@
     end
 
     # ProgressList — tested in test_widgets_coverage.jl
-

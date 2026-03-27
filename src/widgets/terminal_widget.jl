@@ -94,9 +94,28 @@ function _screen_scroll_down!(s::TermScreen, n::Int=1)
     end
 end
 
+function _screen_append_zero_width!(s::TermScreen, ch::Char)
+    row = s.cursor_row
+    (row < 1 || row > s.rows) && return
+
+    # Attach combining marks to the previously written display cell.
+    col = clamp(s.cursor_col - 1, 1, s.cols)
+    cell = s.cells[row, col]
+    if cell.char == WIDE_CHAR_PAD && col > 1
+        col -= 1
+        cell = s.cells[row, col]
+    end
+    (cell.char == WIDE_CHAR_PAD || cell.char == EMPTY_CHAR) && return
+
+    s.cells[row, col] = Cell(cell.char, cell.style, string(cell.suffix, ch))
+end
+
 function _screen_putchar!(s::TermScreen, ch::Char)
     w = textwidth(ch)
-    w <= 0 && return  # ignore zero-width chars
+    if w <= 0
+        _screen_append_zero_width!(s, ch)
+        return
+    end
 
     # Handle autowrap: if cursor is past the right margin
     if s.cursor_col > s.cols
@@ -115,6 +134,18 @@ function _screen_putchar!(s::TermScreen, ch::Char)
     # Write character at cursor
     if s.cursor_row >= 1 && s.cursor_row <= s.rows &&
        s.cursor_col >= 1 && s.cursor_col <= s.cols
+        old = s.cells[s.cursor_row, s.cursor_col]
+        # Keep wide-cell state consistent when writing over lead/pad cells.
+        if old.char != WIDE_CHAR_PAD && cell_width(old) == 2
+            if s.cursor_col < s.cols &&
+               s.cells[s.cursor_row, s.cursor_col + 1].char == WIDE_CHAR_PAD
+                s.cells[s.cursor_row, s.cursor_col + 1] = Cell()
+            end
+        elseif old.char == WIDE_CHAR_PAD
+            if s.cursor_col > 1
+                s.cells[s.cursor_row, s.cursor_col - 1] = Cell()
+            end
+        end
         s.cells[s.cursor_row, s.cursor_col] = Cell(ch, s.current_style)
         # Wide char: place pad in next column
         if w == 2 && s.cursor_col < s.cols
@@ -1000,7 +1031,7 @@ function render(tw::TerminalWidget, rect::Rect, buf::Buffer)
             set!(buf, cx, cy, Cell(existing.char, Style(fg=cursor_fg, bg=cursor_bg,
                 bold=existing.style.bold, dim=existing.style.dim,
                 italic=existing.style.italic, underline=existing.style.underline,
-                strikethrough=existing.style.strikethrough)))
+                strikethrough=existing.style.strikethrough), existing.suffix))
         end
     else
         # Scrollback view

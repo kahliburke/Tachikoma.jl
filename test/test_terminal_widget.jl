@@ -329,6 +329,46 @@ end
         @test s.cells[1, 4].char == 'é'
     end
 
+    @testset "VT parser: zero-width combining marks" begin
+        s = T.TermScreen(24, 80)
+        tw = _make_test_tw(s)
+        T._vt_feed!(tw, Vector{UInt8}(codeunits("n\u0307x")))
+        @test s.cells[1, 1].char == 'n'
+        @test s.cells[1, 1].suffix == "\u0307"
+        @test s.cells[1, 2].char == 'x'
+        @test s.cursor_col == 3
+    end
+
+    @testset "VT parser: precomposed glyph" begin
+        s = T.TermScreen(24, 80)
+        tw = _make_test_tw(s)
+        T._vt_feed!(tw, Vector{UInt8}(codeunits("ṅx")))
+        @test s.cells[1, 1].char == 'ṅ'
+        @test isempty(s.cells[1, 1].suffix)
+        @test s.cells[1, 2].char == 'x'
+        @test s.cursor_col == 3
+    end
+
+    @testset "VT parser: overwrite wide-char pad clears lead" begin
+        s = T.TermScreen(24, 80)
+        tw = _make_test_tw(s)
+        T._vt_feed!(tw, Vector{UInt8}(codeunits("你")))
+        T._vt_feed!(tw, UInt8[0x08])  # move to pad column
+        T._vt_feed!(tw, Vector{UInt8}(codeunits("X")))
+        @test s.cells[1, 1].char == ' '
+        @test s.cells[1, 2].char == 'X'
+    end
+
+    @testset "VT parser: overwrite wide-char lead clears pad" begin
+        s = T.TermScreen(24, 80)
+        tw = _make_test_tw(s)
+        T._vt_feed!(tw, Vector{UInt8}(codeunits("你")))
+        T._vt_feed!(tw, Vector{UInt8}("\e[1G"))  # move to lead column
+        T._vt_feed!(tw, Vector{UInt8}(codeunits("Y")))
+        @test s.cells[1, 1].char == 'Y'
+        @test s.cells[1, 2].char == ' '
+    end
+
     # ── VT Parser: OSC title ─────────────────────────────────────────
 
     @testset "VT parser: OSC window title" begin
