@@ -1000,7 +1000,7 @@ function render(tw::TerminalWidget, rect::Rect, buf::Buffer)
             set!(buf, cx, cy, Cell(existing.char, Style(fg=cursor_fg, bg=cursor_bg,
                 bold=existing.style.bold, dim=existing.style.dim,
                 italic=existing.style.italic, underline=existing.style.underline,
-                strikethrough=existing.style.strikethrough)))
+                strikethrough=existing.style.strikethrough), existing.suffix))
         end
     else
         # Scrollback view
