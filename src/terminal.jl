@@ -1198,7 +1198,15 @@ function check_resize!(t::Terminal)
         t.frame_count % 60 == 0 || return false
         sz = _tty_size(t.remote_tty_path)
     else
-        sz = terminal_size()
+        # Use t.io directly when it's a TTY — after stdout/stderr capture
+        # redirect, the global stdout is a pipe and terminal_size() can't
+        # reach the real terminal on Windows.
+        sz = if t.io isa Base.TTY
+            s = displaysize(t.io)
+            (rows=s[1], cols=s[2])
+        else
+            terminal_size()
+        end
     end
     new_rect = Rect(1, 1, sz.cols, sz.rows)
     new_rect == t.size && return false
