@@ -87,21 +87,180 @@ const _STARTUP_TIME = Ref(0.0)
 # terminal by the time a TUI runs (via /dev/tty redirection or similar).
 const INPUT_IO = Ref{Union{IO,Nothing}}(nothing)
 
+# Flag to track whether we're using Windows native console input
+const _USE_WINDOWS_CONSOLE = Ref(false)
+const _CONSOLE_HANDLE = Ref{Union{Int,Nothing}}(nothing)
+const _ORIGINAL_CONSOLE_MODE = Ref{Union{UInt32,Nothing}}(nothing)
+
 _input_io() = something(INPUT_IO[], stdin)
+
+# ═══════════════════════════════════════════════════════════════════════
+# Windows Console API support (for native Windows Terminal)
+# ═══════════════════════════════════════════════════════════════════════
+
+if Sys.iswindows()
+    # Windows console input constants
+    const STD_INPUT_HANDLE = Cint(-10)
+    const STD_OUTPUT_HANDLE = Cint(-11)
+    const ENABLE_MOUSE_INPUT = 0x0010
+    const ENABLE_EXTENDED_FLAGS = 0x0080
+    const ENABLE_VIRTUAL_TERMINAL_INPUT = 0x0200
+    const ENABLE_VIRTUAL_TERMINAL_PROCESSING = 0x0004
+    const MOUSE_MOVED = 0x0001
+    const DOUBLE_CLICK = 0x0002
+    const MOUSE_HWHEELED = 0x0008
+    const MOUSE_WHEELED = 0x0004
+    const RIGHTMOST_BUTTON_PRESSED = 0x0002
+    const FROM_LEFT_1ST_BUTTON_PRESSED = 0x0001
+    const FROM_LEFT_2ND_BUTTON_PRESSED = 0x0004
+    const INVALID_HANDLE_VALUE = Cint(-1)
+
+    """
+        _get_console_handle(std_handle::Cint) -> Cint or nothing
+    Get a Windows console handle. Returns nothing if not a console.
+    """
+    function _get_console_handle(std_handle::Cint)
+        try
+            handle = ccall(:GetStdHandle, stdcall, Cint, (Cint,), std_handle)
+            if handle == INVALID_HANDLE_VALUE
+                @debug "GetStdHandle returned INVALID_HANDLE_VALUE for handle $std_handle"
+                return nothing
+            end
+            file_type = ccall(:GetFileType, stdcall, Cuint, (Cint,), handle)
+            if file_type == 0  # FILE_TYPE_UNKNOWN
+                @debug "GetFileType returned FILE_TYPE_UNKNOWN for handle $std_handle"
+                return nothing
+            end
+            @debug "Console handle acquired: $handle (type: $file_type)"
+            handle
+        catch e
+            @debug "Error getting console handle: $e"
+            nothing
+        end
+    end
+
+    """
+        _enable_ansi_mode(output_handle::Cint, input_handle::Cint) -> Bool
+    Enable ANSI escape sequence support for Windows Terminal.
+    Returns true if successful.
+    """
+    function _enable_ansi_mode(output_handle::Cint, input_handle::Cint)
+        try
+            # Enable ANSI sequence processing on stdout
+            if output_handle !== nothing && output_handle != INVALID_HANDLE_VALUE
+                mode_ref = Ref{UInt32}(0)
+                if ccall(:GetConsoleMode, stdcall, Cint, (Cint, Ref{UInt32}), output_handle, mode_ref) != 0
+                    _ORIGINAL_CONSOLE_MODE[] = mode_ref[]
+                    new_mode = mode_ref[] | ENABLE_VIRTUAL_TERMINAL_PROCESSING
+                    if ccall(:SetConsoleMode, stdcall, Cint, (Cint, UInt32), output_handle, new_mode) == 0
+                        @debug "Failed to enable ANSI processing on stdout"
+                    else
+                        @debug "Enabled ANSI processing on stdout"
+                    end
+                end
+            end
+
+            # Enable ANSI sequence input on stdin
+            if input_handle !== nothing && input_handle != INVALID_HANDLE_VALUE
+                mode_ref = Ref{UInt32}(0)
+                if ccall(:GetConsoleMode, stdcall, Cint, (Cint, Ref{UInt32}), input_handle, mode_ref) != 0
+                    new_mode = mode_ref[] | ENABLE_VIRTUAL_TERMINAL_INPUT
+                    if ccall(:SetConsoleMode, stdcall, Cint, (Cint, UInt32), input_handle, new_mode) == 0
+                        @debug "Failed to enable ANSI input mode"
+                        return false
+                    else
+                        @debug "Enabled ANSI input mode"
+                        return true
+                    end
+                end
+            end
+            false
+        catch e
+            @debug "Error enabling ANSI mode: $e"
+            false
+        end
+    end
+
+    """
+        _disable_ansi_mode(output_handle::Cint)
+    Restore original console mode.
+    """
+    function _disable_ansi_mode(output_handle::Cint)
+        try
+            if _ORIGINAL_CONSOLE_MODE[] !== nothing && output_handle !== nothing
+                ccall(:SetConsoleMode, stdcall, Cint, (Cint, UInt32), output_handle, _ORIGINAL_CONSOLE_MODE[])
+                @debug "Restored original console mode"
+            end
+        catch e
+            @debug "Error disabling ANSI mode: $e"
+        end
+    end
+end
 
 function start_input!()
     _STARTUP_TIME[] = time()
     INPUT_ACTIVE[] = true
     reset_key_state!()
+    
+    # On Windows Terminal, enable ANSI escape sequence support for mouse
+    if Sys.iswindows()
+        @debug "Windows detected, attempting to enable ANSI mode"
+        input_handle = _get_console_handle(STD_INPUT_HANDLE)
+        output_handle = _get_console_handle(STD_OUTPUT_HANDLE)
+        if input_handle !== nothing && output_handle !== nothing
+            @debug "Console handles obtained, enabling ANSI mode"
+            if _enable_ansi_mode(output_handle, input_handle)
+                _CONSOLE_HANDLE[] = output_handle
+                _USE_WINDOWS_CONSOLE[] = true
+                @debug "ANSI mode enabled successfully on Windows Terminal"
+            else
+                @debug "Failed to enable ANSI mode on Windows Terminal"
+            end
+        else
+            @debug "Failed to get console handles (not a real console)"
+        end
+    end
+    
+    # Also set up stdin for keyboard/fallback input
     io = _input_io()
     if io isa Base.LibuvStream
         Base.start_reading(io)
     end
+    
+    # Enable mouse reporting on the terminal (both platforms)
+    # SGR mode (1006): best compatibility, sends ESC[<button;x;yM/m
+    try
+        print(stdout, "\e[?1006h")
+        flush(stdout)
+        @debug "Enabled SGR mouse mode on terminal"
+    catch
+        @debug "Failed to enable mouse mode on terminal"
+    end
+    
     nothing
 end
 
 function stop_input!()
     INPUT_ACTIVE[] = false
+    
+    # Disable mouse reporting on the terminal
+    try
+        print(stdout, "\e[?1006l")
+        flush(stdout)
+        @debug "Disabled SGR mouse mode on terminal"
+    catch
+    end
+    
+    # Restore original Windows console mode if we modified it
+    if _USE_WINDOWS_CONSOLE[]
+        handle = _CONSOLE_HANDLE[]
+        if handle !== nothing
+            _disable_ansi_mode(handle)
+        end
+        _USE_WINDOWS_CONSOLE[] = false
+        _CONSOLE_HANDLE[] = nothing
+    end
+    
     io = _input_io()
     if io isa Base.LibuvStream
         try Base.stop_reading(io) catch end
@@ -126,6 +285,7 @@ end
 
 function poll_event(timeout_s::Float64=0.033)
     INPUT_ACTIVE[] || return nothing
+    
     io = _input_io()
     deadline = time() + timeout_s
     while true

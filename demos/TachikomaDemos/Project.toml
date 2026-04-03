@@ -13,7 +13,7 @@ SQLite = "0aa819cd-b072-5ff4-a722-6bc24af294d9"
 Tachikoma = "468859d6-42d8-48b7-8ad9-1d312e0e3b0a"
 
 [sources]
-Tachikoma = {path = "/Users/kburke/devel/Tachikoma.jl/test/.."}
+Tachikoma = {path = "../.."}
 
 [compat]
 ColorTypes = "0.12.1"
