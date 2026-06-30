@@ -991,7 +991,9 @@
         T.handle_key!(tv, T.KeyEvent(:down))
         @test !tv._flat_dirty
         @test tv.selected == 2
+        @test T.selected_node(tv) === root.children[1]
         T.handle_key!(tv, T.KeyEvent(:up))
         @test !tv._flat_dirty
         @test tv.selected == 1
+        @test T.selected_node(tv) === root
     end

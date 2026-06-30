@@ -131,7 +131,7 @@ export # Core types
        Modal, Paragraph, WrapMode, no_wrap, word_wrap, char_wrap,
        Alignment, align_left, align_center, align_right,
        paragraph_line_count,
-       TreeView, TreeNode,
+       TreeView, TreeNode, selected_node,
        Separator,
        Checkbox, RadioGroup,
        Button, ButtonStyle, ButtonDecoration,

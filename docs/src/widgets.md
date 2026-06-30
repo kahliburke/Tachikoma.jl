@@ -445,6 +445,15 @@ render(tree, area, buf)
 <!-- tachi:noeval -->
 ```julia
 handle_key!(tree, evt)     # up/down navigate, enter expand/collapse
+selected_node(tree)        # get TreeNode selection
+```
+
+Optionally store user data in TreeNodes (`TreeNode.content` will default to `nothing`):
+
+<!-- tachi:noeval -->
+```julia
+root = TreeNode("Root", [
+    TreeNode("Child 1", [TreeNode("Leaf A"; content="Leaf A content")]; content=("Child 1 content", 1e-4, true))])
 ```
 
 ### TabBar

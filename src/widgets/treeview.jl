@@ -7,19 +7,21 @@ mutable struct TreeNode
     children::Vector{TreeNode}
     expanded::Bool
     style::Style
+    content::Any
 end
 
 function TreeNode(label::String;
     children=TreeNode[],
     expanded=true,
     style=tstyle(:text),
+    content=nothing
 )
-    TreeNode(label, children, expanded, style)
+    TreeNode(label, children, expanded, style, content)
 end
 
 function TreeNode(label::String, children::Vector{TreeNode};
-    expanded=true, style=tstyle(:text))
-    TreeNode(label, children, expanded, style)
+    expanded=true, style=tstyle(:text), content=nothing)
+    TreeNode(label, children, expanded, style, content)
 end
 
 # Flatten tree into renderable rows (defined before TreeView for cache field)
@@ -110,6 +112,12 @@ _invalidate_flat!(tv::TreeView) = (tv._flat_dirty = true; nothing)
 value(tv::TreeView) = tv.selected
 
 focusable(::TreeView) = true
+
+function selected_node(tv::TreeView)::Union{Nothing, TreeNode}
+    # pick off the selected node using the selection index
+    flat = _get_flat(tv)
+    return tv.selected == 0 || tv.selected > length(flat) ? nothing : flat[tv.selected].node
+end
 
 function handle_key!(tv::TreeView, evt::KeyEvent)::Bool
     flat = _get_flat(tv)

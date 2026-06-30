@@ -167,6 +167,9 @@ const DEMO_ENTRIES = DemoEntry[
     DemoEntry("Widget Scroll", :widget,
         "2D pannable viewport filled with widgets: sparklines, tables, bar charts, gauges, calendars. Click-drag to pan, scroll wheel, arrow keys, Home to reset.",
         () -> scroll_demo()),
+    DemoEntry("Tree View", :widget,
+        "Hierarchical TreeView with keyboard/mouse navigation. Live debug panel shows value(), selected_node(), and per-node user data via TreeNode.content.",
+        () -> simple_tree_demo()),
 
     # ── Data ──
     DemoEntry("DataTable", :data,

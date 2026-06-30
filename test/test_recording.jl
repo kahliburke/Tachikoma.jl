@@ -73,6 +73,23 @@
         tv = T.TreeView(root; selected=2)
         @test T.value(tv) == 2
     end
+    @testset "selected_node: TreeView" begin
+        root = T.TreeNode("root"; children=[
+            T.TreeNode("child1", content=[0xf1a, "content1", -3.2e-8]),
+            T.TreeNode("child2"),
+        ])
+        tv = T.TreeView(root; selected=2)
+        @test T.value(tv) == 2
+        
+        @test T.selected_node(tv) === root.children[1]
+        @test all(T.selected_node(tv).content .== [0xf1a, "content1", -3.2e-8])
+
+        # test bounds checks when indexing outside flat:
+        tv.selected = length(T._get_flat(tv)) + 1
+        @test isnothing(T.selected_node(tv))
+        tv.selected = 0
+        @test isnothing(T.selected_node(tv))
+    end
 
     @testset "value: Form" begin
         ti = T.TextInput(text="alice")
@@ -146,9 +163,11 @@
         # Down moves to next
         T.handle_key!(tv, T.KeyEvent(:down))
         @test tv.selected == 2  # "a"
+        @test T.selected_node(tv) === root.children[1] # "a"
         # Right on expanded node moves to first child
         T.handle_key!(tv, T.KeyEvent(:right))
         @test tv.selected == 3  # "a1"
+        @test T.selected_node(tv) === root.children[1].children[1] # "a1"
     end
 
     @testset "TreeView collapse/expand" begin
@@ -173,9 +192,11 @@
         # Up from first wraps to last
         T.handle_key!(tv, T.KeyEvent(:up))
         @test tv.selected == 2
+        @test T.selected_node(tv) === root.children[1]
         # Down from last wraps to first
         T.handle_key!(tv, T.KeyEvent(:down))
         @test tv.selected == 1
+        @test T.selected_node(tv) === root
     end
 
     # ═════════════════════════════════════════════════════════════════
