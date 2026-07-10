@@ -689,10 +689,10 @@ function _pdt_compute_widths(pdt::PagedDataTable, total_width::Int)
         elseif col.width > 0
             widths[i] = col.width + 1
         else
-            w = length(col.name) + 2  # +2 for sort/filter indicators
+            w = textwidth(col.name) + 2  # +2 for sort/filter indicators
             for ri in 1:sample_n
                 ri <= length(pdt.rows) || break
-                w = max(w, length(_pdt_format_cell(col, pdt.rows[ri], i)) + 1)
+                w = max(w, textwidth(_pdt_format_cell(col, pdt.rows[ri], i)) + 1)
             end
             widths[i] = w
         end

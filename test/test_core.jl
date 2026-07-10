@@ -110,6 +110,22 @@
         @test buf.content[2].char == 'X'
     end
 
+    @testset "truncate_to_width (display-width, not char count)" begin
+        # No truncation when it already fits (by DISPLAY width).
+        @test T.truncate_to_width("hello", 5) == "hello"
+        @test T.truncate_to_width("開門", 4) == "開門"      # 2 wide chars = 4 cols, fits exactly
+        # ASCII truncation reserves a column for the ellipsis.
+        @test T.truncate_to_width("hello", 3) == "he…"       # "he"=2 + "…"=1
+        # A wide (CJK) string is measured in columns: "開門記" is 6 cols, not 3 chars.
+        @test T.truncate_to_width("開門記", 4) == "開…"       # 開=2 + …=1 ≤ 4; 門 would push to 4>3 budget
+        @test textwidth(T.truncate_to_width("開門記世界", 6)) <= 6
+        # Never exceeds the budget for mixed content.
+        @test textwidth(T.truncate_to_width("a開b門c", 4)) <= 4
+        # Degenerate widths.
+        @test T.truncate_to_width("abc", 0) == ""
+        @test T.truncate_to_width("", 5) == ""
+    end
+
     @testset "Buffer zero-width graphemes" begin
         buf = T.Buffer(T.Rect(1, 1, 10, 1))
         T.set_string!(buf, 1, 1, "ṅx")
@@ -124,6 +140,26 @@
         @test buf.content[1].suffix == "\u0307"
         @test buf.content[2].char == 'b'
         @test buf.content[3].char == ' '
+    end
+
+    @testset "DataTable wide-char (CJK) column alignment" begin
+        # Regression: a right-aligned CJK cell was padded by CHAR count (avail-length),
+        # shoving it past the column's right edge so the trailing glyph clipped at
+        # max_x — the layout-shear seen with a 開門 session label. With display-width
+        # padding both glyphs stay inside the column.
+        col = T.DataColumn("s", Any["開門"]; width=6, align=T.col_right)
+        dt = T.DataTable([col]; show_scrollbar=false)
+        buf = T.Buffer(T.Rect(1, 1, 20, 5))
+        T.render(dt, T.Rect(1, 1, 20, 5), buf)
+        @test occursin("開門", T.buffer_to_text(buf, T.Rect(1, 1, 20, 5)))  # both glyphs (pre-fix: 門 clipped)
+
+        # Auto-width column must size to display width, not char count, so a wide
+        # value isn't under-budgeted and truncated when it would otherwise fit.
+        col2 = T.DataColumn("s", Any["世界"])   # width=0 → auto
+        dt2 = T.DataTable([col2]; show_scrollbar=false)
+        buf2 = T.Buffer(T.Rect(1, 1, 20, 5))
+        T.render(dt2, T.Rect(1, 1, 20, 5), buf2)
+        @test occursin("世界", T.buffer_to_text(buf2, T.Rect(1, 1, 20, 5)))
     end
 
     @testset "Layout" begin

@@ -324,9 +324,9 @@ function _dt_compute_widths(dt::DataTable, total_width::Int)
         elseif col.width > 0
             widths[i] = col.width + 1  # +1 for sort indicator padding
         else
-            w = length(col.name)
+            w = textwidth(col.name)
             for row in 1:sample_n
-                w = max(w, length(_dt_format_cell(col, row)))
+                w = max(w, textwidth(_dt_format_cell(col, row)))
             end
             widths[i] = w + 1  # +1 for sort indicator padding
         end
@@ -431,8 +431,8 @@ function render(dt::DataTable, rect::Rect, buf::Buffer)
         else
             ""
         end
-        text = length(hdr) + length(indicator) <= w ?
-            string(hdr, indicator) : first(hdr, max(0, w))
+        text = textwidth(hdr) + textwidth(indicator) <= w ?
+            string(hdr, indicator) : truncate_to_width(hdr, w)
 
         # Highlight hovered border column header
         hdr_style = if dt.col_hover_border > 0 && i == dt.col_hover_border
@@ -530,12 +530,15 @@ function render(dt::DataTable, rect::Rect, buf::Buffer)
             raw_val = data_row <= length(col.values) ? col.values[data_row] : nothing
             cell_style = raw_val isa Span && !is_selected ? raw_val.style : row_style
             avail = min(w, max_x - rx + 1)
-            if length(cell_text) > avail
-                cell_text = avail > 1 ? first(cell_text, max(1, avail-1)) * "…" : string(first(cell_text, 1))
+            # Budget in DISPLAY width, not char count — a wide (CJK) cell is 2 cols
+            # per char, so `length` under-measures and the cell overruns its column,
+            # shearing every column to its right.
+            if textwidth(cell_text) > avail
+                cell_text = truncate_to_width(cell_text, avail)
             end
 
             # Alignment
-            padding = max(0, avail - length(cell_text))
+            padding = max(0, avail - textwidth(cell_text))
             cell_x = if col.align == col_right
                 rx + padding
             elseif col.align == col_center

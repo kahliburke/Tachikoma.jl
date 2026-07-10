@@ -29,6 +29,27 @@ end
     return textwidth(cell_glyph(c))
 end
 
+# Truncate `s` to fit at most `w` DISPLAY columns (wide/CJK chars count as 2),
+# appending `ellipsis` when it doesn't fit. Grapheme-aware, so combining marks and
+# wide chars are measured exactly the way `set_string!` renders them. Returns ""
+# for `w <= 0`. Widgets budget columns in display width, not character count — using
+# `length`/`first` here overflows a column by one per wide char and shears the layout,
+# so table/header/label truncation must go through this.
+function truncate_to_width(s::AbstractString, w::Integer; ellipsis::AbstractString = "…")
+    w <= 0 && return ""
+    textwidth(s) <= w && return String(s)
+    budget = max(0, w - textwidth(ellipsis))
+    io = IOBuffer()
+    acc = 0
+    for g in Base.Unicode.graphemes(s)
+        gw = textwidth(g)
+        acc + gw > budget && break
+        print(io, g)
+        acc += gw
+    end
+    return String(take!(io)) * ellipsis
+end
+
 # ═══════════════════════════════════════════════════════════════════════
 # Buffer ── 2D grid of cells, the framebuffer
 # ═══════════════════════════════════════════════════════════════════════

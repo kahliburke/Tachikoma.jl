@@ -1,7 +1,7 @@
 module Paged
 
 using ..Tachikoma
-using ..Tachikoma: tstyle, set_char!, set_string!, Block, Rect, Buffer, Style,
+using ..Tachikoma: tstyle, set_char!, set_string!, truncate_to_width, Block, Rect, Buffer, Style,
     TextInput, text, set_text!,
     ColumnAlign, col_left, col_right, col_center,
     SortDir, sort_none, sort_asc, sort_desc,

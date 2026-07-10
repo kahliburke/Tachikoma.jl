@@ -24,7 +24,7 @@ function _pdt_render_header!(pdt::PagedDataTable, buf::Buffer,
         filter_ind = haskey(pdt.filters, i) && !isempty(pdt.filters[i].value) ? "⊘" : ""
 
         combined = string(hdr, indicator, filter_ind)
-        text_str = length(combined) <= w ? combined : first(combined, max(0, w))
+        text_str = textwidth(combined) <= w ? combined : truncate_to_width(combined, w; ellipsis = "")
 
         hdr_style = if pdt.col_hover_border > 0 && i == pdt.col_hover_border
             Style(fg=pdt.header_style.fg, bold=true, underline=true)
@@ -120,11 +120,13 @@ function _pdt_render_data!(pdt::PagedDataTable, buf::Buffer,
             w = widths[i]
             cell_text = _pdt_format_cell(col, row_data, i)
             avail = min(w, max_x - rx + 1)
-            if length(cell_text) > avail
-                cell_text = avail > 1 ? first(cell_text, max(1, avail-1)) * "…" : string(first(cell_text, 1))
+            # Budget in DISPLAY width, not char count (wide/CJK chars are 2 cols) so
+            # the cell can't overrun its column and shear the layout to its right.
+            if textwidth(cell_text) > avail
+                cell_text = truncate_to_width(cell_text, avail)
             end
 
-            padding = max(0, avail - length(cell_text))
+            padding = max(0, avail - textwidth(cell_text))
             cell_x = if col.align == col_right
                 rx + padding
             elseif col.align == col_center
@@ -266,7 +268,7 @@ function render(pdt::PagedDataTable, rect::Rect, buf::Buffer)
         spinner_chars = SPINNER_BRAILLE
         si = pdt.tick !== nothing ? mod1(pdt.tick ÷ 3, length(spinner_chars)) : 1
         load_text = string(" ", spinner_chars[si], " Loading… ")
-        lx = content_area.x + max(0, (content_area.width - length(load_text)) ÷ 2)
+        lx = content_area.x + max(0, (content_area.width - textwidth(load_text)) ÷ 2)
         ly = content_area.y + max(0, (content_area.height - 1) ÷ 2)
         set_string!(buf, lx, ly, load_text, tstyle(:accent, bold=true);
                     max_x=right(content_area))
@@ -275,8 +277,8 @@ function render(pdt::PagedDataTable, rect::Rect, buf::Buffer)
     # ── Error overlay ──
     if !isempty(pdt.error_msg)
         err_text = "Error: " * pdt.error_msg
-        if length(err_text) > content_area.width - 2
-            err_text = first(err_text, max(0, content_area.width - 3)) * "…"
+        if textwidth(err_text) > content_area.width - 2
+            err_text = truncate_to_width(err_text, max(0, content_area.width - 2))
         end
         err_y = content_area.y + max(0, (content_area.height - 2) ÷ 2)
         # Background bars for visibility
