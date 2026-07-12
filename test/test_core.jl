@@ -126,6 +126,27 @@
         @test T.truncate_to_width("", 5) == ""
     end
 
+    @testset "set_string! strips control chars (no terminal smear)" begin
+        # C0 controls (\r, \n, \b) and DEL have no glyph; flushed raw they move the
+        # terminal cursor and smear the row. _strip_controls replaces them with spaces
+        # so they can never reach a cell. (_strip_ansi only removes ESC sequences.)
+        @test T._strip_controls("abc") == "abc"            # clean → untouched
+        @test T._strip_controls("a\rb\nc") == "a b c"      # CR/LF → spaces
+        @test T._strip_controls("x\x7fy\x08z") == "x y z"  # DEL + backspace → spaces
+
+        # A raw \r in cell content must never survive into the buffer.
+        buf = T.Buffer(T.Rect(1, 1, 10, 1))
+        T.set_string!(buf, 1, 1, "ab\rcd")
+        txt = T.buffer_to_text(buf, T.Rect(1, 1, 10, 1))
+        @test !occursin('\r', txt)
+        @test txt == "ab cd"
+
+        # A trailing newline doesn't jump the cursor to the next row.
+        buf2 = T.Buffer(T.Rect(1, 1, 10, 2))
+        T.set_string!(buf2, 1, 1, "hi\nthere")
+        @test T.buffer_to_text(buf2, T.Rect(1, 1, 10, 2)) == "hi there"
+    end
+
     @testset "Buffer zero-width graphemes" begin
         buf = T.Buffer(T.Rect(1, 1, 10, 1))
         T.set_string!(buf, 1, 1, "ṅx")

@@ -7,6 +7,24 @@ const WIDE_CHAR_PAD = '\0'   # sentinel for the trailing cell of a double-width 
 const _ANSI_RE = r"\e(?:\[[?=>!]?[0-9;:]*[\x20-\x2f]*[A-Za-z@~]|\][^\x07\e]*(?:\x07|\e\\)|\([A-Za-z0-9]|[P^_][^\e]*\e\\|[A-Za-z0-9=<>])"
 _strip_ansi(s::AbstractString) = contains(s, '\e') ? replace(s, _ANSI_RE => "") : s
 
+# A C0 control char (0x00–0x1F) or DEL (0x7F). These have no printable glyph: written
+# to a cell they either move the terminal cursor when flushed raw (a lone \r/\n/\b jumps
+# to column 0 / a new line and smears the row) or break layout math (`textwidth` returns
+# -1 for them). `_strip_ansi` only removes ESC-based SEQUENCES, so a bare \r survives it.
+@inline _is_c0_control(c::AbstractChar) = c <= '\x1f' || c == '\x7f'
+
+# Replace every C0/DEL control char with a space, so set_string! can never emit one to the
+# terminal (space keeps token separation and the cell footprint; dropping would glue
+# tokens and shorten the row). Fast path returns the input untouched when it's clean.
+function _strip_controls(s::AbstractString)
+    any(_is_c0_control, s) || return s
+    io = IOBuffer(sizehint = ncodeunits(s))
+    for c in s
+        print(io, _is_c0_control(c) ? ' ' : c)
+    end
+    return String(take!(io))
+end
+
 struct Cell
     char::Char
     style::Style
@@ -195,7 +213,9 @@ function set_string!(buf::Buffer, x::Int, y::Int,
                      str::AbstractString,
                      style::Style=RESET;
                      max_x::Int=right(buf.area))
-    clean = _strip_ansi(str)
+    # Strip ANSI escape SEQUENCES, then any leftover bare control chars (\r, \n, \b, …):
+    # neither must ever reach a cell, or the terminal cursor jumps and smears the row.
+    clean = _strip_controls(_strip_ansi(str))
     col = x
     clip = min(max_x, right(buf.area))
 
