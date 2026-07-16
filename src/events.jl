@@ -89,6 +89,29 @@ const INPUT_IO = Ref{Union{IO,Nothing}}(nothing)
 
 _input_io() = something(INPUT_IO[], stdin)
 
+# ── Raw input capture (diagnostics / macro recording) ──────────────────
+# When enabled, read_event() records the exact bytes it consumes for each
+# event, so callers can inspect what the terminal actually sent (independent
+# of how it was decoded). Off by default with zero overhead — a single Ref
+# check per consumed byte. See `last_event_raw`.
+const _CAPTURE_RAW     = Ref(false)
+const _RAW_ACC         = UInt8[]                  # bytes of the in-progress event
+const _LAST_EVENT_RAW  = Ref{Vector{UInt8}}(UInt8[])
+
+enable_raw_capture!()  = (_CAPTURE_RAW[] = true; nothing)
+disable_raw_capture!() = (_CAPTURE_RAW[] = false; nothing)
+raw_capture_enabled()  = _CAPTURE_RAW[]
+
+"""
+    last_event_raw() -> Vector{UInt8}
+
+Raw bytes consumed by the most recent `read_event()`, when raw capture is
+enabled via [`enable_raw_capture!`](@ref). Returns the bytes the terminal
+actually sent for that event — useful for debugging keyboard handling on
+international layouts. Empty when capture is disabled.
+"""
+last_event_raw() = _LAST_EVENT_RAW[]
+
 function start_input!()
     _STARTUP_TIME[] = time()
     INPUT_ACTIVE[] = true
@@ -118,7 +141,11 @@ function read_byte(timeout_s::Float64=0.05)
     io = _input_io()
     deadline = time() + timeout_s
     while time() < deadline
-        bytesavailable(io) > 0 && return read(io, UInt8)
+        if bytesavailable(io) > 0
+            b = read(io, UInt8)
+            _CAPTURE_RAW[] && push!(_RAW_ACC, b)
+            return b
+        end
         sleep(0.001)
     end
     return nothing
@@ -151,9 +178,21 @@ end
 # ═══════════════════════════════════════════════════════════════════════
 
 function read_event()
+    # Raw-capture wrapper: record the exact bytes consumed for this event.
+    if !_CAPTURE_RAW[]
+        return _read_event_impl()
+    end
+    empty!(_RAW_ACC)
+    evt = _read_event_impl()
+    _LAST_EVENT_RAW[] = copy(_RAW_ACC)
+    return evt
+end
+
+function _read_event_impl()
     io = _input_io()
     bytesavailable(io) == 0 && return KeyEvent(:unknown)
     byte = read(io, UInt8)
+    _CAPTURE_RAW[] && push!(_RAW_ACC, byte)
     byte == 0x1b && return read_escape()
     byte == 0x0d && return KeyEvent(:enter)
     byte == 0x7f && return KeyEvent(:backspace)
@@ -161,7 +200,27 @@ function read_event()
     byte == 0x09 && return KeyEvent(:tab)
     byte == 0x03 && return KeyEvent(:ctrl_c)
     byte < 0x20  && return KeyEvent(:ctrl, Char(byte + 0x60))
-    return KeyEvent(Char(byte))
+    byte < 0x80  && return KeyEvent(Char(byte))
+    # Byte ≥ 0x80 is a UTF-8 multibyte lead: gather continuation bytes so
+    # non-ASCII characters (accents, symbols, any layout) decode correctly
+    # instead of mojibaking into a single Latin-1 char.
+    return _read_utf8_char(byte)
+end
+
+# Assemble a full UTF-8 code point from a lead byte plus its continuation
+# bytes. Legacy terminals (no Kitty keyboard protocol) deliver characters as
+# raw UTF-8; reading a single byte would corrupt anything outside ASCII.
+function _read_utf8_char(lead::UInt8)
+    n = lead < 0xC0 ? 0 : lead < 0xE0 ? 1 : lead < 0xF0 ? 2 : lead < 0xF8 ? 3 : 0
+    n == 0 && return KeyEvent(:unknown)          # stray continuation / invalid lead
+    bytes = UInt8[lead]
+    for _ in 1:n
+        b = read_byte()
+        (b === nothing || b < 0x80 || b > 0xBF) && return KeyEvent(:unknown)
+        push!(bytes, b)
+    end
+    s = String(bytes)
+    (isvalid(s) && length(s) == 1) ? KeyEvent(first(s)) : KeyEvent(:unknown)
 end
 
 function read_escape()
@@ -428,29 +487,41 @@ Format: `keycode[;[modifiers][:event_type]]u`
 function parse_kitty_key(params::Vector{UInt8})
     str = String(copy(params))
 
-    # Split on ';' → [keycode_part, modifier_part]
+    # Kitty CSI u fields (';'-separated):
+    #   1: unicode-key-code[:shifted-key[:base-layout-key]]
+    #   2: modifiers[:event-type]
+    #   3: associated text, as ':'-separated code points  (flag 16)
     parts = Base.split(str, ';')
-    keycode_str = parts[1]
 
-    # keycode_part may have ':shifted_key[:base_layout_key]' sub-params
-    keycode_parts = Base.split(keycode_str, ':')
+    keycode_parts = Base.split(parts[1], ':')
     keycode = tryparse(Int, keycode_parts[1])
     keycode === nothing && return KeyEvent(:unknown)
-    # Shifted codepoint: the actual character produced with shift held
-    shifted_keycode = length(keycode_parts) >= 2 ? tryparse(Int, keycode_parts[2]) : nothing
+    # Shifted code point: the character this key produces with shift held on
+    # the terminal's active layout (Kitty "report alternate keys", flag 4).
+    shifted = length(keycode_parts) >= 2 ? tryparse(Int, keycode_parts[2]) : nothing
 
-    # Parse modifiers and event type from second field
+    # Parse modifiers and event type from the second field
     raw_mod = 1      # 1-based: 1 = no modifiers
     event_type = 1   # 1 = press (default if omitted)
     if length(parts) >= 2
-        mod_str = parts[2]
-        mod_parts = Base.split(mod_str, ':')
-        if !isempty(mod_parts[1])
-            raw_mod = something(tryparse(Int, mod_parts[1]), 1)
+        mod_parts = Base.split(parts[2], ':')
+        isempty(mod_parts[1]) || (raw_mod = something(tryparse(Int, mod_parts[1]), 1))
+        length(mod_parts) >= 2 && (event_type = something(tryparse(Int, mod_parts[2]), 1))
+    end
+
+    # Associated text (Kitty "report associated text", flag 16): the actual
+    # character(s) the key produced. This is the ground truth for any keyboard
+    # layout — accents, AltGr/Option symbols, dead-key composition — so we
+    # never need per-layout tables.
+    text = ""
+    if length(parts) >= 3 && !isempty(parts[3])
+        io = IOBuffer()
+        for cp in Base.split(parts[3], ':')
+            n = tryparse(Int, cp)
+            (n === nothing || n <= 0 || n > 0x10FFFF) && continue
+            isvalid(Char, n) && print(io, Char(n))
         end
-        if length(mod_parts) >= 2
-            event_type = something(tryparse(Int, mod_parts[2]), 1)
-        end
+        text = String(take!(io))
     end
 
     # Decode modifiers (subtract 1 from 1-based value, then bitmask)
@@ -458,18 +529,16 @@ function parse_kitty_key(params::Vector{UInt8})
     shift = (mod_bits & 1) != 0
     alt   = (mod_bits & 2) != 0
     ctrl  = (mod_bits & 4) != 0
-
-    # Decode action
     action = event_type == 2 ? key_repeat : event_type == 3 ? key_release : key_press
 
-    # Prefer the shifted codepoint provided by Kitty when shift is active
-    effective_keycode = (shift && shifted_keycode !== nothing && shifted_keycode > 0) ?
-                        shifted_keycode : keycode
-    return _kitty_keycode_to_event(effective_keycode, shift, alt, ctrl, action)
+    return _kitty_keycode_to_event(keycode, shifted, text, shift, alt, ctrl, action)
 end
 
-function _kitty_keycode_to_event(keycode::Int, shift::Bool, alt::Bool, ctrl::Bool, action::KeyAction)
-    # Ctrl combinations → replicate legacy terminal behavior
+function _kitty_keycode_to_event(keycode::Int, shifted::Union{Int,Nothing},
+                                 text::AbstractString, shift::Bool, alt::Bool,
+                                 ctrl::Bool, action::KeyAction)
+    # Ctrl combinations → replicate legacy terminal behavior. Control chords
+    # carry no meaningful associated text, so resolve them from the key code.
     if ctrl && !alt
         if keycode == Int('c') && !shift
             return KeyEvent(:ctrl_c, action)
@@ -492,20 +561,35 @@ function _kitty_keycode_to_event(keycode::Int, shift::Bool, alt::Bool, ctrl::Boo
         return KeyEvent(:backtab, action)
     end
 
-    # Functional keycodes (57344+)
+    # Functional keycodes (57344+) and standard control keys
     sym = get(KITTY_FUNCTIONAL_KEYS, keycode, nothing)
     sym !== nothing && return KeyEvent(sym, action)
-
-    # Standard keycodes that map to symbols
     keycode == 27  && return KeyEvent(:escape, action)
     keycode == 13  && return KeyEvent(:enter, action)
     keycode == 9   && return KeyEvent(:tab, action)
     keycode == 127 && return KeyEvent(:backspace, action)
 
-    # Printable characters
+    # Character output, most-authoritative source first:
+    #
+    # 1. Associated text (flag 16) — exactly what the key produced for the
+    #    user's layout, including AltGr/Option symbols and composed dead keys.
+    #    Skipped when ctrl is held (control chords produce no text).
+    if !ctrl && !isempty(text)
+        c = first(text)
+        isvalid(c) && return KeyEvent(:char, c, action)
+    end
+
+    # 2. Shifted alternate code point (flag 4) — the correct shifted character
+    #    for the active layout. It is already final: do NOT remap it.
+    if shift && shifted !== nothing && 0 < shifted <= 0x10FFFF
+        c = Char(shifted)
+        isvalid(c) && return KeyEvent(:char, c, action)
+    end
+
+    # 3. Base key code. Only here — when the terminal reported neither text nor
+    #    a shifted code point — do we fall back to the US-layout shift table.
     if keycode >= 32 && keycode <= 0x10FFFF
         c = Char(keycode)
-        # Apply shift: uppercase letters, or map symbols via US keyboard layout
         if shift && !ctrl && !alt
             if c >= 'a' && c <= 'z'
                 c = uppercase(c)

@@ -14,10 +14,15 @@ const MOUSE_ON       = "\e[?1000h\e[?1002h\e[?1006h"   # basic + button-event + 
 const MOUSE_OFF      = "\e[?1000l\e[?1002l\e[?1006l"
 
 # Kitty keyboard protocol: push mode with flags
-# Bit 0 (1): Disambiguate escape codes
-# Bit 1 (2): Report event types (press/repeat/release)
-# Bit 3 (8): Report all keys as escape codes
-const KITTY_FLAGS           = 11   # 1 + 2 + 8
+# Bit 0 (1):  Disambiguate escape codes
+# Bit 1 (2):  Report event types (press/repeat/release)
+# Bit 2 (4):  Report alternate keys (shifted + base-layout code points)
+# Bit 3 (8):  Report all keys as escape codes
+# Bit 4 (16): Report associated text (the actual character(s) produced)
+# Flags 4 and 16 are essential for non-US layouts: they let the terminal tell
+# us the real character a key produced (shifted symbols, accents, AltGr/Option
+# combos, dead-key composition) instead of us guessing from a US-layout table.
+const KITTY_FLAGS           = 31   # 1 + 2 + 4 + 8 + 16
 const KITTY_KEYBOARD_ON     = "\e[>$(KITTY_FLAGS)u"
 const KITTY_KEYBOARD_OFF    = "\e[<u"
 const KITTY_KEYBOARD_QUERY  = "\e[?u"

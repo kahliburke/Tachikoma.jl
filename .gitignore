@@ -44,3 +44,6 @@ docs/docs/
 # Misc
 DISCOURSE_ANNOUNCEMENT.md
 demos/TachikomaDemos/logo_font_samples.txt
+
+# Keyboard diagnostic output
+tachikoma_keydiag_*.log

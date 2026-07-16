@@ -564,6 +564,82 @@
         @test evt.key == :char && evt.char == 'f'
     end
 
+    @testset "International layouts (associated text + shifted alt)" begin
+        # Associated text (flag 16) is authoritative: on French AZERTY the
+        # period is Shift + the ';' key, so the base code point is ';' (59) but
+        # the produced text is '.' (46). We must honour the text, not the US map.
+        evt = T.parse_kitty_key(Vector{UInt8}(codeunits("59;2;46")))
+        @test evt.key == :char && evt.char == '.'
+
+        # Shifted alternate code point (flag 4) is used when shift is held and
+        # no associated text was supplied — and is NOT re-mapped through the US
+        # table (which would have turned '.' into '>').
+        evt = T.parse_kitty_key(Vector{UInt8}(codeunits("59:46;2")))
+        @test evt.key == :char && evt.char == '.'
+
+        # With neither text nor alternate key, fall back to the US shift table.
+        evt = T.parse_kitty_key(Vector{UInt8}(codeunits("59;2")))
+        @test evt.key == :char && evt.char == ':'
+
+        # AltGr/Option composed symbol reported as associated text (e.g. '{').
+        evt = T.parse_kitty_key(Vector{UInt8}(codeunits("40;3;123")))
+        @test evt.key == :char && evt.char == '{'
+
+        # Euro via AltGr (alt modifier) with associated text.
+        evt = T.parse_kitty_key(Vector{UInt8}(codeunits("101;3;8364")))
+        @test evt.key == :char && evt.char == '€'
+
+        # Ctrl chords ignore associated text: Ctrl+e stays :ctrl, not euro.
+        evt = T.parse_kitty_key(Vector{UInt8}(codeunits("101;5")))
+        @test evt.key == :ctrl && evt.char == 'e'
+
+        # Accented base code point with no modifiers (é on its own AZERTY key).
+        evt = T.parse_kitty_key(Vector{UInt8}(codeunits("233")))
+        @test evt.key == :char && evt.char == 'é'
+    end
+
+    @testset "Kitty keyboard flags request text + alternate keys" begin
+        @test T.KITTY_FLAGS & 4  != 0   # report alternate keys (shifted codepoint)
+        @test T.KITTY_FLAGS & 16 != 0   # report associated text
+        @test occursin("$(T.KITTY_FLAGS)u", T.KITTY_KEYBOARD_ON)
+    end
+
+    @testset "Legacy UTF-8 multibyte decoding" begin
+        function feed(bytes)
+            old_io, old_active = T.INPUT_IO[], T.INPUT_ACTIVE[]
+            T.INPUT_IO[] = IOBuffer(bytes); T.INPUT_ACTIVE[] = true
+            try T.read_event() finally
+                T.INPUT_IO[] = old_io; T.INPUT_ACTIVE[] = old_active
+            end
+        end
+        e = feed(UInt8[0x61]);                    @test e.key == :char && e.char == 'a'    # ASCII
+        e = feed(UInt8[0xc3, 0xa9]);              @test e.key == :char && e.char == 'é'    # 2-byte
+        e = feed(UInt8[0xe2, 0x82, 0xac]);        @test e.key == :char && e.char == '€'    # 3-byte
+        e = feed(UInt8[0xf0, 0x9f, 0x98, 0x80]);  @test e.key == :char && e.char == '😀'   # 4-byte
+        @test feed(UInt8[0xa9]).key == :unknown        # stray continuation byte
+        @test feed(UInt8[0xc3]).key == :unknown        # truncated multibyte
+    end
+
+    @testset "Raw input capture tap" begin
+        old_io, old_active = T.INPUT_IO[], T.INPUT_ACTIVE[]
+        try
+            T.enable_raw_capture!()
+            @test T.raw_capture_enabled()
+            T.INPUT_IO[] = IOBuffer(UInt8[0x1b, 0x5b, 0x41])  # ESC [ A → up arrow
+            T.INPUT_ACTIVE[] = true
+            @test T.read_event().key == :up
+            @test T.last_event_raw() == UInt8[0x1b, 0x5b, 0x41]
+
+            T.INPUT_IO[] = IOBuffer(UInt8[0xc3, 0xa9])        # multibyte records all bytes
+            @test T.read_event().char == 'é'
+            @test T.last_event_raw() == UInt8[0xc3, 0xa9]
+        finally
+            T.disable_raw_capture!()
+            T.INPUT_IO[] = old_io; T.INPUT_ACTIVE[] = old_active
+        end
+        @test !T.raw_capture_enabled()
+    end
+
     @testset "CSI u dispatched from csi_to_key" begin
         evt = T.csi_to_key(Vector{UInt8}(codeunits("97;1:3")), 'u')
         @test evt isa T.KeyEvent
