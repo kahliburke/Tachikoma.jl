@@ -33,12 +33,69 @@ const KITTY_KEYBOARD_QUERY  = "\e[?u"
 
 function set_raw_mode!(raw::Bool)
     stdin isa Base.TTY || return
-    ccall(:uv_tty_set_mode, Cint,
-          (Ptr{Cvoid}, Cint), stdin.handle, raw ? 1 : 0)
+    if !raw
+        ccall(:uv_tty_set_mode, Cint, (Ptr{Cvoid}, Cint), stdin.handle, Cint(0))
+        return
+    end
+    # libuv tty modes: 0=NORMAL, 1=RAW, 3=RAW_VT.
+    # On Windows plain RAW (1) makes libuv read console INPUT_RECORDs and translate
+    # KEY events to VT sequences itself — but it DROPS mouse records, so mouse never
+    # reaches us (keyboard works, mouse doesn't). RAW_VT (3) sets
+    # ENABLE_VIRTUAL_TERMINAL_INPUT instead, so the console (and ConPTY under WezTerm)
+    # emits a raw VT stream — SGR mouse sequences included — passed straight through
+    # for our parser. Fall back to RAW (1) if the bundled libuv predates RAW_VT, so
+    # keyboard still works even where mouse can't. On Unix, RAW (1) is the correct
+    # POSIX raw mode; there is no VT-input distinction.
+    @static if Sys.iswindows()
+        rc = ccall(:uv_tty_set_mode, Cint, (Ptr{Cvoid}, Cint), stdin.handle, Cint(3))
+        rc == 0 || ccall(:uv_tty_set_mode, Cint, (Ptr{Cvoid}, Cint), stdin.handle, Cint(1))
+    else
+        ccall(:uv_tty_set_mode, Cint, (Ptr{Cvoid}, Cint), stdin.handle, Cint(1))
+    end
 end
 
 
+# Windows: the console size lives on the OUTPUT screen buffer, not the input
+# handle. When stdout is redirected (a TUI's log-capture pane) displaysize() falls
+# back to stdin, and GetConsoleScreenBufferInfo fails on an input handle → the 24×80
+# default — wrong at startup AND blind to resizes. Read CONOUT$ (the active screen
+# buffer) directly so we get the live size regardless of redirection. The handle is
+# cached once (it stays valid for the console's lifetime; its size query reflects the
+# current window each call). No-op on Unix, where displaysize() of any tty fd works.
+const _WIN_CONOUT = Ref{Ptr{Cvoid}}(Ptr{Cvoid}(0))
+
+function _win_conout_handle()
+    h = _WIN_CONOUT[]
+    (h != Ptr{Cvoid}(0) && h != Ptr{Cvoid}(-1)) && return h
+    name = transcode(UInt16, "CONOUT\$"); push!(name, 0x0000)  # NUL-terminated wide string
+    h = ccall((:CreateFileW, "kernel32"), Ptr{Cvoid},
+        (Ptr{UInt16}, UInt32, UInt32, Ptr{Cvoid}, UInt32, UInt32, Ptr{Cvoid}),
+        name, 0x80000000 | 0x40000000, 0x00000003, C_NULL, UInt32(3), UInt32(0), C_NULL)
+    h == Ptr{Cvoid}(-1) || (_WIN_CONOUT[] = h)   # cache only a valid handle; retry on failure
+    return h
+end
+
+function _win_console_size()
+    h = _win_conout_handle()
+    h == Ptr{Cvoid}(-1) && return nothing
+    # CONSOLE_SCREEN_BUFFER_INFO as 11 Int16 slots: [1,2]=dwSize [3,4]=cursor
+    # [5]=attrs [6,7,8,9]=srWindow(Left,Top,Right,Bottom) [10,11]=maxWindowSize
+    buf = zeros(Int16, 11)
+    ok = ccall((:GetConsoleScreenBufferInfo, "kernel32"), Cint,
+        (Ptr{Cvoid}, Ptr{Int16}), h, buf)
+    ok == 0 && return nothing
+    cols = Int(buf[8]) - Int(buf[6]) + 1   # Right - Left + 1
+    rows = Int(buf[9]) - Int(buf[7]) + 1   # Bottom - Top + 1
+    return (rows > 0 && cols > 0) ? (rows = rows, cols = cols) : nothing
+end
+
 function terminal_size()
+    # Windows: query the live console screen buffer directly (see _win_console_size);
+    # displaysize() reads a redirected stream and returns the 24×80 default there.
+    @static if Sys.iswindows()
+        wsz = _win_console_size()
+        wsz === nothing || return wsz
+    end
     # Use stdout if it's a real TTY, otherwise fall back to the saved
     # INPUT_IO (real stdin before any redirects), then current stdin.
     # This handles TUI mode where stdout is a capture pipe and stdin

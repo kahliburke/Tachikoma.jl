@@ -12,6 +12,7 @@ struct _DummyModel <: T.Model end
 @testset "Tachikoma" begin
     include("test_core.jl")
     include("test_events.jl")
+    include("test_windows_input.jl")
     include("test_colors.jl")
     include("test_sixel.jl")
     include("test_kitty_graphics.jl")

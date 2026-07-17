@@ -116,6 +116,12 @@ function start_input!()
     _STARTUP_TIME[] = time()
     INPUT_ACTIVE[] = true
     reset_key_state!()
+    # Windows console backend: read INPUT_RECORDs ourselves; don't let libuv read
+    # stdin (it would consume the records and drop the mouse ones — see windows_input.jl).
+    if _win_console_input()
+        _win_enter_input!()
+        return nothing
+    end
     io = _input_io()
     if io isa Base.LibuvStream
         Base.start_reading(io)
@@ -125,6 +131,10 @@ end
 
 function stop_input!()
     INPUT_ACTIVE[] = false
+    if _win_console_input()
+        _win_leave_input!()
+        return nothing
+    end
     io = _input_io()
     if io isa Base.LibuvStream
         try Base.stop_reading(io) catch end
@@ -134,6 +144,28 @@ function stop_input!()
         read(io, UInt8)
     end
     nothing
+end
+
+# ── Input-source abstraction (stdin bytes vs Windows console records) ────
+# The app loop and poll_event use these so they work on either backend without
+# scattering `_win_console_input()` branches through the hot path.
+
+"""True when at least one input event is ready to read."""
+_input_available() = _win_console_input() ? (_win_events_pending() > 0) :
+                     (bytesavailable(_input_io()) > 0)
+
+"""Read and decode the next input event, applying key-repeat tracking. Returns
+`nothing` for records that don't map to a Tachikoma event (key-up, resize, no-op
+mouse) — but the underlying record/byte is still consumed, so a drain loop
+gated on `_input_available()` always makes progress."""
+function _read_next_event()
+    if _win_console_input()
+        evt = _win_read_record()
+        (evt === :resize || evt === nothing) && return nothing
+        return evt isa KeyEvent ? _track_key_state!(evt) : evt
+    end
+    evt = read_event()
+    return evt isa KeyEvent ? _track_key_state!(evt) : evt
 end
 
 function read_byte(timeout_s::Float64=0.05)
@@ -153,6 +185,7 @@ end
 
 function poll_event(timeout_s::Float64=0.033)
     INPUT_ACTIVE[] || return nothing
+    _win_console_input() && return _win_poll_event(timeout_s)
     io = _input_io()
     deadline = time() + timeout_s
     while true

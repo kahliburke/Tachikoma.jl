@@ -1044,13 +1044,22 @@ function app(model::Model; fps=60, default_bindings=true, on_stdout=nothing, on_
 
         # ── Stdin monitor: event-driven wake on input ──
         stdin_monitor = @async begin
-            io = _input_io()
-            while INPUT_ACTIVE[]
-                if bytesavailable(io) == 0
-                    try wait(io) catch; break end
+            if _win_console_input()
+                # Windows console backend: libuv isn't reading stdin, so wait(io)
+                # never fires. Poll the console input queue and wake on any record.
+                while INPUT_ACTIVE[]
+                    _win_events_pending() > 0 && _try_put!(wake)
+                    sleep(0.008)
                 end
-                _try_put!(wake)
-                yield()
+            else
+                io = _input_io()
+                while INPUT_ACTIVE[]
+                    if bytesavailable(io) == 0
+                        try wait(io) catch; break end
+                    end
+                    _try_put!(wake)
+                    yield()
+                end
             end
         end
 
@@ -1067,10 +1076,11 @@ function app(model::Model; fps=60, default_bindings=true, on_stdout=nothing, on_
                     sleep(next_frame - now)
                 end
 
-                # Process all buffered stdin
-                while INPUT_ACTIVE[] && bytesavailable(_input_io()) > 0
-                    evt = read_event()
-                    evt isa KeyEvent && (evt = _track_key_state!(evt))
+                # Process all buffered input (stdin bytes, or console records on
+                # the Windows backend — see _input_available/_read_next_event).
+                while INPUT_ACTIVE[] && _input_available()
+                    evt = _read_next_event()
+                    evt === nothing && continue   # record consumed but not an event (key-up, resize, no-op)
                     Base.invokelatest(dispatch_event!, t, overlay, model, evt, default_bindings)
                 end
                 # Drain wake channel (non-blocking) to clear async signals
