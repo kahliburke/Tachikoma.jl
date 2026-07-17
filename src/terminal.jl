@@ -131,12 +131,25 @@ mutable struct Terminal
     kitty_keyboard::Bool                        # true if Kitty keyboard protocol is active
     graphics_protocol::GraphicsProtocol         # detected graphics protocol (sixel/kitty/none)
     remote_tty_path::Union{String,Nothing}      # path to remote TTY (nothing = local); enables periodic size polling
+    external_size::Bool                         # true when io was injected: size is the caller's to declare, never probed
 end
 
-function Terminal(; io::IO = stdout, size = nothing, remote_tty_path::Union{String,Nothing} = nothing)
+# The thirteen-field positional form, from before `external_size` existed.
+# Callers that spelled every field out in order predate the flag and mean a
+# terminal whose size is probed, which is what `false` says.
+Terminal(buffers::Vector{Buffer}, current::Int, size::Rect, mouse_enabled::Bool,
+         had_gfx::Bool, prev_gfx_bounds::Vector{NTuple{4,Int}}, frame_count::Int,
+         clear_interval::Int, recorder::CastRecorder, io::IO,
+         kitty_keyboard::Bool, graphics_protocol::GraphicsProtocol,
+         remote_tty_path::Union{String,Nothing}) =
+    Terminal(buffers, current, size, mouse_enabled, had_gfx, prev_gfx_bounds,
+             frame_count, clear_interval, recorder, io, kitty_keyboard,
+             graphics_protocol, remote_tty_path, false)
+
+function Terminal(; io::IO = stdout, size = nothing, remote_tty_path::Union{String,Nothing} = nothing, external_size::Bool = false)
     sz = something(size, terminal_size())
     rect = Rect(1, 1, sz.cols, sz.rows)
-    Terminal([Buffer(rect), Buffer(rect)], 1, rect, true, false, NTuple{4,Int}[], 0, 300, CastRecorder(), io, false, gfx_none, remote_tty_path)
+    Terminal([Buffer(rect), Buffer(rect)], 1, rect, true, false, NTuple{4,Int}[], 0, 300, CastRecorder(), io, false, gfx_none, remote_tty_path, external_size)
 end
 
 # Query terminal dimensions from an arbitrary TTY path using `stty size`.
@@ -1270,7 +1283,35 @@ function _stop_remote_input!()
     nothing
 end
 
+"""
+    resize!(t::Terminal, sz)
+
+Declare `t`'s new size, where `sz` is `(rows = ..., cols = ...)`.
+
+For a terminal over an injected `io`, this is the ONLY way its size ever
+changes: there is no tty to probe and no SIGWINCH to catch, so the caller
+who owns the sink -- a websocket that just received a resize frame, say --
+has to say so. Returns `true` when the size actually changed, matching
+`check_resize!`, so `draw!` clears on the next frame.
+"""
+function Base.resize!(t::Terminal, sz)
+    new_rect = Rect(1, 1, sz.cols, sz.rows)
+    new_rect == t.size && return false
+    t.size = new_rect
+    for buf in t.buffers
+        resize_buf!(buf, new_rect)
+    end
+    return true
+end
+
 function check_resize!(t::Terminal)
+    # An injected sink cannot be probed: it is not a tty and has no size of
+    # its own. Probing anyway reaches for stdout, which under the app's own
+    # stdout capture is a pipe, so terminal_size() returns its 80x24 default
+    # and every frame is silently resized to the wrong dimensions. The
+    # caller who supplied the sink is the only one who knows how big it is,
+    # and says so through `resize!`.
+    t.external_size && return false
     if t.remote_tty_path !== nothing
         # Remote TTY: SIGWINCH doesn't reach us, so poll periodically (once per second at 60fps).
         t.frame_count % 60 == 0 || return false
@@ -1552,33 +1593,60 @@ absorbs any buffered input without displaying it. Input (keyboard/mouse)
 continues to come from the current terminal or via synthetic events. Terminal
 resize is supported via periodic size polling (once per second).
 """
-function with_terminal(f::Function; tty_out=nothing, tty_size=nothing, on_stdout=nothing, on_stderr=nothing)
-    # Skip pixel detection when rendering to a remote TTY — detection queries
-    # the current terminal (not tty_out) and its escape-sequence responses
-    # buffer up in the remote TTY's input, corrupting the shell on exit.
-    tty_out === nothing && detect_cell_pixels!()
-    tty_io = if tty_out !== nothing
+function with_terminal(f::Function; io=nothing, tty_out=nothing, tty_size=nothing, on_stdout=nothing, on_stderr=nothing)
+    # `io` is the sink itself rather than a path to one: a socket, a pipe, an
+    # IOBuffer. `Terminal` has always been IO-polymorphic — every write goes
+    # through `t.io` — but `with_terminal` could only ever BUILD that sink from
+    # a path, so the only reachable sinks were /dev/tty, a tty path, or stdout.
+    # An injected sink is a remote terminal in every respect that matters: it is
+    # not the terminal this process is attached to.
+    _remote = tty_out !== nothing || io !== nothing
+    if io !== nothing && tty_size === nothing
+        # Size cannot be probed from an arbitrary sink, and guessing would put
+        # every frame at the wrong dimensions. Make the caller say.
+        throw(ArgumentError("with_terminal: `tty_size = (rows = ..., cols = ...)` " *
+                            "is required when `io` is given -- an injected sink " *
+                            "cannot be probed for its size"))
+    end
+    # Skip pixel detection when frames go anywhere but the current terminal —
+    # detection queries the CURRENT terminal, so its escape-sequence replies
+    # buffer up in the wrong place and corrupt that terminal on exit.
+    _remote || detect_cell_pixels!()
+    tty_io = if io !== nothing
+        io
+    elseif tty_out !== nothing
         open(tty_out, "w")
     elseif Sys.iswindows()
         stdout
     else
         open("/dev/tty", "w")
     end
-    sz = if tty_out !== nothing
+    sz = if io !== nothing
+        tty_size
+    elseif tty_out !== nothing
         something(tty_size, _tty_size(tty_out))
     else
         terminal_size()
     end
     state = _start_capture(something(on_stdout, _DISCARD_OUTPUT),
                            something(on_stderr, _DISCARD_OUTPUT))
-    t = Terminal(io = tty_io, size = sz, remote_tty_path = tty_out)
-    enter_tui!(t; remote_tty = tty_out !== nothing)
+    t = Terminal(io = tty_io, size = sz, remote_tty_path = tty_out,
+                 external_size = io !== nothing)
+    # remote_tty is what keeps this off the local terminal: it skips raw mode
+    # on the process's own stdin, and skips the kitty/graphics probes that
+    # would write to a terminal that is not where the frames are going. With
+    # `io` there is no remote_tty_path either, so `_start_remote_input!` is
+    # correctly skipped -- an injected sink's input arrives by whatever route
+    # the caller chose (see `INPUT_IO`), not from a tty this process can open.
+    enter_tui!(t; remote_tty = _remote)
     try
         f(t)
     finally
         leave_tui!(t)
         _stop_capture(state)
-        tty_io !== stdout && try close(tty_io) catch end
+        # A caller-supplied `io` is the caller's to close: a websocket that
+        # outlives one app must not be closed out from under them.
+        (io === nothing && tty_io !== stdout) && try close(tty_io) catch end
     end
 end
 

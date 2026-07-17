@@ -26,6 +26,7 @@ struct _DummyModel <: T.Model end
     include("test_markdown.jl")
     include("test_widgets_coverage.jl")
     include("test_scripting.jl")
+    include("test_injectable_io.jl")
     include("test_animation.jl")
     include("test_tokenizers.jl")
     include("test_style.jl")

@@ -1001,7 +1001,7 @@ Stdout and stderr are automatically redirected during TUI mode to prevent backgr
 `println()` from corrupting the display. Pass `on_stdout` / `on_stderr` callbacks to
 receive captured lines (e.g., for an activity log). See [`with_terminal`](@ref).
 """
-function app(model::Model; fps=60, default_bindings=true, on_stdout=nothing, on_stderr=nothing, tty_out=nothing, tty_size=nothing)
+function app(model::Model; fps=60, default_bindings=true, on_stdout=nothing, on_stderr=nothing, io=nothing, tty_out=nothing, tty_size=nothing)
     # Preserve real stdin for the event loop before any REPL widget
     # redirects Base.stdin to its PTY slave (for interactive prompts).
     # We dup fd 0 to get an independent fd to the real terminal —
@@ -1019,7 +1019,7 @@ function app(model::Model; fps=60, default_bindings=true, on_stdout=nothing, on_
     _restarting = Ref(false)
     _app_error = Ref{Any}(nothing)
     _app_bt = Ref{Any}(nothing)
-    with_terminal(; on_stdout, on_stderr, tty_out, tty_size) do t
+    with_terminal(; io, on_stdout, on_stderr, tty_out, tty_size) do t
         init!(model, t)
         _load_layout_prefs!(model)
         overlay = AppOverlay()
