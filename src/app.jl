@@ -1074,6 +1074,13 @@ function app(model::Model; fps=60, default_bindings=true, on_stdout=nothing, on_
                 pending = Base.invokelatest(has_pending_output, model)
                 if !pending && now < next_frame
                     sleep(next_frame - now)
+                else
+                    # Render-bound (or pending output): the inter-frame sleep is
+                    # skipped, but that sleep is also the only yield to Julia's event
+                    # loop. Without it, libuv never reads stdin, so bytesavailable stays
+                    # 0 and input is starved completely (the app animates but ignores
+                    # every key). Yield explicitly so stdin is still serviced each frame.
+                    yield()
                 end
 
                 # Process all buffered input (stdin bytes, or console records on
