@@ -98,8 +98,24 @@ const _CAPTURE_RAW     = Ref(false)
 const _RAW_ACC         = UInt8[]                  # bytes of the in-progress event
 const _LAST_EVENT_RAW  = Ref{Vector{UInt8}}(UInt8[])
 
+"""
+    enable_raw_capture!()
+
+Enable raw-input capture: `read_event()` records the exact bytes it consumes for
+each event, retrievable via [`last_event_raw`](@ref). Off by default, with a single
+`Ref` check per byte when disabled. Useful for debugging keyboard handling across
+layouts and terminals. Turn off with [`disable_raw_capture!`](@ref).
+"""
 enable_raw_capture!()  = (_CAPTURE_RAW[] = true; nothing)
+
+"""    disable_raw_capture!()
+
+Disable raw-input capture (see [`enable_raw_capture!`](@ref))."""
 disable_raw_capture!() = (_CAPTURE_RAW[] = false; nothing)
+
+"""    raw_capture_enabled() -> Bool
+
+Whether raw-input capture is currently enabled (see [`enable_raw_capture!`](@ref))."""
 raw_capture_enabled()  = _CAPTURE_RAW[]
 
 """
