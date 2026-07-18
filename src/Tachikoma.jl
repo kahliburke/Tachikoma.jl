@@ -67,7 +67,7 @@ export # Core types
        ResizableLayout, handle_resize!, reset_layout!, render_resize_handles!,
        # App framework
        app, @tachikoma_app, set_wake!,
-       tty_path,
+       tty_path, set_size!,
        prepare_for_exec!,
        clipboard_copy!, buffer_to_text,
        # Async tasks

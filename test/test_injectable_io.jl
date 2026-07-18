@@ -75,17 +75,12 @@
 
         sink = IOBuffer()
         model = _Hello()
-        # Supply the input source up front. app() only dups fd 0 when
-        # INPUT_IO is unset, and under the test harness fd 0 is not a tty
-        # (dup'ing it throws EINVAL) -- but a socket-driven caller sets its
-        # own input source anyway, which is exactly what this models.
-        old_input = T.INPUT_IO[]
-        T.INPUT_IO[] = IOBuffer()
-        try
-            app(model; io = sink, tty_size = (rows = 8, cols = 40), fps = 120)
-        finally
-            T.INPUT_IO[] = old_input
-        end
+        # No manual INPUT_IO: with `io`, app() skips the fd-0 dup that would
+        # throw EINVAL headless, and `input` is the public way a socket-driven
+        # caller feeds keystrokes. An empty buffer is enough here -- the model
+        # self-quits.
+        app(model; io = sink, tty_size = (rows = 8, cols = 40), fps = 120,
+            input = IOBuffer())
         out = String(take!(copy(sink)))
         @test model.frames >= 3
         @test occursin("hi from a sink", out)
@@ -93,19 +88,53 @@
         @test occursin('─', out) || occursin('│', out)  # a box was drawn
     end
 
-    @testset "resize! is how an injected sink changes size" begin
+    @testset "app(io=...) does not dup fd 0 (no INPUT_IO, no EINVAL)" begin
+        # The wart the maintainer flagged: app() dup'd fd 0 unconditionally,
+        # and Base.TTY(RawFD(dup(0))) throws EINVAL when fd 0 is not a tty --
+        # the headless case. With `io` set, the dup is skipped, so this runs
+        # with NOTHING pre-set.
+        @kwdef mutable struct _Q <: T.Model; n::Int = 0; end
+        T.should_quit(m::_Q) = m.n >= 2
+        T.view(m::_Q, f::T.Frame) = (m.n += 1; render(Block(title = "q"), f.area, f.buffer))
+        @assert T.INPUT_IO[] === nothing
+        sink = IOBuffer()
+        @test app(_Q(); io = sink, tty_size = (rows = 5, cols = 20)) === nothing
+    end
+
+    @testset "set_size! is how an injected sink changes size" begin
         # No tty to probe and no SIGWINCH to catch: the caller who owns the
         # sink is the only one who knows, so it has to say.
         sink = IOBuffer()
         T.with_terminal(; io = sink, tty_size = (rows = 7, cols = 33)) do t
-            @test resize!(t, (rows = 12, cols = 50)) == true
+            @test T.set_size!(t, (rows = 12, cols = 50)) == true
             @test t.size == Rect(1, 1, 50, 12)
             T.draw!(t) do f
                 @test f.area.width == 50
                 @test f.area.height == 12
             end
-            # Unchanged size is not a resize -- draw! keys its clear off this.
-            @test resize!(t, (rows = 12, cols = 50)) == false
+            # Unchanged size is not a resize.
+            @test T.set_size!(t, (rows = 12, cols = 50)) == false
+        end
+    end
+
+    @testset "set_size! arms a one-shot clear so a shrink wipes stale glyphs" begin
+        # Issue: check_resize! is hard-wired false for external_size, and
+        # draw! keys CLEAR_SCREEN off its return -- so an external resize
+        # never cleared, leaving glyphs outside a shrunk region on the
+        # receiver. set_size! now arms a one-shot clear that check_resize!
+        # reports once.
+        sink = IOBuffer()
+        T.with_terminal(; io = sink, tty_size = (rows = 20, cols = 60)) do t
+            T.draw!(t) do f; render(Block(title = "big"), f.area, f.buffer); end
+            take!(sink)                              # drain the first frame
+            @test T.set_size!(t, (rows = 8, cols = 30)) == true
+            @test t.pending_clear == true            # armed
+            T.draw!(t) do f; render(Block(title = "small"), f.area, f.buffer); end
+            @test t.pending_clear == false           # consumed
+            @test occursin("\e[2J", String(take!(sink)))   # CLEAR_SCREEN emitted
+            # ...and it does NOT clear again on the next, unchanged frame.
+            T.draw!(t) do f; render(Block(title = "small"), f.area, f.buffer); end
+            @test !occursin("\e[2J", String(take!(sink)))
         end
     end
 end

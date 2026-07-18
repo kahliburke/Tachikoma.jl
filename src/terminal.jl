@@ -132,6 +132,7 @@ mutable struct Terminal
     graphics_protocol::GraphicsProtocol         # detected graphics protocol (sixel/kitty/none)
     remote_tty_path::Union{String,Nothing}      # path to remote TTY (nothing = local); enables periodic size polling
     external_size::Bool                         # true when io was injected: size is the caller's to declare, never probed
+    pending_clear::Bool                         # set by set_size! on an external resize; check_resize! consumes it to emit CLEAR_SCREEN once
 end
 
 # The thirteen-field positional form, from before `external_size` existed.
@@ -144,12 +145,12 @@ Terminal(buffers::Vector{Buffer}, current::Int, size::Rect, mouse_enabled::Bool,
          remote_tty_path::Union{String,Nothing}) =
     Terminal(buffers, current, size, mouse_enabled, had_gfx, prev_gfx_bounds,
              frame_count, clear_interval, recorder, io, kitty_keyboard,
-             graphics_protocol, remote_tty_path, false)
+             graphics_protocol, remote_tty_path, false, false)
 
 function Terminal(; io::IO = stdout, size = nothing, remote_tty_path::Union{String,Nothing} = nothing, external_size::Bool = false)
     sz = something(size, terminal_size())
     rect = Rect(1, 1, sz.cols, sz.rows)
-    Terminal([Buffer(rect), Buffer(rect)], 1, rect, true, false, NTuple{4,Int}[], 0, 300, CastRecorder(), io, false, gfx_none, remote_tty_path, external_size)
+    Terminal([Buffer(rect), Buffer(rect)], 1, rect, true, false, NTuple{4,Int}[], 0, 300, CastRecorder(), io, false, gfx_none, remote_tty_path, external_size, false)
 end
 
 # Query terminal dimensions from an arbitrary TTY path using `stty size`.
@@ -1284,23 +1285,28 @@ function _stop_remote_input!()
 end
 
 """
-    resize!(t::Terminal, sz)
+    set_size!(t::Terminal, sz)
 
 Declare `t`'s new size, where `sz` is `(rows = ..., cols = ...)`.
 
 For a terminal over an injected `io`, this is the ONLY way its size ever
 changes: there is no tty to probe and no SIGWINCH to catch, so the caller
 who owns the sink -- a websocket that just received a resize frame, say --
-has to say so. Returns `true` when the size actually changed, matching
-`check_resize!`, so `draw!` clears on the next frame.
+has to say so.
+
+Returns `true` when the size actually changed. It also arms a one-shot
+clear: the NEXT `check_resize!` returns `true`, so `draw!` emits
+`CLEAR_SCREEN` and stale glyphs outside a shrunk region are wiped from the
+receiver, exactly as the tty resize path does.
 """
-function Base.resize!(t::Terminal, sz)
+function set_size!(t::Terminal, sz)
     new_rect = Rect(1, 1, sz.cols, sz.rows)
     new_rect == t.size && return false
     t.size = new_rect
     for buf in t.buffers
         resize_buf!(buf, new_rect)
     end
+    t.pending_clear = true
     return true
 end
 
@@ -1310,8 +1316,13 @@ function check_resize!(t::Terminal)
     # stdout capture is a pipe, so terminal_size() returns its 80x24 default
     # and every frame is silently resized to the wrong dimensions. The
     # caller who supplied the sink is the only one who knows how big it is,
-    # and says so through `resize!`.
-    t.external_size && return false
+    # and says so through `set_size!` -- which arms `pending_clear`, consumed
+    # here so `draw!` clears once after the resize.
+    if t.external_size
+        t.pending_clear || return false
+        t.pending_clear = false
+        return true
+    end
     if t.remote_tty_path !== nothing
         # Remote TTY: SIGWINCH doesn't reach us, so poll periodically (once per second at 60fps).
         t.frame_count % 60 == 0 || return false

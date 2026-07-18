@@ -1000,15 +1000,36 @@ Set `default_bindings=false` to disable built-in shortcuts
 Stdout and stderr are automatically redirected during TUI mode to prevent background
 `println()` from corrupting the display. Pass `on_stdout` / `on_stderr` callbacks to
 receive captured lines (e.g., for an activity log). See [`with_terminal`](@ref).
+
+## Driving the app from somewhere other than a terminal
+
+- `io` — render into this sink instead of a terminal (a socket, a pipe, an
+  `IOBuffer`). `tty_size = (rows, cols)` is then required. fd 0 is not
+  dup'd, so this works headless.
+- `input` — read keystrokes from here rather than the terminal. A
+  headless/remote caller supplies its own input source; without it the app
+  takes no input.
+- `on_terminal` — a `f(t::Terminal)` called once, before the loop, with the
+  live `Terminal`. The only way a driver that owns the sink but not the
+  terminal gets a handle to call [`set_size!`](@ref) on when its viewport
+  changes.
 """
-function app(model::Model; fps=60, default_bindings=true, on_stdout=nothing, on_stderr=nothing, io=nothing, tty_out=nothing, tty_size=nothing, on_terminal=nothing)
+function app(model::Model; fps=60, default_bindings=true, on_stdout=nothing, on_stderr=nothing, io=nothing, input=nothing, tty_out=nothing, tty_size=nothing, on_terminal=nothing)
     # Preserve real stdin for the event loop before any REPL widget
     # redirects Base.stdin to its PTY slave (for interactive prompts).
     # We dup fd 0 to get an independent fd to the real terminal —
     # redirect_stdin does dup2 which overwrites fd 0, so the original
     # stdin Julia object would read from the wrong source.
     _saved_input = INPUT_IO[] === nothing
-    if _saved_input
+    if input !== nothing
+        # Explicit input source (a socket, a pipe): a headless/remote caller
+        # feeds keystrokes from here, not the terminal.
+        _saved_input && (INPUT_IO[] = input)
+    elseif io !== nothing
+        # Injected sink: fd 0 is not a tty here, so dup'ing it throws EINVAL
+        # (the exact headless case this targets). Skip the dup entirely --
+        # input arrives through `input`/`INPUT_IO`, or the app takes none.
+    elseif _saved_input
         @static if Sys.iswindows()
             INPUT_IO[] = stdin
         else
@@ -1023,7 +1044,7 @@ function app(model::Model; fps=60, default_bindings=true, on_stdout=nothing, on_
         # Hand the live Terminal to the caller once, before the loop. A
         # driver that owns the sink but not the Terminal -- a web bridge
         # feeding an injected `io` -- needs this to push resizes in with
-        # `resize!(t, sz)`; `app` builds the Terminal internally and would
+        # `set_size!(t, sz)`; `app` builds the Terminal internally and would
         # otherwise never expose it.
         on_terminal === nothing || on_terminal(t)
         init!(model, t)
