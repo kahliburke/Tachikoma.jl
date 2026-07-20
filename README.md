@@ -35,7 +35,7 @@ Tachikoma is a pure-Julia framework for building rich, interactive terminal appl
 
 **Graphics** — Three rendering backends: Braille dots (2x4), quadrant blocks (2x2), and pixel rendering (16x32 per cell, Kitty or sixel). Vector drawing API with lines, arcs, circles, and shapes.
 
-**24 Themes** — 11 dark and 13 light palettes with hot-swappable switching via **Ctrl+\\** theme selector.
+**24 Themes** — 11 dark and 13 light palettes with hot-swappable switching via the **Ctrl+T** theme selector.
 
 **Recording & Export** — Live recording via `Ctrl+R`, headless `record_app()`/`record_widget()` for CI, native `.tach` format with Zstd compression, export to SVG and GIF.
 

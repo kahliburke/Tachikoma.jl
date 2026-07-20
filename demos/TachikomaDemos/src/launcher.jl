@@ -453,7 +453,7 @@ function view(m::LauncherModel, f::Frame)
               Span("select  ", tstyle(:text_dim)),
               Span("Enter ", tstyle(:accent)),
               Span("launch  ", tstyle(:text_dim)),
-              Span("Ctrl+\\ ", tstyle(:accent)),
+              Span("Ctrl+T ", tstyle(:accent)),
               Span("theme  ", tstyle(:text_dim)),
               Span("Ctrl+? ", tstyle(:accent)),
               Span("help", tstyle(:text_dim))],

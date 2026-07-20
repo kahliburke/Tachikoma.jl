@@ -386,7 +386,7 @@ function view(m::ShowcaseModel, f::Frame)
               SPINNER_DOTS[si], Style(fg=rainbow_color(mod(Float64(tick) * 0.02, 1.0))))
 
     render(StatusBar(
-        left=[Span("  [p]pause [Ctrl+\\]theme [Ctrl+?]help ",
+        left=[Span("  [p]pause [Ctrl+T]theme [Ctrl+?]help ",
                     tstyle(:text_dim))],
         right=[Span("[q/Esc]quit ", tstyle(:text_dim))],
     ), footer_area, buf)

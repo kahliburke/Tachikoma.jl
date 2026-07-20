@@ -132,7 +132,7 @@ Always prefer `tstyle` over hardcoded colors — your app automatically adapts w
 
 ## Themes
 
-Tachikoma ships with 24 built-in themes split into dark and light packs. Use **Ctrl+\\** to open the theme selector and **Tab** to switch between dark and light mode. Your choice is saved via Preferences.jl.
+Tachikoma ships with 24 built-in themes split into dark and light packs. Use **Ctrl+T** to open the theme selector and **Tab** to switch between dark and light mode. Your choice is saved via Preferences.jl.
 
 ### Dark Themes
 
