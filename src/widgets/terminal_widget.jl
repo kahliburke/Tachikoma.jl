@@ -828,10 +828,13 @@ end
 # ── TerminalWidget ───────────────────────────────────────────────────
 
 """
-    TerminalWidget(cmd; rows=24, cols=80, scrollback_limit=1000)
+    TerminalWidget(cmd; rows=24, cols=80, scrollback_limit=1000, env=nothing, dir=nothing)
 
 Embedded terminal emulator widget. Spawns `cmd` in a PTY and renders its
 output. Use as standalone or as `content` inside a `FloatingWindow`.
+
+`env` and `dir` are forwarded to `pty_spawn`: `env` replaces the child's
+environment, and `dir` sets its working directory.
 
     TerminalWidget()                           # Julia REPL
     TerminalWidget(["/bin/bash"])              # bash shell
@@ -880,8 +883,9 @@ function TerminalWidget(cmd::Vector{String};
         title_callback::Union{Function, Nothing}=nothing,
         scrollback_limit::Int=1000,
         on_exit::Union{Function, Nothing}=nothing,
-        env::Union{Dict{String,String}, Nothing}=nothing)
-    pty = pty_spawn(cmd; rows, cols, env)
+        env::Union{Dict{String,String}, Nothing}=nothing,
+        dir::Union{AbstractString, Nothing}=nothing)
+    pty = pty_spawn(cmd; rows, cols, env, dir)
     screen = TermScreen(rows, cols; scrollback_limit)
     tw = TerminalWidget(pty, screen,
                    _vt_ground, UInt8[], UInt8[], ' ', UInt8[],

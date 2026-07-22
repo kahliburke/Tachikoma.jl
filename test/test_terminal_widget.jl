@@ -522,4 +522,76 @@ end
         @test buf.content[T.buf_index(buf, 2, 1)].char == 'i'
     end
 
+    # ── PTY spawn: working directory (dir=) ──────────────────────────
+    # Real PTY spawn; not supported on Windows.
+    if !Sys.iswindows()
+        # Drain pty.output until a newline arrives or the child exits. The
+        # reader flags `alive=false` on EOF but never closes the channel, so we
+        # poll with a deadline rather than iterate it.
+        function _drain(pty; deadline=3.0)
+            acc = UInt8[]
+            stop = time() + deadline
+            while time() < stop
+                if isready(pty.output)
+                    append!(acc, take!(pty.output))
+                    UInt8('\n') in acc && break
+                elseif !pty.alive
+                    break
+                else
+                    sleep(0.01)
+                end
+            end
+            acc
+        end
+
+        @testset "pty_spawn dir sets child cwd" begin
+            d = mktempdir()
+            # /bin/pwd prints the physical path; macOS /tmp → /private/tmp.
+            want = realpath(d)   # resolve before rm — realpath needs the dir to exist
+            pty = T.pty_spawn(["pwd"]; dir=d)
+            out = strip(String(_drain(pty)))
+            T.pty_close!(pty)
+            rm(d; force=true, recursive=true)
+            @test out == want
+        end
+
+        @testset "pty_spawn dir failure never falls back to cwd" begin
+            parent = mktempdir()
+            bad = joinpath(parent, "does_not_exist")
+            here = realpath(pwd())
+            if Sys.islinux()
+                # posix_spawn's addchdir_np file action fails the spawn outright.
+                @test_throws ErrorException T.pty_spawn(["pwd"]; dir=bad)
+            else
+                # forkpty path: fork already succeeded, so the child _exit(127)s
+                # before exec — we must never see the parent's cwd echoed back.
+                pty = T.pty_spawn(["pwd"]; dir=bad)
+                out = String(_drain(pty; deadline=1.0))
+                T.pty_close!(pty)
+                @test !occursin(here, out)
+            end
+            rm(parent; force=true, recursive=true)
+        end
+    end
+
+    # ── with_terminal host stream guard ──────────────────────────────
+    @testset "set_stream_guard! routes with_terminal body" begin
+        @test T._STREAM_GUARD[] === nothing   # default: no host installed
+        try
+            calls = Ref(0)
+            # Guard that deliberately does NOT invoke the thunk, so the body
+            # never touches a real terminal — lets us assert the wiring headless.
+            T.set_stream_guard!(function (thunk)
+                calls[] += 1
+                :guarded
+            end)
+            result = T.with_terminal(_ -> error("body must not run under this guard"))
+            @test calls[] == 1        # guard was invoked exactly once
+            @test result == :guarded  # its return value propagates out
+        finally
+            T.set_stream_guard!(nothing)
+        end
+        @test T._STREAM_GUARD[] === nothing   # cleared again
+    end
+
 end

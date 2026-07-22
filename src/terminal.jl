@@ -1532,6 +1532,30 @@ function tty_path()
     p != C_NULL ? unsafe_string(p) : nothing
 end
 
+# Host hook: a guard the embedding host (e.g. KaimonGate) installs so a TUI runs
+# with the *real* process streams rather than a host-installed output-capture
+# wrapper. When a host rebinds Base.stdout/stderr to a non-TTY wrapper, the
+# capture/restore cycle in `_start_capture` (gated on `stdout isa Base.TTY`) is
+# skipped, and the raw-mode enter/leave then leaves the host REPL's stdin read
+# wedged on exit. The guard runs its thunk with the real streams restored, then
+# restores the host's streams. Default: no host installed → run the thunk directly.
+const _STREAM_GUARD = Ref{Any}(nothing)
+
+"""
+    set_stream_guard!(f)
+
+Install a host guard invoked around every `with_terminal` body as `f(thunk)`. The
+guard must call `thunk()` with the real process stdout/stderr in place of any
+host-installed capture wrapper, then restore the host's streams. Pass `nothing`
+to clear. Embedding hosts (e.g. KaimonGate) install this so raw-mode TUIs don't
+wedge the host REPL on exit when an output-capture mux is active.
+"""
+set_stream_guard!(f) = (_STREAM_GUARD[] = f; nothing)
+
+"""Run `body()` through the installed stream guard (or directly if none). Split out
+so the guard-application is unit-testable without a real terminal."""
+_run_guarded(body) = (g = _STREAM_GUARD[]; g === nothing ? body() : g(body))
+
 """
     with_terminal(f; tty_out=nothing, on_stdout=nothing, on_stderr=nothing)
 
@@ -1553,33 +1577,40 @@ continues to come from the current terminal or via synthetic events. Terminal
 resize is supported via periodic size polling (once per second).
 """
 function with_terminal(f::Function; tty_out=nothing, tty_size=nothing, on_stdout=nothing, on_stderr=nothing)
-    # Skip pixel detection when rendering to a remote TTY — detection queries
-    # the current terminal (not tty_out) and its escape-sequence responses
-    # buffer up in the remote TTY's input, corrupting the shell on exit.
-    tty_out === nothing && detect_cell_pixels!()
-    tty_io = if tty_out !== nothing
-        open(tty_out, "w")
-    elseif Sys.iswindows()
-        stdout
-    else
-        open("/dev/tty", "w")
+    body = function ()
+        # Skip pixel detection when rendering to a remote TTY — detection queries
+        # the current terminal (not tty_out) and its escape-sequence responses
+        # buffer up in the remote TTY's input, corrupting the shell on exit.
+        tty_out === nothing && detect_cell_pixels!()
+        tty_io = if tty_out !== nothing
+            open(tty_out, "w")
+        elseif Sys.iswindows()
+            stdout
+        else
+            open("/dev/tty", "w")
+        end
+        sz = if tty_out !== nothing
+            something(tty_size, _tty_size(tty_out))
+        else
+            terminal_size()
+        end
+        state = _start_capture(something(on_stdout, _DISCARD_OUTPUT),
+                               something(on_stderr, _DISCARD_OUTPUT))
+        t = Terminal(io = tty_io, size = sz, remote_tty_path = tty_out)
+        enter_tui!(t; remote_tty = tty_out !== nothing)
+        try
+            f(t)
+        finally
+            leave_tui!(t)
+            _stop_capture(state)
+            tty_io !== stdout && try close(tty_io) catch end
+        end
     end
-    sz = if tty_out !== nothing
-        something(tty_size, _tty_size(tty_out))
-    else
-        terminal_size()
-    end
-    state = _start_capture(something(on_stdout, _DISCARD_OUTPUT),
-                           something(on_stderr, _DISCARD_OUTPUT))
-    t = Terminal(io = tty_io, size = sz, remote_tty_path = tty_out)
-    enter_tui!(t; remote_tty = tty_out !== nothing)
-    try
-        f(t)
-    finally
-        leave_tui!(t)
-        _stop_capture(state)
-        tty_io !== stdout && try close(tty_io) catch end
-    end
+    # A host (e.g. KaimonGate) may install a guard so the whole TUI lifecycle runs
+    # with the real process streams instead of a capture wrapper — otherwise the
+    # `stdout isa Base.TTY` gate in `_start_capture` is skipped and the host REPL
+    # wedges on exit. No guard installed → run the body directly.
+    return _run_guarded(body)
 end
 
 # ── stdout/stderr capture ────────────────────────────────────────────
