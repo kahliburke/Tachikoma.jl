@@ -989,7 +989,7 @@ function _try_put!(ch::Channel{Nothing})
 end
 
 """
-    app(model::Model; fps=60, default_bindings=true, on_stdout=nothing, on_stderr=nothing)
+    app(model::Model; fps=60, default_bindings=true, on_stdout=nothing, on_stderr=nothing, io=nothing, input=nothing, tty_out=nothing, tty_size=nothing, on_terminal=nothing)
 
 Run a TUI application with the Elm architecture loop: poll events → `update!` → `view`.
 Enters the alternate screen, enables raw mode and mouse, then renders at `fps` frames/sec.
