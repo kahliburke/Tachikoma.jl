@@ -217,8 +217,13 @@ function handle_default_binding!(t::Terminal, overlay::AppOverlay, model::Model,
         toggle_mouse!(t)
         return true
     end
-    # Ctrl+\ → open theme selector (byte 0x1c → Char(0x1c + 0x60) = '|')
-    if evt.key == :ctrl && evt.char == '|'
+    # Ctrl+T / Ctrl+\ → open theme selector.
+    # Ctrl+T (byte 0x14 → 't') is the layout-independent primary binding: letter
+    # chords report the same key code on every keyboard layout. Ctrl+\ (byte 0x1c
+    # → Char(0x1c + 0x60) = '|') is kept as a US-layout alias, but is unproducible
+    # on layouts where '\' lives behind AltGr (e.g. AZERTY), so it can't be the
+    # sole binding.
+    if evt.key == :ctrl && (evt.char == 't' || evt.char == '|')
         _sync_theme_overlay_idx!(overlay)
         overlay.show_theme = true
         return true
@@ -405,7 +410,7 @@ const HELP_LINES = [
     "Ctrl+R       Record .tach file",
     "Ctrl+S       Settings",
     "Ctrl+Y       Copy pane to clipboard",
-    "Ctrl+\\       Theme selector",
+    "Ctrl+T       Theme selector",
     "Ctrl+?       This help",
     "Ctrl+C       Quit",
 ]

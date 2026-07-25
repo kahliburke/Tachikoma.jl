@@ -124,7 +124,7 @@ set_string!(buf, inner.x, inner.y + 1, "rendered inside inner Rect", tstyle(:tex
 When `default_bindings=true` (the default), the framework intercepts certain key combinations before they reach your `update!`:
 
 - `Ctrl+G` — Toggle mouse mode
-- `Ctrl+\` — Theme selector overlay
+- `Ctrl+T` (or `Ctrl+\` on US layouts) — Theme selector overlay
 - `Ctrl+A` — Toggle animations
 - `Ctrl+S` — Settings overlay (render backend, decay, background)
 - `Ctrl+?` — Help overlay

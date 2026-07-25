@@ -42,6 +42,10 @@ end
 
 # ── Helpers ──
 
+# Display columns a single char occupies. Clamped to at least 1 so control or
+# zero-width chars still advance the cursor by one cell instead of collapsing.
+@inline _cw(ch::Char) = max(1, textwidth(ch))
+
 text(input::TextInput) = String(input.buffer)
 
 function clear!(input::TextInput)
@@ -109,9 +113,19 @@ function handle_mouse!(input::TextInput, evt::MouseEvent)::Bool
         r = input.last_area
         if r.width > 0 && contains(r, evt.x, evt.y)
             input.focused = true
-            # Place cursor at click position (approximate)
-            click_offset = evt.x - r.x
-            input.cursor = clamp(click_offset, 0, length(input.buffer))
+            # Map the click column to a char index in display-column space,
+            # accounting for the label and wide glyphs. Best-effort: horizontal
+            # scroll isn't persisted, so this assumes the text starts unscrolled.
+            target_col = evt.x - r.x - textwidth(input.label)
+            cursor = 0
+            col = 0
+            for ch in input.buffer
+                w = _cw(ch)
+                target_col < col + w && break  # click lands on this glyph
+                col += w
+                cursor += 1
+            end
+            input.cursor = clamp(cursor, 0, length(input.buffer))
             return true
         end
     end
@@ -145,40 +159,57 @@ function render(input::TextInput, rect::Rect, buf::Buffer)
         cur_style = Style(fg=cur_style.fg, bg=cur_bg)
     end
 
-    # Horizontal scroll to keep cursor visible
+    # Horizontal scroll to keep the cursor visible. All measurements are in
+    # DISPLAY COLUMNS (wide/CJK chars occupy 2), not character counts, so a
+    # two-column glyph is never crammed into one cell.
     n = length(input.buffer)
-    # scroll_offset: first visible char index (0-based)
-    scroll_offset = 0
-    if input.cursor > text_width
-        scroll_offset = input.cursor - text_width + 1
+
+    # Column at which the cursor sits (0-based, before any scrolling) and the
+    # width of the cell it covers (the char to its right, or a trailing space).
+    cursor_col = 0
+    for i in 1:input.cursor
+        cursor_col += _cw(input.buffer[i])
+    end
+    cursor_cell_w = input.cursor < n ? _cw(input.buffer[input.cursor + 1]) : 1
+
+    # scroll_col: first visible display column (0-based). Scroll only as far as
+    # needed to reveal the cursor cell at the right edge.
+    scroll_col = 0
+    if cursor_col + cursor_cell_w > text_width
+        scroll_col = cursor_col + cursor_cell_w - text_width
     end
 
-    # Render visible text
-    for i in 1:text_width
-        char_idx = scroll_offset + i
-        cx_pos = text_start + i - 1
-        cx_pos > right(rect) && break
+    # Render visible text, char by char, advancing by each glyph's width.
+    col = 0  # display column of the current char (0-based, before scroll)
+    for idx in 1:n
+        ch = input.buffer[idx]
+        w = _cw(ch)
+        scol = col - scroll_col           # column within the text area (0-based)
+        col += w
+        # Fully scrolled off, on either side
+        (scol + w <= 0 || scol >= text_width) && continue
 
-        if char_idx >= 1 && char_idx <= n
-            ch = input.buffer[char_idx]
-            if input.focused && char_idx == input.cursor + 1
-                set_char!(buf, cx_pos, y, ch, cur_style)
-            else
-                set_char!(buf, cx_pos, y, ch, input.style)
-            end
-        elseif input.focused && char_idx == n + 1 &&
-               input.cursor == n
-            # Cursor at end of text: show block cursor on empty space
-            set_char!(buf, cx_pos, y, ' ', cur_style)
+        cx_pos = text_start + scol
+        style = (input.focused && idx == input.cursor + 1) ? cur_style : input.style
+
+        if w == 2 && scol >= 0 && scol + 2 <= text_width && cx_pos + 1 <= right(rect)
+            # Wide glyph fully in view: lead cell + pad cell
+            set_char!(buf, cx_pos, y, ch, style)
+            set_char!(buf, cx_pos + 1, y, WIDE_CHAR_PAD, style)
+        else
+            # Width-1 char, or a wide glyph clipped by a scroll/area boundary:
+            # draw a blank so the half-glyph doesn't corrupt the row.
+            draw_x = max(cx_pos, text_start)
+            draw_x <= right(rect) &&
+                set_char!(buf, draw_x, y, w == 2 ? ' ' : ch, style)
         end
     end
 
-    # Handle cursor at position 0 (before all text)
-    if input.focused && input.cursor == 0 && scroll_offset == 0
-        if n > 0
-            set_char!(buf, text_start, y, input.buffer[1], cur_style)
-        else
-            set_char!(buf, text_start, y, ' ', cur_style)
+    # Cursor sitting past the last char: block cursor on the trailing space.
+    if input.focused && input.cursor == n
+        scol = col - scroll_col
+        if scol >= 0 && scol < text_width
+            set_char!(buf, text_start + scol, y, ' ', cur_style)
         end
     end
 

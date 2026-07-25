@@ -71,7 +71,7 @@ end
 ```
 
 !!! note
-    Ctrl+C, Ctrl+G, Ctrl+\\, Ctrl+A, Ctrl+S, Ctrl+?, and Ctrl+Y are consumed by the framework's default bindings. Disable with `app(m; default_bindings=false)` to reclaim them.
+    Ctrl+C, Ctrl+G, Ctrl+T (and its Ctrl+\\ US-layout alias), Ctrl+A, Ctrl+S, Ctrl+?, and Ctrl+Y are consumed by the framework's default bindings. Disable with `app(m; default_bindings=false)` to reclaim them.
 
 ## MouseEvent
 

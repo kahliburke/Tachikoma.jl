@@ -693,6 +693,62 @@
         @test T.valid(input)
     end
 
+    @testset "TextInput wide/CJK render" begin
+        # Each CJK glyph is two display columns: the buffer must hold the glyph
+        # in a lead cell and WIDE_CHAR_PAD in the trailing cell (issue #41).
+        input = T.TextInput(text="예제 abc"; focused=true)
+        buf = T.Buffer(T.Rect(1, 1, 20, 1))
+        T.render(input, buf.area, buf)
+
+        # Every pad cell must be preceded by a width-2 lead cell (no orphans).
+        prev = nothing
+        for x in 1:20
+            c = buf.content[T.buf_index(buf, x, 1)]
+            if c.char == T.WIDE_CHAR_PAD
+                @test prev !== nothing && textwidth(prev.char) == 2
+            end
+            prev = c
+        end
+        # Round-trip through the buffer recovers the original text.
+        @test T.buffer_to_text(buf, buf.area) == "예제 abc"
+
+        # A wide glyph that can't fit before the right edge degrades to a blank
+        # rather than writing a lead cell with no room for its pad.
+        narrow = T.Buffer(T.Rect(1, 1, 3, 1))
+        wide = T.TextInput(text="가나다"; focused=true)
+        wide.cursor = 0
+        T.render(wide, narrow.area, narrow)
+        # cols 1-2 hold the first wide glyph + pad; col 3 can't fit the second.
+        @test narrow.content[T.buf_index(narrow, 1, 1)].char == '가'
+        @test narrow.content[T.buf_index(narrow, 2, 1)].char == T.WIDE_CHAR_PAD
+        @test narrow.content[T.buf_index(narrow, 3, 1)].char != T.WIDE_CHAR_PAD
+
+        # Cursor sits on the correct glyph regardless of column width.
+        wide.cursor = 1
+        buf2 = T.Buffer(T.Rect(1, 1, 12, 1))
+        T.render(wide, buf2.area, buf2)
+        # Glyph under the cursor (buffer[2] = 나) carries the cursor background.
+        lead = buf2.content[T.buf_index(buf2, 3, 1)]
+        @test lead.char == '나'
+        @test lead.style.bg == wide.cursor_style.bg
+    end
+
+    @testset "TextInput wide-char validation counts characters" begin
+        # A min-length validator must count each CJK syllable as ONE character
+        # (not two display columns) — that's what these writing systems expect.
+        v = s -> length(s) < 3 ? "Too short" : nothing
+        input = T.TextInput(validator=v)
+        for ch in "예제글"          # three Hangul syllables, one keypress each
+            T.handle_key!(input, T.KeyEvent(ch))
+        end
+        @test length(input.buffer) == 3      # 3 chars, not 6 columns
+        @test input.cursor == 3
+        @test T.valid(input)                 # 3 >= 3 → valid
+        T.handle_key!(input, T.KeyEvent(:backspace))
+        @test !T.valid(input)                # 2 < 3 → invalid
+        @test T.value(input) == "예제"
+    end
+
     # ═════════════════════════════════════════════════════════════════
     # Batch 3: Scrollable Paragraph
     # ═════════════════════════════════════════════════════════════════

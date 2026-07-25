@@ -137,7 +137,8 @@ end
 # and envp are built BEFORE the fork; the forked child only execs — no Julia allocation between
 # fork and exec.
 @static if Sys.isapple()
-function _pty_spawn_forkpty(cmd::Vector{String}; rows::Int, cols::Int, env)
+function _pty_spawn_forkpty(cmd::Vector{String}; rows::Int, cols::Int, env,
+                            dir::Union{AbstractString,Nothing} = nothing)
     prog = Sys.which(cmd[1])
     prog === nothing && error("pty_spawn: command not found in PATH: $(cmd[1])")
     ws = UInt16[rows, cols, 0, 0]
@@ -156,11 +157,20 @@ function _pty_spawn_forkpty(cmd::Vector{String}; rows::Int, cols::Int, env)
     envp = Cstring[Base.unsafe_convert(Cstring, c) for c in env_c]
     push!(envp, C_NULL)
     prog_c = Base.cconvert(Cstring, prog)
-    pid = GC.@preserve c_strs argv env_c envp prog_c ws begin
+    # Optional working directory for the child, chdir'd after fork, before exec. The Cstring is
+    # built here (pre-fork) so the child only does the allocation-free ccall.
+    dir_c = dir === nothing ? nothing : Base.cconvert(Cstring, String(dir))
+    pid = GC.@preserve c_strs argv env_c envp prog_c dir_c ws begin
         p = ccall(:forkpty, Cint, (Ptr{Cint}, Ptr{Cvoid}, Ptr{Cvoid}, Ptr{UInt16}),
                   master, C_NULL, C_NULL, pointer(ws))
         if p == 0
-            # CHILD — login_tty already done by forkpty; just exec (no allocation here).
+            # CHILD — login_tty already done by forkpty; chdir (if asked) then exec (no allocation).
+            # Fail loudly on a bad dir: exec'ing in the inherited cwd would silently run the child
+            # in the wrong place. Matches the posix_spawn path, where addchdir_np fails the spawn.
+            if dir_c !== nothing &&
+               ccall(:chdir, Cint, (Cstring,), Base.unsafe_convert(Cstring, dir_c)) != 0
+                ccall(:_exit, Cvoid, (Cint,), Cint(127))
+            end
             ccall(:execve, Cint, (Cstring, Ptr{Cstring}, Ptr{Cstring}),
                   Base.unsafe_convert(Cstring, prog_c), pointer(argv), pointer(envp))
             ccall(:_exit, Cvoid, (Cint,), Cint(127))
@@ -176,8 +186,43 @@ function _pty_spawn_forkpty(cmd::Vector{String}; rows::Int, cols::Int, env)
 end
 end  # @static Sys.isapple()
 
+# `openpty` lives in a different library depending on the platform/libc, and a bare-symbol ccall only
+# finds it where it's in the default image:
+#   • macOS/BSD  → libSystem (default image) — bare symbol resolves.
+#   • Linux glibc <2.34 → libutil.so.1 (the versioned SONAME; bare `libutil` needs the -dev symlink).
+#   • Linux glibc ≥2.34 → merged into libc; libutil.so.1 usually persists as a compat stub.
+#   • musl (Alpine) → in libc directly; there is no libutil.
+# So rather than hardcode one name (fragile), probe a candidate list at first use, resolve the symbol
+# via dlopen/dlsym, cache the pointer, and fail LOUDLY (listing what was tried) if none work.
+@static if Sys.isapple()
+    _openpty(master, slave, name_ptr, ws_ptr) = ccall(:openpty, Cint,
+        (Ptr{Cint}, Ptr{Cint}, Ptr{UInt8}, Ptr{Cvoid}, Ptr{UInt16}),
+        master, slave, name_ptr, C_NULL, ws_ptr)
+else
+    const _OPENPTY = Ref{Ptr{Cvoid}}(C_NULL)                  # resolved lazily at runtime, never baked in
+    const _OPENPTY_LIBS = ("libutil.so.1", "libc.so.6", "libutil.so", "libc.so", "libutil")
+    function _resolve_openpty()
+        _OPENPTY[] == C_NULL || return _OPENPTY[]
+        Libdl = Base.Libc.Libdl
+        tried = String[]
+        for lib in _OPENPTY_LIBS
+            h = Libdl.dlopen_e(lib)
+            h == C_NULL && (push!(tried, "$lib (not loadable)"); continue)
+            p = Libdl.dlsym_e(h, :openpty)
+            p == C_NULL && (push!(tried, "$lib (no openpty symbol)"); continue)
+            return (_OPENPTY[] = p)
+        end
+        error("Tachikoma: could not locate the C `openpty` symbol needed to create a PTY. " *
+              "Tried: " * join(tried, ", ") * ". On glibc install the libutil runtime; " *
+              "otherwise ensure a libc providing openpty is on the loader path.")
+    end
+    _openpty(master, slave, name_ptr, ws_ptr) = ccall(_resolve_openpty(), Cint,
+        (Ptr{Cint}, Ptr{Cint}, Ptr{UInt8}, Ptr{Cvoid}, Ptr{UInt16}),
+        master, slave, name_ptr, C_NULL, ws_ptr)
+end
+
 """
-    pty_spawn(cmd::Vector{String}; rows=24, cols=80) → PTY
+    pty_spawn(cmd::Vector{String}; rows=24, cols=80, env=nothing, dir=nothing) → PTY
 
 Create a PTY pair and spawn a child process running `cmd`.
 Uses `openpty()` for PTY creation and `posix_spawnp()` for process
@@ -185,17 +230,22 @@ spawning (avoids fork() deadlocks in multithreaded Julia).
 `POSIX_SPAWN_SETSID` gives the child its own session, and opening
 the slave PTY by path makes it the controlling terminal.
 
+`env` replaces the child's environment (a name→value `Dict`); `dir`,
+if given, is the child's working directory — the spawn fails loudly
+rather than silently running in the inherited cwd if it can't be entered.
+
 A background reader task is started automatically. Read output from
 `pty.output` (a Channel).
 """
 function pty_spawn(cmd::Vector{String}; rows::Int=24, cols::Int=80,
-                   env::Union{Dict{String,String}, Nothing}=nothing)
+                   env::Union{Dict{String,String}, Nothing}=nothing,
+                   dir::Union{AbstractString, Nothing}=nothing)
     @static Sys.iswindows() && error("PTY not supported on Windows")
     isempty(cmd) && error("pty_spawn: cmd must not be empty")
 
     # macOS needs forkpty/login_tty to get a controlling terminal (see _pty_spawn_forkpty).
     @static if Sys.isapple()
-        return _pty_spawn_forkpty(cmd; rows = rows, cols = cols, env = env)
+        return _pty_spawn_forkpty(cmd; rows = rows, cols = cols, env = env, dir = dir)
     end
 
     master_fd = Ref{Cint}(-1)
@@ -206,9 +256,7 @@ function pty_spawn(cmd::Vector{String}; rows::Int=24, cols::Int=80,
     ws = UInt16[rows, cols, 0, 0]
 
     # ── Create PTY pair ──
-    ret = GC.@preserve ws slave_name ccall(:openpty, Cint,
-                (Ptr{Cint}, Ptr{Cint}, Ptr{UInt8}, Ptr{Cvoid}, Ptr{UInt16}),
-                master_fd, slave_fd, pointer(slave_name), C_NULL, pointer(ws))
+    ret = GC.@preserve ws slave_name _openpty(master_fd, slave_fd, pointer(slave_name), pointer(ws))
     ret == -1 && error("openpty failed: $(Base.Libc.strerror(Base.Libc.errno()))")
 
     slave_path = GC.@preserve slave_name unsafe_string(pointer(slave_name))
@@ -235,6 +283,10 @@ function pty_spawn(cmd::Vector{String}; rows::Int=24, cols::Int=80,
               (Ptr{UInt8}, Cint, Cint), pointer(file_actions), Cint(0), Cint(1))
         ccall(:posix_spawn_file_actions_adddup2, Cint,
               (Ptr{UInt8}, Cint, Cint), pointer(file_actions), Cint(0), Cint(2))
+        # Optional working directory: chdir the child before exec (glibc 2.29+ file action).
+        dir === nothing ||
+            ccall(:posix_spawn_file_actions_addchdir_np, Cint,
+                  (Ptr{UInt8}, Cstring), pointer(file_actions), String(dir))
     end
 
     # ── Set up posix_spawn attributes (new session) ──
@@ -379,9 +431,7 @@ function pty_pair(; rows::Int=24, cols::Int=80)
     slave_name = zeros(UInt8, 256)
     ws = UInt16[rows, cols, 0, 0]
 
-    ret = GC.@preserve ws slave_name ccall(:openpty, Cint,
-                (Ptr{Cint}, Ptr{Cint}, Ptr{UInt8}, Ptr{Cvoid}, Ptr{UInt16}),
-                master_fd, slave_fd, pointer(slave_name), C_NULL, pointer(ws))
+    ret = GC.@preserve ws slave_name _openpty(master_fd, slave_fd, pointer(slave_name), pointer(ws))
     ret == -1 && error("openpty failed: $(Base.Libc.strerror(Base.Libc.errno()))")
 
     _set_nonblocking(master_fd[])

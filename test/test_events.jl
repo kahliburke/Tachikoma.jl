@@ -152,7 +152,7 @@
         @test !term.mouse_enabled
     end
 
-    @testset "Default bindings: Ctrl+\\ opens theme" begin
+    @testset "Default bindings: Ctrl+T / Ctrl+\\ open theme" begin
         sz = T.terminal_size()
         rect = T.Rect(1, 1, sz.cols, sz.rows)
         term = T.Terminal([T.Buffer(rect), T.Buffer(rect)], 1, rect, true, false, NTuple{4,Int}[], 0, 300, T.CastRecorder(), devnull, false, T.gfx_none, nothing)
@@ -161,7 +161,13 @@
         orig_theme = T.theme()
 
         try
-            # Ctrl+\ (byte 0x1c → char '|') opens theme overlay
+            # Ctrl+T (byte 0x14 → char 't') is the layout-independent primary binding
+            evt_t = T.KeyEvent(:ctrl, 't')
+            @test T.handle_default_binding!(term, ov, _DummyModel(), evt_t)
+            @test ov.show_theme
+
+            # Ctrl+\ (byte 0x1c → char '|') is kept as a US-layout alias
+            ov.show_theme = false
             evt = T.KeyEvent(:ctrl, '|')
             @test T.handle_default_binding!(term, ov, _DummyModel(), evt)
             @test ov.show_theme
@@ -281,7 +287,7 @@
         @test length(T.HELP_LINES) >= 4
         @test any(occursin("Ctrl+A", l) for l in T.HELP_LINES)
         @test any(occursin("Ctrl+G", l) for l in T.HELP_LINES)
-        @test any(occursin("Ctrl+\\", l) for l in T.HELP_LINES)
+        @test any(occursin("Ctrl+T", l) for l in T.HELP_LINES)
         @test any(occursin("Ctrl+?", l) for l in T.HELP_LINES)
     end
 

@@ -393,7 +393,7 @@ app(PigGame())
 |:----|:-------|
 | `Ctrl+C` | Quit (always active) |
 | `Ctrl+G` | Toggle mouse mode |
-| `Ctrl+\` | Open theme selector |
+| `Ctrl+T` (or `Ctrl+\` on US layouts) | Open theme selector |
 | `Ctrl+A` | Toggle animations on/off |
 | `Ctrl+S` | Open settings overlay |
 | `Ctrl+?` | Help overlay |
