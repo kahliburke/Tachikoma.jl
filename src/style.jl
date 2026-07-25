@@ -669,14 +669,52 @@ const DUSK = Theme(
     Color256(133),  # title: medium purple
 )
 
+#  Julia Dark ── based on official Julia language colors
+#  High contrast, distinctive purple/green/blue/red accents on dark background.
+const JULIA_DARK = Theme(
+    "julia_dark",
+    Color256(234),  # bg: very dark gray
+    Color256(238),  # border: dark gray
+    Color256(98),   # border_focus: Julia purple
+    Color256(252),  # text: light gray
+    Color256(243),  # text_dim: medium gray
+    Color256(255),  # text_bright: white
+    Color256(98),   # primary: Julia purple
+    Color256(26),   # secondary: Julia blue
+    Color256(34),   # accent: Julia green
+    Color256(34),   # success: Julia green
+    Color256(214),  # warning: orange/yellow
+    Color256(160),  # error: Julia red
+    Color256(98),   # title: Julia purple
+)
+
+#  Julia Light ── based on official Julia language colors
+#  Clean, professional, with distinctive purple/green/blue/red accents on white.
+const JULIA_LIGHT = Theme(
+    "julia_light",
+    Color256(231),  # bg: pure white
+    Color256(249),  # border: light gray
+    Color256(98),   # border_focus: Julia purple
+    Color256(234),  # text: near-black
+    Color256(245),  # text_dim: medium gray
+    Color256(232),  # text_bright: black
+    Color256(98),   # primary: Julia purple
+    Color256(26),   # secondary: Julia blue
+    Color256(34),   # accent: Julia green
+    Color256(34),   # success: Julia green
+    Color256(214),  # warning: orange
+    Color256(160),  # error: Julia red
+    Color256(98),   # title: Julia purple
+)
+
 # ── Theme collections ─────────────────────────────────────────────────
 
 const DARK_THEMES = (KOKAKU, ESPER, MOTOKO, KANEDA, NEUROMANCER, CATPPUCCIN,
-                     SOLARIZED, DRACULA, OUTRUN, ZENBURN, ICEBERG)
+                     SOLARIZED, DRACULA, OUTRUN, ZENBURN, ICEBERG, JULIA_DARK)
 
 const LIGHT_THEMES = (PAPER, LATTE, SOLARIS, SAKURA, AYU,
                       GRUVBOX, FROST, MEADOW, DUNE, LAVENDER, HORIZON,
-                      OVERCAST, DUSK)
+                      OVERCAST, DUSK, JULIA_LIGHT)
 
 # ── Light/dark mode ───────────────────────────────────────────────────
 
