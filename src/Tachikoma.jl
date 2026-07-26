@@ -81,10 +81,10 @@ export # Core types
        cell_pixels, text_area_pixels, text_area_cells, sixel_scale, sixel_area_pixels,
        # Themes
        KOKAKU, ESPER, MOTOKO, KANEDA, NEUROMANCER, CATPPUCCIN,
-       SOLARIZED, DRACULA, OUTRUN, ZENBURN, ICEBERG,
+       SOLARIZED, DRACULA, OUTRUN, ZENBURN, ICEBERG, JULIA_DARK,
        PAPER, LATTE, SOLARIS, SAKURA, AYU,
        GRUVBOX, FROST, MEADOW, DUNE, LAVENDER, HORIZON,
-       OVERCAST, DUSK,
+       OVERCAST, DUSK, JULIA_LIGHT,
        DARK_THEMES, LIGHT_THEMES, ALL_THEMES, THEME, RESET,
        light_mode, set_light_mode!, active_themes, canvas_bg, canvas_bg_rgb,
        # Visual constants

@@ -47,7 +47,7 @@ features:
     link: /performance
   - icon: 🎨
     title: 24 Built-in Themes
-    details: 11 dark + 13 light palettes — cyberpunk, retro, classic, and more — with hot-swappable theme switching and full persistence via Preferences.jl.
+    details: 12 dark + 14 light palettes — cyberpunk, retro, classic, and more — with hot-swappable theme switching and full persistence via Preferences.jl.
     link: /styling
   - icon: 🖥️
     title: Full RGBA Pixel Pipeline
@@ -144,7 +144,7 @@ app(Life())
 | [Getting Started](getting-started.md) | Build your first app in 25 lines |
 | [Architecture](architecture.md) | The Elm architecture pattern in depth |
 | [Layout](layout.md) | Constraint-based layout system |
-| [Styling & Themes](styling.md) | Colors, styles, and the 24 built-in themes |
+| [Styling & Themes](styling.md) | Colors, styles, and the 26 built-in themes |
 | [Input & Events](events.md) | Keyboard and mouse event handling |
 | [Animation](animation.md) | Tweens, springs, timelines, and organic effects |
 | [Graphics & Pixel Rendering](canvas.md) | Canvas, BlockCanvas, PixelImage, PixelCanvas |

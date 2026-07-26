@@ -25,15 +25,17 @@
         end
 
         @testset "ALL_THEMES coverage" begin
-            @test length(T.ALL_THEMES) == 24
-            @test length(T.DARK_THEMES) == 11
-            @test length(T.LIGHT_THEMES) == 13
+            @test length(T.ALL_THEMES) == 26
+            @test length(T.DARK_THEMES) == 12
+            @test length(T.LIGHT_THEMES) == 14
             names = [t.name for t in T.ALL_THEMES]
             @test "kokaku" in names
             @test "esper" in names
             @test "iceberg" in names
             @test "paper" in names
             @test "latte" in names
+            @test "julia_dark" in names
+            @test "julia_light" in names
         end
 
         @testset "write_style round-trip" begin
