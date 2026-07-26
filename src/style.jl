@@ -669,8 +669,8 @@ const DUSK = Theme(
     Color256(133),  # title: medium purple
 )
 
-#  Julia Dark ── based on official Julia language colors
-#  High contrast, distinctive purple/green/blue/red accents on dark background.
+#  Julia Dark  ── the Julia language palette after hours
+#  Bold, technical, unmistakable. Three dots glowing on a black terminal.
 const JULIA_DARK = Theme(
     "julia_dark",
     Color256(234),  # bg: very dark gray
@@ -680,7 +680,7 @@ const JULIA_DARK = Theme(
     Color256(243),  # text_dim: medium gray
     Color256(255),  # text_bright: white
     Color256(98),   # primary: Julia purple
-    Color256(26),   # secondary: Julia blue
+    Color256(62),   # secondary: Julia blue
     Color256(34),   # accent: Julia green
     Color256(34),   # success: Julia green
     Color256(214),  # warning: orange/yellow
@@ -688,8 +688,8 @@ const JULIA_DARK = Theme(
     Color256(98),   # title: Julia purple
 )
 
-#  Julia Light ── based on official Julia language colors
-#  Clean, professional, with distinctive purple/green/blue/red accents on white.
+#  Julia Light  ── the Julia language palette in daylight
+#  Crisp, academic, precise. Notebook ink with three colored dots.
 const JULIA_LIGHT = Theme(
     "julia_light",
     Color256(231),  # bg: pure white
@@ -700,9 +700,9 @@ const JULIA_LIGHT = Theme(
     Color256(232),  # text_bright: black
     Color256(98),   # primary: Julia purple
     Color256(26),   # secondary: Julia blue
-    Color256(34),   # accent: Julia green
-    Color256(34),   # success: Julia green
-    Color256(214),  # warning: orange
+    Color256(28),   # accent: Julia green
+    Color256(28),   # success: Julia green
+    Color256(172),  # warning: dark orange
     Color256(160),  # error: Julia red
     Color256(98),   # title: Julia purple
 )
