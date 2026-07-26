@@ -44,6 +44,8 @@ function print_usage()
       -f, --font <name|path>    Font name or path (use `tachi fonts` to list)
       --font-size <n>           Font size in pixels (default: 16)
       --scale <f>               Scale factor (default: 1.0)
+      --start <n>               First frame to render, 1-based (default: 1)
+      --end <n>                 Last frame to render, inclusive (default: last)
       --skip <n>                Use every Nth frame (default: 1)
       --compress                Compress dead space before rendering
       --bg <color>              Background: black, dark (default), white, or r,g,b
@@ -55,6 +57,7 @@ function print_usage()
     Examples:
       tachi render demo.tach -o demo.gif --font "Meslo" --bg black
       tachi demo.tach --scale 0.7 --skip 2
+      tachi demo.tach --start 20 --end 60
       tachi info demo.tach
       tachi fonts
       tachi -i demo.tach""")
@@ -69,6 +72,8 @@ function parse_render_opts(args)
         :font => "",
         :font_size => 16,
         :scale => 1.0,
+        :start => nothing,
+        :stop => nothing,
         :skip => 1,
         :compress => false,
         :bg => "dark",
@@ -88,6 +93,10 @@ function parse_render_opts(args)
             i += 1; opts[:font_size] = parse(Int, args[i])
         elseif a == "--scale"
             i += 1; opts[:scale] = parse(Float64, args[i])
+        elseif a == "--start"
+            i += 1; opts[:start] = parse(Int, args[i])
+        elseif a == "--end"
+            i += 1; opts[:stop] = parse(Int, args[i])
         elseif a == "--skip"
             i += 1; opts[:skip] = parse(Int, args[i])
         elseif a == "--compress"
