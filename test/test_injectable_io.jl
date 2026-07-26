@@ -138,6 +138,30 @@
         end
     end
 
+    @testset "teardown does not touch the host's stdin" begin
+        # enter_tui! skips raw mode on this process's stdin for an injected sink,
+        # so leave_tui! must skip restoring it. The two used to disagree:
+        # leave_tui! branched on remote_tty_path, which an injected io leaves
+        # `nothing`, so it fell through to set_raw_mode!(false) -- unconditional
+        # once stdin is a TTY. An embedding host (a REPL, a gate process) would
+        # be dropped out of raw mode every time an app exited.
+        #
+        # Asserted on the predicate rather than the syscall: set_raw_mode! is a
+        # no-op when stdin isn't a TTY, which is exactly the case under CI, so a
+        # behavioural test here would pass no matter what the branch did.
+        sink = IOBuffer()
+        T.with_terminal(; io = sink, tty_size = (rows = 6, cols = 20)) do t
+            @test T._is_remote_terminal(t) == true
+            @test t.remote_tty_path === nothing   # ...and so is NOT detected by that
+        end
+        # A terminal this process does own still restores raw mode as before.
+        @test T._is_remote_terminal(T.Terminal(io = IOBuffer(),
+                                               size = (rows = 6, cols = 20))) == false
+        # A tty_out terminal is remote too, and additionally has input to stop.
+        @test T._is_remote_terminal(T.Terminal(io = IOBuffer(), size = (rows = 6, cols = 20),
+                                               remote_tty_path = "/dev/ttys999")) == true
+    end
+
     @testset "an injected sink does not redirect the process's streams" begin
         # The capture protects a terminal the app SHARES with background `println`s.
         # An injected sink has no such terminal, and the redirect is process-wide --

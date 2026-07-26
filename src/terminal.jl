@@ -1389,7 +1389,21 @@ function _detect_graphics_from_env()
     return gfx_none
 end
 
-function enter_tui!(t::Terminal; remote_tty::Bool = false)
+"""
+    _is_remote_terminal(t::Terminal) → Bool
+
+Whether `t`'s frames go somewhere other than the terminal this process owns —
+a `tty_out` path, or an `io` sink handed in by the caller.
+
+Both `enter_tui!` and `leave_tui!` branch on this, and they must agree: setup
+skips raw mode on the process's own stdin precisely because that stdin is not
+the app's input, so teardown must not switch it back. Deriving both from this
+one predicate is what keeps them from drifting — `remote_tty_path` alone does
+not, since an injected `io` leaves it `nothing`.
+"""
+_is_remote_terminal(t::Terminal) = t.remote_tty_path !== nothing || t.external_size
+
+function enter_tui!(t::Terminal; remote_tty::Bool = _is_remote_terminal(t))
     print(t.io, ALT_SCREEN_ON, CURSOR_HIDE, CLEAR_SCREEN)
     Base.flush(t.io)
     if remote_tty
@@ -1488,8 +1502,13 @@ function leave_tui!(t::Terminal)
     # stdin buffer.  stop_input! then drains that buffer.
     try sleep(0.015) catch end
     try stop_input!() catch end
-    if t.remote_tty_path !== nothing
-        try _stop_remote_input!() catch end
+    if _is_remote_terminal(t)
+        # Frames went somewhere other than this process's terminal, so setup
+        # never touched its stdin. Only a tty_out path has remote input to stop;
+        # an injected io has none. Either way, leave the host's stdin alone --
+        # set_raw_mode!(false) is unconditional once stdin is a TTY, so calling
+        # it here would drop an embedding REPL out of raw mode on every exit.
+        t.remote_tty_path === nothing || try _stop_remote_input!() catch end
     else
         try set_raw_mode!(false) catch end
     end
@@ -1700,7 +1719,9 @@ function with_terminal(f::Function; io=nothing, tty_out=nothing, tty_size=nothin
         # `io` there is no remote_tty_path either, so `_start_remote_input!` is
         # correctly skipped -- an injected sink's input arrives by whatever route
         # the caller chose (see `INPUT_IO`), not from a tty this process can open.
-        enter_tui!(t; remote_tty = _remote)
+        # `_is_remote_terminal(t)` is `_remote` by construction, and letting
+        # enter_tui!/leave_tui! both read it keeps teardown in step with setup.
+        enter_tui!(t)
         try
             f(t)
         finally
