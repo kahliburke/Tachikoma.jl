@@ -1013,7 +1013,8 @@ receive captured lines (e.g., for an activity log). See [`with_terminal`](@ref).
   dup'd, so this works headless.
 - `input` — read keystrokes from here rather than the terminal. A
   headless/remote caller supplies its own input source; without it the app
-  takes no input.
+  takes no input. Takes precedence over an `INPUT_IO` a host already
+  installed, and that previous source is restored when the app exits.
 - `on_terminal` — a `f(t::Terminal)` called once, before the loop, with the
   live `Terminal`. The only way a driver that owns the sink but not the
   terminal gets a handle to call [`set_size!`](@ref) on when its viewport
@@ -1025,22 +1026,31 @@ function app(model::Model; fps=60, default_bindings=true, on_stdout=nothing, on_
     # We dup fd 0 to get an independent fd to the real terminal —
     # redirect_stdin does dup2 which overwrites fd 0, so the original
     # stdin Julia object would read from the wrong source.
-    _saved_input = INPUT_IO[] === nothing
+    # Remember whatever source was already installed so teardown can put it
+    # back. An explicit `input` takes precedence for the life of this app, but
+    # a host that installed its own source must get it back afterwards.
+    _prev_input = INPUT_IO[]
+    _restore_input = false
     if input !== nothing
         # Explicit input source (a socket, a pipe): a headless/remote caller
-        # feeds keystrokes from here, not the terminal.
-        _saved_input && (INPUT_IO[] = input)
+        # feeds keystrokes from here, not the terminal. This WINS over anything
+        # already in INPUT_IO -- the caller named this source, and deferring to
+        # a pre-existing one instead leaves the app taking no keys at all with
+        # nothing on screen to explain why.
+        INPUT_IO[] = input
+        _restore_input = true
     elseif io !== nothing
         # Injected sink: fd 0 is not a tty here, so dup'ing it throws EINVAL
         # (the exact headless case this targets). Skip the dup entirely --
         # input arrives through `input`/`INPUT_IO`, or the app takes none.
-    elseif _saved_input
+    elseif _prev_input === nothing
         @static if Sys.iswindows()
             INPUT_IO[] = stdin
         else
             saved_fd = ccall(:dup, Cint, (Cint,), Cint(0))
             INPUT_IO[] = Base.TTY(RawFD(saved_fd))
         end
+        _restore_input = true
     end
     _restarting = Ref(false)
     _app_error = Ref{Any}(nothing)
@@ -1213,7 +1223,7 @@ function app(model::Model; fps=60, default_bindings=true, on_stdout=nothing, on_
     # cleanup! runs after with_terminal returns — terminal is fully restored
     # (leave_tui!, raw mode off, alt screen off) before app teardown begins.
     cleanup!(model)
-    _saved_input && (INPUT_IO[] = nothing)
+    _restore_input && (INPUT_IO[] = _prev_input)
     if _app_error[] !== nothing
         Base.showerror(stderr, _app_error[], _app_bt[])
         println(stderr)

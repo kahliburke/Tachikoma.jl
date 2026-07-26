@@ -138,6 +138,41 @@
         end
     end
 
+    @testset "an explicit input source wins over a host's INPUT_IO" begin
+        # A host that installed its own INPUT_IO used to silently win over an
+        # explicit `input`, so the app read from the host's source -- or, if
+        # that source was empty, took no keys at all with nothing to explain
+        # why. The kwarg names the source, so the kwarg wins; the host's
+        # source is put back on exit.
+        @kwdef mutable struct _In <: T.Model; n::Int = 0; end
+        T.should_quit(m::_In) = m.n >= 2
+        T.view(m::_In, f::T.Frame) = (m.n += 1; render(Block(title = "in"), f.area, f.buffer))
+
+        host_source = IOBuffer()
+        mine = IOBuffer()
+        T.INPUT_IO[] = host_source
+        try
+            seen = Ref{Any}(:unset)
+            app(_In(); io = IOBuffer(), tty_size = (rows = 5, cols = 20),
+                input = mine, on_terminal = _ -> (seen[] = T.INPUT_IO[]))
+            @test seen[] === mine              # the kwarg won while running
+            @test T.INPUT_IO[] === host_source # ...and the host got its own back
+        finally
+            T.INPUT_IO[] = nothing
+        end
+    end
+
+    @testset "the default path still clears INPUT_IO on exit" begin
+        # Unchanged behaviour for the ordinary case: nothing installed going in,
+        # nothing left installed coming out.
+        @kwdef mutable struct _Def <: T.Model; n::Int = 0; end
+        T.should_quit(m::_Def) = m.n >= 2
+        T.view(m::_Def, f::T.Frame) = (m.n += 1; render(Block(title = "d"), f.area, f.buffer))
+        @test T.INPUT_IO[] === nothing
+        app(_Def(); io = IOBuffer(), tty_size = (rows = 5, cols = 20), input = IOBuffer())
+        @test T.INPUT_IO[] === nothing
+    end
+
     @testset "teardown does not touch the host's stdin" begin
         # enter_tui! skips raw mode on this process's stdin for an injected sink,
         # so leave_tui! must skip restoring it. The two used to disagree:
