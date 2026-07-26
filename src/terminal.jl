@@ -1609,17 +1609,31 @@ so the guard-application is unit-testable without a real terminal."""
 _run_guarded(body) = (g = _STREAM_GUARD[]; g === nothing ? body() : g(body))
 
 """
-    with_terminal(f; tty_out=nothing, on_stdout=nothing, on_stderr=nothing)
+    with_terminal(f; io=nothing, tty_out=nothing, tty_size=nothing,
+                  on_stdout=nothing, on_stderr=nothing)
 
 Run `f(terminal)` inside the TUI lifecycle (alt screen, raw mode, mouse).
 
-Stdout and stderr are always redirected to pipes during TUI mode to prevent
-background `println()` calls from corrupting the display. Rendering goes to
-`/dev/tty` directly, bypassing the redirected file descriptors.
+Stdout and stderr are redirected to pipes during TUI mode to prevent background
+`println()` calls from corrupting the display. Rendering goes to `/dev/tty`
+directly, bypassing the redirected file descriptors.
 
 Pass `on_stdout` / `on_stderr` callbacks to receive captured lines (e.g., for
 an activity log). When no callbacks are provided, captured output is silently
 discarded.
+
+Pass `io` to render into a sink you already hold — a socket, a pipe, an
+`IOBuffer` — instead of a terminal this process is attached to. `tty_size =
+(rows = ..., cols = ...)` is then required, since an arbitrary sink cannot be
+probed for its size, and [`set_size!`](@ref) is how you later declare a resize.
+The sink is yours: `with_terminal` never closes an `io` it did not open.
+
+With `io`, stdout/stderr are NOT redirected unless you asked for the lines with
+`on_stdout`/`on_stderr`. The redirect is process-wide, and an injected sink has
+no shared terminal display for stray output to corrupt — the very thing the
+capture protects. This is what lets an embedding host (a notebook worker, a
+server) run a Tachikoma app without losing the stream it talks to its parent
+over.
 
 Pass `tty_out` with a path like `"/dev/ttys042"` to render into a different
 terminal window than the one running the Julia process. Run `cat > /dev/null`
@@ -1664,8 +1678,20 @@ function with_terminal(f::Function; io=nothing, tty_out=nothing, tty_size=nothin
         else
             terminal_size()
         end
-        state = _start_capture(something(on_stdout, _DISCARD_OUTPUT),
-                               something(on_stderr, _DISCARD_OUTPUT))
+        # The capture exists so a stray `println` cannot corrupt the frames on a terminal
+        # this process shares with the app. An injected sink HAS no such terminal -- that
+        # is what makes it injected -- so there is nothing to protect, and capturing
+        # anyway is actively harmful: `_start_capture` calls `redirect_stdout()` on the
+        # WHOLE process, so an embedding host (a notebook worker, a server) loses the
+        # stream it talks to its parent over. The `on_stdout !== nothing` guard inside
+        # `_start_capture` cannot prevent this: `something(...)` has already substituted
+        # `_DISCARD_OUTPUT` by the time it is consulted, so it is never `nothing`.
+        #
+        # An explicit `on_stdout`/`on_stderr` is still honoured -- the caller asked for
+        # the lines, so they are still captured and delivered.
+        state = (io === nothing || on_stdout !== nothing || on_stderr !== nothing) ?
+                _start_capture(something(on_stdout, _DISCARD_OUTPUT),
+                               something(on_stderr, _DISCARD_OUTPUT)) : nothing
         t = Terminal(io = tty_io, size = sz, remote_tty_path = tty_out,
                      external_size = io !== nothing)
         # remote_tty is what keeps this off the local terminal: it skips raw mode
@@ -1679,7 +1705,7 @@ function with_terminal(f::Function; io=nothing, tty_out=nothing, tty_size=nothin
             f(t)
         finally
             leave_tui!(t)
-            _stop_capture(state)
+            state === nothing || _stop_capture(state)
             # A caller-supplied `io` is the caller's to close: a websocket that
             # outlives one app must not be closed out from under them.
             (io === nothing && tty_io !== stdout) && try close(tty_io) catch end

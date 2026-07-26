@@ -137,4 +137,40 @@
             @test !occursin("\e[2J", String(take!(sink)))
         end
     end
+
+    @testset "an injected sink does not redirect the process's streams" begin
+        # The capture protects a terminal the app SHARES with background `println`s.
+        # An injected sink has no such terminal, and the redirect is process-wide --
+        # so an embedding host (a notebook worker, a server) that talks to its parent
+        # over stdout would lose that stream the moment it ran an app. Note this is
+        # NOT covered by the `on_stdout !== nothing` guard inside `_start_capture`:
+        # `something(on_stdout, _DISCARD_OUTPUT)` has already replaced it by then.
+        sink = IOBuffer()
+        before_out, before_err = stdout, stderr
+        seen_out, seen_err = Ref{Any}(nothing), Ref{Any}(nothing)
+        T.with_terminal(; io = sink, tty_size = (rows = 6, cols = 20)) do t
+            seen_out[] = stdout
+            seen_err[] = stderr
+        end
+        @test seen_out[] === before_out
+        @test seen_err[] === before_err
+        @test stdout === before_out          # and nothing was left swapped out
+        @test stderr === before_err
+    end
+
+    @testset "an injected sink still captures when the caller asks for the lines" begin
+        # Opting in with on_stdout means the caller WANTS the output, so the redirect
+        # is theirs to have -- skipping it would silently drop the lines they asked for.
+        sink = IOBuffer()
+        lines = String[]
+        before = stdout
+        T.with_terminal(; io = sink, tty_size = (rows = 6, cols = 20),
+                        on_stdout = l -> push!(lines, l)) do t
+            @test stdout !== before          # redirected, because it was requested
+            println("captured please")
+            flush(stdout)
+        end
+        @test stdout === before              # ...and restored afterwards
+        @test any(l -> occursin("captured please", l), lines)
+    end
 end
