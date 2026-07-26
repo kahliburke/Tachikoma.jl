@@ -21,6 +21,24 @@ function render_tach(opts::Dict{Symbol, Any})
     duration = nframes > 1 ? ts[end] - ts[1] : 0.0
     println("  $(w)×$(h) cells, $nframes frames, $(round(duration, digits=1))s")
 
+    # Frame range (1-based, inclusive) — applied first so the indices match
+    # the frame numbering reported by `tachi info`.
+    if opts[:start] !== nothing || opts[:stop] !== nothing
+        first_f = opts[:start] === nothing ? 1 : opts[:start]
+        last_f = opts[:stop] === nothing ? nframes : opts[:stop]
+        if first_f < 1 || last_f > nframes || first_f > last_f
+            printstyled(stderr,
+                "Invalid frame range: $(first_f)–$(last_f) (recording has $nframes frames)\n";
+                color=:red)
+            exit(1)
+        end
+        rng = first_f:last_f
+        cells = cells[rng]
+        ts = ts[rng]
+        pixels = pixels[rng]
+        println("  → $(length(cells)) frames (frames $(first_f)–$(last_f))")
+    end
+
     # Compress dead space
     if opts[:compress]
         printstyled("Compressing dead space...\n"; color=:cyan)
@@ -66,7 +84,7 @@ function render_tach(opts::Dict{Symbol, Any})
     # FreeTypeAbstraction + ColorTypes (Tachikoma's weakdeps).
     fmt = opts[:format]
     printstyled("Rendering "; color=:cyan)
-    println("$nframes frames → $output ($(fmt))")
+    println("$(length(cells)) frames → $output ($(fmt))")
 
     t0 = time()
     if fmt == "gif"

@@ -233,9 +233,11 @@
         @test T.theme().name == "kokaku"
         T.set_theme!(:motoko)
         @test T.theme().name == "motoko"
+        T.set_theme!(:julia_dark)
+        @test T.theme().name == "julia_dark"
 
-        # ALL_THEMES tuple (11 dark + 13 light)
-        @test length(T.ALL_THEMES) == 24
+        # ALL_THEMES tuple (12 dark + 14 light)
+        @test length(T.ALL_THEMES) == 26
 
         T.set_theme!(T.KOKAKU)  # restore
     end

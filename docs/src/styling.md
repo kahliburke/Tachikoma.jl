@@ -1,6 +1,6 @@
 # Styling & Themes
 
-Tachikoma provides a comprehensive styling system with ANSI 256 colors, true RGB colors, text attributes, and a theme engine with 24 built-in palettes across dark and light modes.
+Tachikoma provides a comprehensive styling system with ANSI 256 colors, true RGB colors, text attributes, and a theme engine with 26 built-in palettes across dark and light modes.
 
 ## Style
 
@@ -132,7 +132,7 @@ Always prefer `tstyle` over hardcoded colors — your app automatically adapts w
 
 ## Themes
 
-Tachikoma ships with 24 built-in themes split into dark and light packs. Use **Ctrl+T** to open the theme selector and **Tab** to switch between dark and light mode. Your choice is saved via Preferences.jl.
+Tachikoma ships with 26 built-in themes split into dark and light packs. Use **Ctrl+T** to open the theme selector and **Tab** to switch between dark and light mode. Your choice is saved via Preferences.jl.
 
 ### Dark Themes
 
@@ -149,6 +149,7 @@ Tachikoma ships with 24 built-in themes split into dark and light packs. Use **C
 | Outrun | `OUTRUN` | Neon synthwave |
 | Zenburn | `ZENBURN` | Low-contrast warm |
 | Iceberg | `ICEBERG` | Cool blue minimal |
+| Julia Dark | `JULIA_DARK` | Julia language palette after hours |
 
 ### Light Themes
 
@@ -167,6 +168,7 @@ Tachikoma ships with 24 built-in themes split into dark and light packs. Use **C
 | Horizon | `HORIZON` | Coastal sunrise, warm amber |
 | Overcast | `OVERCAST` | Balanced mid-gray, works anywhere |
 | Dusk | `DUSK` | Twilight gray, warm mids with cool accents |
+| Julia Light | `JULIA_LIGHT` | Julia language palette in daylight |
 
 ### Theme API
 
