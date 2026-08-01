@@ -14,6 +14,7 @@
 
 <p align="center">
   <a href="https://github.com/kahliburke/Tachikoma.jl/actions/workflows/CI.yml"><img src="https://github.com/kahliburke/Tachikoma.jl/actions/workflows/CI.yml/badge.svg" alt="CI"></a>
+  <a href="https://codecov.io/gh/kahliburke/Tachikoma.jl"><img src="https://codecov.io/gh/kahliburke/Tachikoma.jl/branch/main/graph/badge.svg" alt="Codecov"></a>
   <a href="https://kahliburke.github.io/Tachikoma.jl/dev/"><img src="https://img.shields.io/badge/docs-dev-blue.svg" alt="Dev Docs"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green.svg" alt="MIT License"></a>
   <img src="https://img.shields.io/badge/julia-%E2%89%A5%201.10-9558B2?logo=julia&logoColor=white" alt="Julia 1.10+">
