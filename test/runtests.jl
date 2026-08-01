@@ -39,4 +39,5 @@ struct _DummyModel <: T.Model end
     include("test_ansitext.jl")
     include("test_app_error.jl")
     include("test_demos_load.jl")
+    include("test_aqua.jl")
 end
