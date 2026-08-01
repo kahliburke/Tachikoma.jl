@@ -12,7 +12,7 @@ mutable struct DropDown
     style::Style
     selected_style::Style
     focused_style::Style
-    tick::Union{Int, Nothing}
+    tick::Union{Int,Nothing}
     last_area::Rect               # cached from last render for mouse hit testing
 end
 
@@ -21,16 +21,19 @@ end
 
 Collapsed select picker. Enter/Space to open, Up/Down to navigate, Enter to select.
 """
-function DropDown(items::Vector{String};
+function DropDown(
+    items::Vector{String};
     selected::Int=1,
     max_visible::Int=8,
     style::Style=tstyle(:text),
     selected_style::Style=tstyle(:primary),
-    focused_style::Style=tstyle(:accent, bold=true),
-    tick::Union{Int, Nothing}=nothing,
+    focused_style::Style=tstyle(:accent; bold=true),
+    tick::Union{Int,Nothing}=nothing,
 )
     sel = clamp(selected, 1, max(1, length(items)))
-    DropDown(items, sel, sel, false, max_visible, 0, style, selected_style, focused_style, tick, Rect())
+    return DropDown(
+        items, sel, sel, false, max_visible, 0, style, selected_style, focused_style, tick, Rect()
+    )
 end
 
 focusable(::DropDown) = true
@@ -65,7 +68,7 @@ function handle_key!(dd::DropDown, evt::KeyEvent)::Bool
         dd.open = false
         return true
     end
-    false
+    return false
 end
 
 function handle_mouse!(dd::DropDown, evt::MouseEvent)::Bool
@@ -111,7 +114,7 @@ function handle_mouse!(dd::DropDown, evt::MouseEvent)::Bool
             return true
         end
     end
-    false
+    return false
 end
 
 function _dd_ensure_visible!(dd::DropDown)
@@ -124,7 +127,7 @@ function _dd_ensure_visible!(dd::DropDown)
 end
 
 function render(dd::DropDown, rect::Rect, buf::Buffer)
-    (rect.width < 1 || rect.height < 1) && return
+    (rect.width < 1 || rect.height < 1) && return nothing
     dd.last_area = rect
     n = length(dd.items)
 
@@ -142,12 +145,12 @@ function render(dd::DropDown, rect::Rect, buf::Buffer)
             y = rect.y + i
             y > bottom(rect) && break
             item_s = idx == dd.focused ? dd.focused_style : dd.style
-            set_string!(buf, rect.x + 2, y, dd.items[idx], item_s;
-                        max_x=right(rect))
+            set_string!(buf, rect.x + 2, y, dd.items[idx], item_s; max_x=right(rect))
         end
     end
 end
 
-value(dd::DropDown) = dd.selected > 0 && dd.selected <= length(dd.items) ?
-    dd.items[dd.selected] : ""
-set_value!(dd::DropDown, idx::Int) = (dd.selected = clamp(idx, 1, length(dd.items)); nothing)
+function value(dd::DropDown)
+    return dd.selected > 0 && dd.selected <= length(dd.items) ? dd.items[dd.selected] : ""
+end
+set_value!(dd::DropDown, idx::Int) = (dd.selected=clamp(idx, 1, length(dd.items)); nothing)

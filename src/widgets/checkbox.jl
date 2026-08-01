@@ -10,7 +10,7 @@ mutable struct Checkbox
     focused_style::Style
     check_char::Char
     uncheck_char::Char
-    tick::Union{Int, Nothing}
+    tick::Union{Int,Nothing}
     last_area::Rect               # cached from last render for mouse hit testing
 end
 
@@ -19,16 +19,19 @@ end
 
 Togglable checkbox. Press Enter or Space to toggle.
 """
-function Checkbox(label::String;
+function Checkbox(
+    label::String;
     checked::Bool=false,
     focused::Bool=false,
     style::Style=tstyle(:text),
-    focused_style::Style=tstyle(:accent, bold=true),
-    check_char::Char='☑',
-    uncheck_char::Char='☐',
-    tick::Union{Int, Nothing}=nothing,
+    focused_style::Style=tstyle(:accent; bold=true),
+    check_char::Char=('☑'),
+    uncheck_char::Char=('☐'),
+    tick::Union{Int,Nothing}=nothing,
 )
-    Checkbox(label, checked, focused, style, focused_style, check_char, uncheck_char, tick, Rect())
+    return Checkbox(
+        label, checked, focused, style, focused_style, check_char, uncheck_char, tick, Rect()
+    )
 end
 
 focusable(::Checkbox) = true
@@ -40,7 +43,7 @@ function handle_key!(cb::Checkbox, evt::KeyEvent)::Bool
         cb.checked = !cb.checked
         return true
     end
-    false
+    return false
 end
 
 function handle_mouse!(cb::Checkbox, evt::MouseEvent)::Bool
@@ -52,11 +55,11 @@ function handle_mouse!(cb::Checkbox, evt::MouseEvent)::Bool
             return true
         end
     end
-    false
+    return false
 end
 
 function render(cb::Checkbox, rect::Rect, buf::Buffer)
-    (rect.width < 1 || rect.height < 1) && return
+    (rect.width < 1 || rect.height < 1) && return nothing
     cb.last_area = rect
     y = rect.y
     s = cb.focused ? cb.focused_style : cb.style
@@ -68,7 +71,7 @@ function render(cb::Checkbox, rect::Rect, buf::Buffer)
 end
 
 value(cb::Checkbox) = cb.checked
-set_value!(cb::Checkbox, v::Bool) = (cb.checked = v; nothing)
+set_value!(cb::Checkbox, v::Bool) = (cb.checked=v; nothing)
 
 # ═══════════════════════════════════════════════════════════════════════
 # RadioGroup ── mutually exclusive selection from a list of labels
@@ -83,7 +86,7 @@ mutable struct RadioGroup
     focused_style::Style
     selected_char::Char
     unselected_char::Char
-    tick::Union{Int, Nothing}
+    tick::Union{Int,Nothing}
     last_area::Rect               # cached from last render for mouse hit testing
 end
 
@@ -92,20 +95,31 @@ end
 
 Mutually exclusive selection from a list. Up/Down to navigate, Enter/Space to select.
 """
-function RadioGroup(labels::Vector{String};
+function RadioGroup(
+    labels::Vector{String};
     selected::Int=1,
     focused::Bool=false,
     cursor::Int=1,
     style::Style=tstyle(:text),
-    focused_style::Style=tstyle(:accent, bold=true),
-    selected_char::Char='◉',
-    unselected_char::Char='○',
-    tick::Union{Int, Nothing}=nothing,
+    focused_style::Style=tstyle(:accent; bold=true),
+    selected_char::Char=('◉'),
+    unselected_char::Char=('○'),
+    tick::Union{Int,Nothing}=nothing,
 )
     sel = clamp(selected, 1, max(1, length(labels)))
     cur = clamp(cursor, 1, max(1, length(labels)))
-    RadioGroup(labels, sel, focused, cur, style, focused_style,
-               selected_char, unselected_char, tick, Rect())
+    return RadioGroup(
+        labels,
+        sel,
+        focused,
+        cur,
+        style,
+        focused_style,
+        selected_char,
+        unselected_char,
+        tick,
+        Rect(),
+    )
 end
 
 focusable(::RadioGroup) = true
@@ -125,7 +139,7 @@ function handle_key!(rg::RadioGroup, evt::KeyEvent)::Bool
         rg.selected = rg.cursor
         return true
     end
-    false
+    return false
 end
 
 function handle_mouse!(rg::RadioGroup, evt::MouseEvent)::Bool
@@ -142,11 +156,11 @@ function handle_mouse!(rg::RadioGroup, evt::MouseEvent)::Bool
             end
         end
     end
-    false
+    return false
 end
 
 function render(rg::RadioGroup, rect::Rect, buf::Buffer)
-    (rect.width < 1 || rect.height < 1) && return
+    (rect.width < 1 || rect.height < 1) && return nothing
     rg.last_area = rect
     for (i, label) in enumerate(rg.labels)
         i > rect.height && break
@@ -163,4 +177,4 @@ function render(rg::RadioGroup, rect::Rect, buf::Buffer)
 end
 
 value(rg::RadioGroup) = rg.selected
-set_value!(rg::RadioGroup, idx::Int) = (rg.selected = clamp(idx, 1, length(rg.labels)); nothing)
+set_value!(rg::RadioGroup, idx::Int) = (rg.selected=clamp(idx, 1, length(rg.labels)); nothing)

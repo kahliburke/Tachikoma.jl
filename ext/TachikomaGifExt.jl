@@ -8,16 +8,16 @@ using ColorTypes.FixedPointNumbers: N0f8
 # ── Types ──────────────────────────────────────────────────────────────
 
 # Face key: (bold, italic) → index into faces/glyph caches
-const _FACE_REGULAR     = 1
-const _FACE_BOLD        = 2
-const _FACE_ITALIC      = 3
+const _FACE_REGULAR = 1
+const _FACE_BOLD = 2
+const _FACE_ITALIC = 3
 const _FACE_BOLD_ITALIC = 4
 
 struct GlyphCache
-    faces::NTuple{4, Union{FTFont, Nothing}}  # regular, bold, italic, bold-italic
+    faces::NTuple{4,Union{FTFont,Nothing}}  # regular, bold, italic, bold-italic
     size::Int
-    glyphs::NTuple{4, Dict{Char, Matrix{UInt8}}}
-    metrics::NTuple{4, Dict{Char, Tuple{Int,Int}}}
+    glyphs::NTuple{4,Dict{Char,Matrix{UInt8}}}
+    metrics::NTuple{4,Dict{Char,Tuple{Int,Int}}}
     fallbacks::Vector{GlyphCache}             # consulted (in order) for glyphs the primary lacks
 end
 
@@ -32,15 +32,17 @@ in order — mirroring the per-glyph font substitution a terminal does via the
 OS. Typical fallbacks supply CJK, emoji, and symbol coverage that a coding
 font like Menlo/Meslo doesn't carry.
 """
-function GlyphCache(font_path::String, pixel_size::Int;
-                    fallback_paths::AbstractVector{<:AbstractString}=String[])
+function GlyphCache(
+    font_path::String, pixel_size::Int; fallback_paths::AbstractVector{<:AbstractString}=String[]
+)
     face = FTFont(font_path)
-    _load(variant) = let p = Tachikoma.find_font_variant(font_path, variant)
-        !isempty(p) ? FTFont(p) : nothing
-    end
+    _load(variant) =
+        let p = Tachikoma.find_font_variant(font_path, variant)
+            !isempty(p) ? FTFont(p) : nothing
+        end
     faces = (face, _load("Bold"), _load("Italic"), _load("BoldItalic"))
-    glyphs = ntuple(_ -> Dict{Char, Matrix{UInt8}}(), 4)
-    mets = ntuple(_ -> Dict{Char, Tuple{Int,Int}}(), 4)
+    glyphs = ntuple(_ -> Dict{Char,Matrix{UInt8}}(), 4)
+    mets = ntuple(_ -> Dict{Char,Tuple{Int,Int}}(), 4)
     fbs = GlyphCache[]
     for p in fallback_paths
         isfile(p) || continue
@@ -50,24 +52,34 @@ function GlyphCache(font_path::String, pixel_size::Int;
             @warn "GIF export: could not load fallback font" path=p exception=err
         end
     end
-    GlyphCache(faces, pixel_size, glyphs, mets, fbs)
+    return GlyphCache(faces, pixel_size, glyphs, mets, fbs)
 end
 
 @inline function _face_index(bold::Bool, italic::Bool)
-    bold && italic ? _FACE_BOLD_ITALIC :
-    bold           ? _FACE_BOLD :
-    italic         ? _FACE_ITALIC :
-                     _FACE_REGULAR
+    if bold && italic
+        _FACE_BOLD_ITALIC
+    elseif bold
+        _FACE_BOLD
+    elseif italic
+        _FACE_ITALIC
+    else
+        _FACE_REGULAR
+    end
 end
 
-@inline _has_glyph(face::FTFont, ch::Char) =
-    (try FreeTypeAbstraction.glyph_index(face, ch) != 0 catch; false end)
+@inline _has_glyph(face::FTFont, ch::Char) = (
+    try
+        FreeTypeAbstraction.glyph_index(face, ch) != 0
+    catch
+        false
+    end
+)
 
 # Pick the (cache, variant-index, face) that should render `ch`: the primary if
 # it has the glyph, else the first fallback that does, else the primary (tofu).
 function _resolve_face(gc::GlyphCache, ch::Char, idx::Int)
     face = gc.faces[idx]
-    face === nothing && (idx = _FACE_REGULAR; face = gc.faces[idx])
+    face === nothing && (idx=_FACE_REGULAR; face=gc.faces[idx])
     (face !== nothing && _has_glyph(face, ch)) && return (gc, idx, face)
     for fb in gc.fallbacks
         fidx = fb.faces[idx] === nothing ? _FACE_REGULAR : idx
@@ -96,11 +108,13 @@ function get_glyph!(gc::GlyphCache, ch::Char; bold::Bool=false, italic::Bool=fal
         bx = round(Int, hb[1])
         by = round(Int, hb[2])
     catch
-        bitmap = zeros(UInt8, 1, 1); bx = 0; by = 0
+        bitmap = zeros(UInt8, 1, 1)
+        bx = 0
+        by = 0
     end
     gd[ch] = bitmap
     md[ch] = (bx, by)
-    bitmap, (bx, by)
+    return bitmap, (bx, by)
 end
 
 # ── Color conversion ──────────────────────────────────────────────────
@@ -118,11 +132,16 @@ end
 
 # ── Frame rasterizer ──────────────────────────────────────────────────
 
-function rasterize_frame(buf::Tachikoma.Buffer, width::Int, height::Int,
-                         gc::Union{GlyphCache, Nothing}=nothing;
-                         cell_w::Int=10, cell_h::Int=20,
-                         bg::RGB{N0f8}=RGB{N0f8}(0.067, 0.075, 0.118),
-                         pixel_snapshots::Vector=Tuple{Int,Int,Matrix{Tachikoma.ColorRGB}}[])
+function rasterize_frame(
+    buf::Tachikoma.Buffer,
+    width::Int,
+    height::Int,
+    gc::Union{GlyphCache,Nothing}=nothing;
+    cell_w::Int=10,
+    cell_h::Int=20,
+    bg::RGB{N0f8}=RGB{N0f8}(0.067, 0.075, 0.118),
+    pixel_snapshots::Vector=Tuple{Int,Int,Matrix{Tachikoma.ColorRGB}}[],
+)
     img_w = width * cell_w
     img_h = height * cell_h
     img = fill(bg, img_h, img_w)
@@ -155,11 +174,25 @@ function rasterize_frame(buf::Tachikoma.Buffer, width::Int, height::Int,
             if _is_braille(ch)
                 _draw_braille!(img, ch, px0, py0, cell_w, cell_h, fg_rgb, st.dim)
             elseif _is_block(ch)
-                _draw_block!(img, ch, px0, py0, cell_w, cell_h, fg_rgb, st.dim) ||
-                    (gc !== nothing && _draw_char!(img, gc, ch, px0, py0, cell_w, cell_h, fg_rgb, st.bold, st.italic, st.dim))
+                _draw_block!(img, ch, px0, py0, cell_w, cell_h, fg_rgb, st.dim) || (
+                    gc !== nothing && _draw_char!(
+                        img,
+                        gc,
+                        ch,
+                        px0,
+                        py0,
+                        cell_w,
+                        cell_h,
+                        fg_rgb,
+                        st.bold,
+                        st.italic,
+                        st.dim,
+                    )
+                )
             elseif gc !== nothing
-                _draw_char!(img, gc, ch, px0, py0, cell_w, cell_h, fg_rgb,
-                            st.bold, st.italic, st.dim)
+                _draw_char!(
+                    img, gc, ch, px0, py0, cell_w, cell_h, fg_rgb, st.bold, st.italic, st.dim
+                )
             end
         end
     end
@@ -179,12 +212,22 @@ function rasterize_frame(buf::Tachikoma.Buffer, width::Int, height::Int,
         end
     end
 
-    img
+    return img
 end
 
-function _draw_char!(img::Matrix{RGB{N0f8}}, gc::GlyphCache, ch::Char,
-                     px0::Int, py0::Int, cell_w::Int, cell_h::Int,
-                     fg::RGB{N0f8}, bold::Bool, italic::Bool, dim::Bool)
+function _draw_char!(
+    img::Matrix{RGB{N0f8}},
+    gc::GlyphCache,
+    ch::Char,
+    px0::Int,
+    py0::Int,
+    cell_w::Int,
+    cell_h::Int,
+    fg::RGB{N0f8},
+    bold::Bool,
+    italic::Bool,
+    dim::Bool,
+)
     bitmap, (bx, by) = get_glyph!(gc, ch; bold=bold, italic=italic)
     bh, bw = size(bitmap)
     img_h, img_w = size(img)
@@ -231,11 +274,18 @@ const _BRAILLE_BITS = (
     (0x40, 0x80),  # row 3
 )
 
-function _draw_braille!(img::Matrix{RGB{N0f8}}, ch::Char,
-                        px0::Int, py0::Int, cell_w::Int, cell_h::Int,
-                        fg::RGB{N0f8}, dim::Bool)
+function _draw_braille!(
+    img::Matrix{RGB{N0f8}},
+    ch::Char,
+    px0::Int,
+    py0::Int,
+    cell_w::Int,
+    cell_h::Int,
+    fg::RGB{N0f8},
+    dim::Bool,
+)
     mask = UInt32(ch) - UInt32('⠀')
-    mask == 0 && return  # blank braille
+    mask == 0 && return nothing  # blank braille
     img_h, img_w = size(img)
 
     base_alpha = dim ? 0.5f0 : 1.0f0
@@ -253,8 +303,10 @@ function _draw_braille!(img::Matrix{RGB{N0f8}}, ch::Char,
         (mask & _BRAILLE_BITS[row + 1][col + 1]) == 0 && continue
         cx = px0 + (col + 0.5) * col_w     # dot centre
         cy = py0 + (row + 0.5) * row_h
-        x0 = max(1, floor(Int, cx - rx));  x1 = min(img_w, ceil(Int, cx + rx))
-        y0 = max(1, floor(Int, cy - ry));  y1 = min(img_h, ceil(Int, cy + ry))
+        x0 = max(1, floor(Int, cx - rx))
+        x1 = min(img_w, ceil(Int, cx + rx))
+        y0 = max(1, floor(Int, cy - ry))
+        y1 = min(img_h, ceil(Int, cy + ry))
         for ty in y0:y1, tx in x0:x1
             # signed distance in normalised dot space; soft 1px edge for AA
             d = sqrt(((tx - cx) / rx)^2 + ((ty - cy) / ry)^2)
@@ -315,23 +367,36 @@ function _block_rect(ch::Char)
     return nothing
 end
 
-function _draw_block!(img::Matrix{RGB{N0f8}}, ch::Char,
-                      px0::Int, py0::Int, cell_w::Int, cell_h::Int,
-                      fg::RGB{N0f8}, dim::Bool)
+function _draw_block!(
+    img::Matrix{RGB{N0f8}},
+    ch::Char,
+    px0::Int,
+    py0::Int,
+    cell_w::Int,
+    cell_h::Int,
+    fg::RGB{N0f8},
+    dim::Bool,
+)
     img_h, img_w = size(img)
 
     # Shade characters: stippled pixel patterns matching terminal appearance
     c = UInt32(ch)
-    shade_level = if c == 0x2591; 1    # ░ light shade ~25%
-    elseif c == 0x2592; 2              # ▒ medium shade ~50%
-    elseif c == 0x2593; 3              # ▓ dark shade ~75%
-    else; 0
+    shade_level = if c == 0x2591
+        1    # ░ light shade ~25%
+    elseif c == 0x2592
+        2              # ▒ medium shade ~50%
+    elseif c == 0x2593
+        3              # ▓ dark shade ~75%
+    else
+        0
     end
     if shade_level > 0
         color = if dim
-            RGB{N0f8}(clamp(Float32(fg.r) * 0.5f0, 0, 1),
-                      clamp(Float32(fg.g) * 0.5f0, 0, 1),
-                      clamp(Float32(fg.b) * 0.5f0, 0, 1))
+            RGB{N0f8}(
+                clamp(Float32(fg.r) * 0.5f0, 0, 1),
+                clamp(Float32(fg.g) * 0.5f0, 0, 1),
+                clamp(Float32(fg.b) * 0.5f0, 0, 1),
+            )
         else
             fg
         end
@@ -367,9 +432,11 @@ function _draw_block!(img::Matrix{RGB{N0f8}}, ch::Char,
     y2 = py0 + floor(Int, (yf + hf) * cell_h) - 1
 
     color = if dim
-        RGB{N0f8}(clamp(Float32(fg.r) * 0.5f0, 0, 1),
-                  clamp(Float32(fg.g) * 0.5f0, 0, 1),
-                  clamp(Float32(fg.b) * 0.5f0, 0, 1))
+        RGB{N0f8}(
+            clamp(Float32(fg.r) * 0.5f0, 0, 1),
+            clamp(Float32(fg.g) * 0.5f0, 0, 1),
+            clamp(Float32(fg.b) * 0.5f0, 0, 1),
+        )
     else
         fg
     end
@@ -377,7 +444,7 @@ function _draw_block!(img::Matrix{RGB{N0f8}}, ch::Char,
     for ty in max(1, y1):min(img_h, y2), tx in max(1, x1):min(img_w, x2)
         @inbounds img[ty, tx] = color
     end
-    true
+    return true
 end
 
 # ── Minimal GIF89a encoder ────────────────────────────────────────────
@@ -385,7 +452,7 @@ end
 function _quantize_frame(img::Matrix{RGB{N0f8}})
     h, w = size(img)
     palette = RGB{N0f8}[]
-    color_map = Dict{UInt32, UInt8}()
+    color_map = Dict{UInt32,UInt8}()
     indices = Matrix{UInt8}(undef, h, w)
 
     for j in 1:w, i in 1:h
@@ -426,7 +493,7 @@ function _quantize_frame(img::Matrix{RGB{N0f8}})
         push!(palette, RGB{N0f8}(0, 0, 0))
     end
 
-    palette, indices
+    return palette, indices
 end
 
 # LZW encoder using integer-keyed dictionary (no Vector allocations)
@@ -458,7 +525,7 @@ function _lzw_encode(indices::Matrix{UInt8}, min_code_size::UInt8)
     end
 
     # (prefix_code, pixel) → code, using UInt32 key = prefix << 8 | pixel
-    dict = Dict{UInt32, Int}()
+    dict = Dict{UInt32,Int}()
     next_code = eoi_code + 1
     code_size = Int(min_code_size) + 1
     max_code = 1 << code_size
@@ -508,13 +575,16 @@ function _lzw_encode(indices::Matrix{UInt8}, min_code_size::UInt8)
     end
     write(io, UInt8(0))  # block terminator
 
-    take!(io)
+    return take!(io)
 end
 
-function _write_gif(filename::String, frames::Vector{Matrix{RGB{N0f8}}};
-                    fps::Int=10,
-                    delays::Union{Vector{UInt16}, Nothing}=nothing)
-    isempty(frames) && return
+function _write_gif(
+    filename::String,
+    frames::Vector{Matrix{RGB{N0f8}}};
+    fps::Int=10,
+    delays::Union{Vector{UInt16},Nothing}=nothing,
+)
+    isempty(frames) && return nothing
     h, w = size(frames[1])
     default_delay = round(UInt16, 100 / fps)
 
@@ -552,8 +622,10 @@ function _write_gif(filename::String, frames::Vector{Matrix{RGB{N0f8}}};
                 x0, y0, x1, y1 = w + 1, h + 1, 0, 0
                 @inbounds for py in 1:h, px in 1:w
                     if img[py, px] != prev_img[py, px]
-                        x0 = min(x0, px); y0 = min(y0, py)
-                        x1 = max(x1, px); y1 = max(y1, py)
+                        x0 = min(x0, px)
+                        y0 = min(y0, py)
+                        x1 = max(x1, px)
+                        y1 = max(y1, py)
                     end
                 end
 
@@ -618,20 +690,26 @@ function _write_gif(filename::String, frames::Vector{Matrix{RGB{N0f8}}};
         end
 
         # Flush any remaining accumulated delay (shouldn't happen normally)
-        write(f, UInt8(0x3b))  # trailer
+        return write(f, UInt8(0x3b))  # trailer
     end
-    nothing
+    return nothing
 end
 
 # ── Public API ─────────────────────────────────────────────────────────
 
-function Tachikoma.record_gif(func::Function, filename::String,
-                              width::Int, height::Int, num_frames::Int;
-                              fps::Int=10,
-                              font_path::String="",
-                              font_size::Int=16,
-                              fallback_fonts::AbstractVector{<:AbstractString}=Tachikoma.default_gif_fallback_fonts(),
-                              cell_w::Int=10, cell_h::Int=20)
+function Tachikoma.record_gif(
+    func::Function,
+    filename::String,
+    width::Int,
+    height::Int,
+    num_frames::Int;
+    fps::Int=10,
+    font_path::String="",
+    font_size::Int=16,
+    fallback_fonts::AbstractVector{<:AbstractString}=Tachikoma.default_gif_fallback_fonts(),
+    cell_w::Int=10,
+    cell_h::Int=20,
+)
     gc = nothing
     if !isempty(font_path) && isfile(font_path)
         gc = GlyphCache(font_path, font_size; fallback_paths=fallback_fonts)
@@ -651,23 +729,27 @@ function Tachikoma.record_gif(func::Function, filename::String,
 
         px_data = Tuple{Int,Int,Matrix{Tachikoma.ColorRGB}}[]
 
-        img = rasterize_frame(buf, width, height, gc;
-                              cell_w, cell_h, bg, pixel_snapshots=px_data)
+        img = rasterize_frame(buf, width, height, gc; cell_w, cell_h, bg, pixel_snapshots=px_data)
         push!(frames, img)
     end
 
     _write_gif(filename, frames; fps)
-    filename
+    return filename
 end
 
 # ── Snapshot-based rasterizer ────────────────────────────────────────
 
-function _rasterize_snapshot(cells::Vector{Tachikoma.Cell}, width::Int, height::Int,
-                             gc::Union{GlyphCache, Nothing}=nothing;
-                             cell_w::Int=10, cell_h::Int=20,
-                             bg::RGB{N0f8}=RGB{N0f8}(0.067, 0.075, 0.118),
-                             default_fg::RGB{N0f8}=RGB{N0f8}(0.878, 0.878, 0.878),
-                             pixel_snapshots::Vector{Tachikoma.PixelSnapshot}=Tachikoma.PixelSnapshot[])
+function _rasterize_snapshot(
+    cells::Vector{Tachikoma.Cell},
+    width::Int,
+    height::Int,
+    gc::Union{GlyphCache,Nothing}=nothing;
+    cell_w::Int=10,
+    cell_h::Int=20,
+    bg::RGB{N0f8}=RGB{N0f8}(0.067, 0.075, 0.118),
+    default_fg::RGB{N0f8}=RGB{N0f8}(0.878, 0.878, 0.878),
+    pixel_snapshots::Vector{Tachikoma.PixelSnapshot}=Tachikoma.PixelSnapshot[],
+)
     img_w = width * cell_w
     img_h = height * cell_h
     img = fill(bg, img_h, img_w)
@@ -698,11 +780,25 @@ function _rasterize_snapshot(cells::Vector{Tachikoma.Cell}, width::Int, height::
             if _is_braille(ch)
                 _draw_braille!(img, ch, px0, py0, cell_w, cell_h, fg_rgb, st.dim)
             elseif _is_block(ch)
-                _draw_block!(img, ch, px0, py0, cell_w, cell_h, fg_rgb, st.dim) ||
-                    (gc !== nothing && _draw_char!(img, gc, ch, px0, py0, cell_w, cell_h, fg_rgb, st.bold, st.italic, st.dim))
+                _draw_block!(img, ch, px0, py0, cell_w, cell_h, fg_rgb, st.dim) || (
+                    gc !== nothing && _draw_char!(
+                        img,
+                        gc,
+                        ch,
+                        px0,
+                        py0,
+                        cell_w,
+                        cell_h,
+                        fg_rgb,
+                        st.bold,
+                        st.italic,
+                        st.dim,
+                    )
+                )
             elseif gc !== nothing
-                _draw_char!(img, gc, ch, px0, py0, cell_w, cell_h, fg_rgb,
-                            st.bold, st.italic, st.dim)
+                _draw_char!(
+                    img, gc, ch, px0, py0, cell_w, cell_h, fg_rgb, st.bold, st.italic, st.dim
+                )
             end
         end
     end
@@ -722,23 +818,28 @@ function _rasterize_snapshot(cells::Vector{Tachikoma.Cell}, width::Int, height::
         end
     end
 
-    img
+    return img
 end
 
 # ── Snapshot-based GIF export ────────────────────────────────────────
 
-function Tachikoma.export_gif_from_snapshots(filename::String, width::Int, height::Int,
-                                             cell_snapshots::Vector{Vector{Tachikoma.Cell}},
-                                             timestamps::Vector{Float64};
-                                             pixel_snapshots::Vector{Vector{Tachikoma.PixelSnapshot}}=Vector{Tachikoma.PixelSnapshot}[],
-                                             font_path::String="",
-                                             font_size::Int=16,
-                              fallback_fonts::AbstractVector{<:AbstractString}=Tachikoma.default_gif_fallback_fonts(),
-                                             cell_w::Int=10, cell_h::Int=20,
-                                             bg::RGB{N0f8}=RGB{N0f8}(0.067, 0.075, 0.118),
-                                             default_fg::Union{Tachikoma.ColorRGB, Nothing}=nothing,
-                                             fps::Union{Int, Nothing}=nothing,
-                                             scale::Float64=1.0)
+function Tachikoma.export_gif_from_snapshots(
+    filename::String,
+    width::Int,
+    height::Int,
+    cell_snapshots::Vector{Vector{Tachikoma.Cell}},
+    timestamps::Vector{Float64};
+    pixel_snapshots::Vector{Vector{Tachikoma.PixelSnapshot}}=Vector{Tachikoma.PixelSnapshot}[],
+    font_path::String="",
+    font_size::Int=16,
+    fallback_fonts::AbstractVector{<:AbstractString}=Tachikoma.default_gif_fallback_fonts(),
+    cell_w::Int=10,
+    cell_h::Int=20,
+    bg::RGB{N0f8}=RGB{N0f8}(0.067, 0.075, 0.118),
+    default_fg::Union{Tachikoma.ColorRGB,Nothing}=nothing,
+    fps::Union{Int,Nothing}=nothing,
+    scale::Float64=1.0,
+)
     isempty(cell_snapshots) && return filename
     font_size = round(Int, font_size * scale)
     cell_w = round(Int, cell_w * scale)
@@ -752,26 +853,35 @@ function Tachikoma.export_gif_from_snapshots(filename::String, width::Int, heigh
     frames = Matrix{RGB{N0f8}}[]
     for (i, cells) in enumerate(cell_snapshots)
         spx = i <= length(pixel_snapshots) ? pixel_snapshots[i] : Tachikoma.PixelSnapshot[]
-        push!(frames, _rasterize_snapshot(cells, width, height, gc;
-                                          cell_w, cell_h, bg, default_fg=fg, pixel_snapshots=spx))
+        push!(
+            frames,
+            _rasterize_snapshot(
+                cells, width, height, gc; cell_w, cell_h, bg, default_fg=fg, pixel_snapshots=spx
+            ),
+        )
     end
 
     # Use explicit fps if provided, otherwise estimate from timestamps
     if fps === nothing
-        fps = length(timestamps) > 1 ?
-            round(Int, clamp((length(timestamps) - 1) / (timestamps[end] - timestamps[1]), 1, 60)) : 10
+        fps = if length(timestamps) > 1
+            round(Int, clamp((length(timestamps) - 1) / (timestamps[end] - timestamps[1]), 1, 60))
+        else
+            10
+        end
     end
 
     # Compute per-frame delays from timestamps (GIF delay unit = 1/100s)
     delays = if length(timestamps) > 1
-        UInt16[round(UInt16, clamp((timestamps[min(i+1, end)] - timestamps[i]) * 100, 2, 65535))
-               for i in 1:length(timestamps)]
+        UInt16[
+            round(UInt16, clamp((timestamps[min(i+1, end)] - timestamps[i]) * 100, 2, 65535))
+            for i in 1:length(timestamps)
+        ]
     else
         nothing
     end
 
     _write_gif(filename, frames; fps, delays)
-    filename
+    return filename
 end
 
 # ── CRC32 lookup table ──────────────────────────────────────────────
@@ -796,7 +906,7 @@ function _crc32(data::Vector{UInt8}, crc::UInt32=0xffffffff)
     for b in data
         crc = _CRC32_TABLE[(UInt8(crc & 0xff) ⊻ b) + 1] ⊻ (crc >> 8)
     end
-    crc ⊻ 0xffffffff
+    return crc ⊻ 0xffffffff
 end
 
 # ── Minimal APNG encoder ────────────────────────────────────────────
@@ -806,7 +916,7 @@ function _png_chunk(io::IO, chunk_type::Vector{UInt8}, data::Vector{UInt8})
     write(io, chunk_type)
     write(io, data)
     crc = _crc32(vcat(chunk_type, data))
-    write(io, hton(crc))
+    return write(io, hton(crc))
 end
 
 function _uncompressed_deflate(raw::Vector{UInt8})
@@ -836,7 +946,7 @@ function _uncompressed_deflate(raw::Vector{UInt8})
     end
     adler = (s2 << 16) | s1
     write(io, hton(adler))
-    take!(io)
+    return take!(io)
 end
 
 function _encode_png_frame(img::Matrix{RGB{N0f8}})
@@ -849,18 +959,17 @@ function _encode_png_frame(img::Matrix{RGB{N0f8}})
         pos += 1
         for x in 1:w
             @inbounds c = img[y, x]
-            raw[pos]     = round(UInt8, Float32(c.r) * 255)
+            raw[pos] = round(UInt8, Float32(c.r) * 255)
             raw[pos + 1] = round(UInt8, Float32(c.g) * 255)
             raw[pos + 2] = round(UInt8, Float32(c.b) * 255)
             pos += 3
         end
     end
-    _uncompressed_deflate(raw)
+    return _uncompressed_deflate(raw)
 end
 
-function _write_apng(filename::String, frames::Vector{Matrix{RGB{N0f8}}},
-                     delays_ms::Vector{Int})
-    isempty(frames) && return
+function _write_apng(filename::String, frames::Vector{Matrix{RGB{N0f8}}}, delays_ms::Vector{Int})
+    isempty(frames) && return nothing
     h, w = size(frames[1])
 
     open(filename, "w") do f
@@ -891,7 +1000,8 @@ function _write_apng(filename::String, frames::Vector{Matrix{RGB{N0f8}}},
 
             # fcTL (frame control)
             fctl = IOBuffer()
-            write(fctl, hton(UInt32(seq_num))); seq_num += 1
+            write(fctl, hton(UInt32(seq_num)))
+            seq_num += 1
             write(fctl, hton(UInt32(w)))       # width
             write(fctl, hton(UInt32(h)))       # height
             write(fctl, hton(UInt32(0)))       # x_offset
@@ -910,30 +1020,36 @@ function _write_apng(filename::String, frames::Vector{Matrix{RGB{N0f8}}},
             else
                 # Subsequent frames use fdAT (seq_num + data)
                 fdat = IOBuffer()
-                write(fdat, hton(UInt32(seq_num))); seq_num += 1
+                write(fdat, hton(UInt32(seq_num)))
+                seq_num += 1
                 write(fdat, compressed)
                 _png_chunk(f, collect(b"fdAT"), take!(fdat))
             end
         end
 
         # IEND
-        _png_chunk(f, collect(b"IEND"), UInt8[])
+        return _png_chunk(f, collect(b"IEND"), UInt8[])
     end
-    nothing
+    return nothing
 end
 
 # ── Snapshot-based APNG export ───────────────────────────────────────
 
-function Tachikoma.export_apng_from_snapshots(filename::String, width::Int, height::Int,
-                                              cell_snapshots::Vector{Vector{Tachikoma.Cell}},
-                                              timestamps::Vector{Float64};
-                                              pixel_snapshots::Vector{Vector{Tachikoma.PixelSnapshot}}=Vector{Tachikoma.PixelSnapshot}[],
-                                              font_path::String="",
-                                              font_size::Int=16,
-                              fallback_fonts::AbstractVector{<:AbstractString}=Tachikoma.default_gif_fallback_fonts(),
-                                              cell_w::Int=10, cell_h::Int=20,
-                                              bg::RGB{N0f8}=RGB{N0f8}(0.067, 0.075, 0.118),
-                                              default_fg::Union{Tachikoma.ColorRGB, Nothing}=nothing)
+function Tachikoma.export_apng_from_snapshots(
+    filename::String,
+    width::Int,
+    height::Int,
+    cell_snapshots::Vector{Vector{Tachikoma.Cell}},
+    timestamps::Vector{Float64};
+    pixel_snapshots::Vector{Vector{Tachikoma.PixelSnapshot}}=Vector{Tachikoma.PixelSnapshot}[],
+    font_path::String="",
+    font_size::Int=16,
+    fallback_fonts::AbstractVector{<:AbstractString}=Tachikoma.default_gif_fallback_fonts(),
+    cell_w::Int=10,
+    cell_h::Int=20,
+    bg::RGB{N0f8}=RGB{N0f8}(0.067, 0.075, 0.118),
+    default_fg::Union{Tachikoma.ColorRGB,Nothing}=nothing,
+)
     isempty(cell_snapshots) && return filename
     gc = nothing
     if !isempty(font_path) && isfile(font_path)
@@ -944,15 +1060,19 @@ function Tachikoma.export_apng_from_snapshots(filename::String, width::Int, heig
     frames = Matrix{RGB{N0f8}}[]
     for (i, cells) in enumerate(cell_snapshots)
         spx = i <= length(pixel_snapshots) ? pixel_snapshots[i] : Tachikoma.PixelSnapshot[]
-        push!(frames, _rasterize_snapshot(cells, width, height, gc;
-                                          cell_w, cell_h, bg, default_fg=fg, pixel_snapshots=spx))
+        push!(
+            frames,
+            _rasterize_snapshot(
+                cells, width, height, gc; cell_w, cell_h, bg, default_fg=fg, pixel_snapshots=spx
+            ),
+        )
     end
 
     # Compute per-frame delays in milliseconds from timestamps
     delays_ms = Int[]
     for i in 1:length(timestamps)
         if i < length(timestamps)
-            push!(delays_ms, round(Int, (timestamps[i+1] - timestamps[i]) * 1000))
+            push!(delays_ms, round(Int, (timestamps[i + 1] - timestamps[i]) * 1000))
         else
             # Last frame: use previous delta or 100ms default
             push!(delays_ms, length(delays_ms) >= 1 ? delays_ms[end] : 100)
@@ -960,11 +1080,11 @@ function Tachikoma.export_apng_from_snapshots(filename::String, width::Int, heig
     end
 
     _write_apng(filename, frames, delays_ms)
-    filename
+    return filename
 end
 
 function __init__()
-    Tachikoma._gif_export_fn[]  = Tachikoma.export_gif_from_snapshots
+    Tachikoma._gif_export_fn[] = Tachikoma.export_gif_from_snapshots
     Tachikoma._apng_export_fn[] = Tachikoma.export_apng_from_snapshots
     @debug "Tachikoma: GIF/APNG export enabled"
 end

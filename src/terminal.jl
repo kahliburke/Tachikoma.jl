@@ -2,16 +2,16 @@
 # ANSI escape sequences
 # ═══════════════════════════════════════════════════════════════════════
 
-const ALT_SCREEN_ON  = "\e[?1049h"
+const ALT_SCREEN_ON = "\e[?1049h"
 const ALT_SCREEN_OFF = "\e[?1049l"
-const CURSOR_HIDE    = "\e[?25l"
-const CURSOR_SHOW    = "\e[?25h"
-const CLEAR_SCREEN   = "\e[2J"
+const CURSOR_HIDE = "\e[?25l"
+const CURSOR_SHOW = "\e[?25h"
+const CLEAR_SCREEN = "\e[2J"
 const CLEAR_SCROLLBACK = "\e[2J\e[3J"  # clear screen + scrollback (frees iTerm2 sixel memory)
-const SYNC_START     = "\e[?2026h"     # begin synchronized update (terminal buffers output)
-const SYNC_END       = "\e[?2026l"     # end synchronized update (terminal renders atomically)
-const MOUSE_ON       = "\e[?1000h\e[?1002h\e[?1006h"   # basic + button-event + SGR
-const MOUSE_OFF      = "\e[?1000l\e[?1002l\e[?1006l"
+const SYNC_START = "\e[?2026h"     # begin synchronized update (terminal buffers output)
+const SYNC_END = "\e[?2026l"     # end synchronized update (terminal renders atomically)
+const MOUSE_ON = "\e[?1000h\e[?1002h\e[?1006h"   # basic + button-event + SGR
+const MOUSE_OFF = "\e[?1000l\e[?1002l\e[?1006l"
 
 # Kitty keyboard protocol: push mode with flags
 # Bit 0 (1):  Disambiguate escape codes
@@ -22,20 +22,20 @@ const MOUSE_OFF      = "\e[?1000l\e[?1002l\e[?1006l"
 # Flags 4 and 16 are essential for non-US layouts: they let the terminal tell
 # us the real character a key produced (shifted symbols, accents, AltGr/Option
 # combos, dead-key composition) instead of us guessing from a US-layout table.
-const KITTY_FLAGS           = 31   # 1 + 2 + 4 + 8 + 16
-const KITTY_KEYBOARD_ON     = "\e[>$(KITTY_FLAGS)u"
-const KITTY_KEYBOARD_OFF    = "\e[<u"
-const KITTY_KEYBOARD_QUERY  = "\e[?u"
+const KITTY_FLAGS = 31   # 1 + 2 + 4 + 8 + 16
+const KITTY_KEYBOARD_ON = "\e[>$(KITTY_FLAGS)u"
+const KITTY_KEYBOARD_OFF = "\e[<u"
+const KITTY_KEYBOARD_QUERY = "\e[?u"
 
 # ═══════════════════════════════════════════════════════════════════════
 # Raw mode ── direct POSIX via libuv
 # ═══════════════════════════════════════════════════════════════════════
 
 function set_raw_mode!(raw::Bool)
-    stdin isa Base.TTY || return
+    stdin isa Base.TTY || return nothing
     if !raw
         ccall(:uv_tty_set_mode, Cint, (Ptr{Cvoid}, Cint), stdin.handle, Cint(0))
-        return
+        return nothing
     end
     # libuv tty modes: 0=NORMAL, 1=RAW, 3=RAW_VT.
     # On Windows plain RAW (1) makes libuv read console INPUT_RECORDs and translate
@@ -54,7 +54,6 @@ function set_raw_mode!(raw::Bool)
     end
 end
 
-
 # Windows: the console size lives on the OUTPUT screen buffer, not the input
 # handle. When stdout is redirected (a TUI's log-capture pane) displaysize() falls
 # back to stdin, and GetConsoleScreenBufferInfo fails on an input handle → the 24×80
@@ -67,10 +66,20 @@ const _WIN_CONOUT = Ref{Ptr{Cvoid}}(Ptr{Cvoid}(0))
 function _win_conout_handle()
     h = _WIN_CONOUT[]
     (h != Ptr{Cvoid}(0) && h != Ptr{Cvoid}(-1)) && return h
-    name = transcode(UInt16, "CONOUT\$"); push!(name, 0x0000)  # NUL-terminated wide string
-    h = ccall((:CreateFileW, "kernel32"), Ptr{Cvoid},
+    name = transcode(UInt16, "CONOUT\$")
+    push!(name, 0x0000)  # NUL-terminated wide string
+    h = ccall(
+        (:CreateFileW, "kernel32"),
+        Ptr{Cvoid},
         (Ptr{UInt16}, UInt32, UInt32, Ptr{Cvoid}, UInt32, UInt32, Ptr{Cvoid}),
-        name, 0x80000000 | 0x40000000, 0x00000003, C_NULL, UInt32(3), UInt32(0), C_NULL)
+        name,
+        0x80000000 | 0x40000000,
+        0x00000003,
+        C_NULL,
+        UInt32(3),
+        UInt32(0),
+        C_NULL,
+    )
     h == Ptr{Cvoid}(-1) || (_WIN_CONOUT[] = h)   # cache only a valid handle; retry on failure
     return h
 end
@@ -81,12 +90,11 @@ function _win_console_size()
     # CONSOLE_SCREEN_BUFFER_INFO as 11 Int16 slots: [1,2]=dwSize [3,4]=cursor
     # [5]=attrs [6,7,8,9]=srWindow(Left,Top,Right,Bottom) [10,11]=maxWindowSize
     buf = zeros(Int16, 11)
-    ok = ccall((:GetConsoleScreenBufferInfo, "kernel32"), Cint,
-        (Ptr{Cvoid}, Ptr{Int16}), h, buf)
+    ok = ccall((:GetConsoleScreenBufferInfo, "kernel32"), Cint, (Ptr{Cvoid}, Ptr{Int16}), h, buf)
     ok == 0 && return nothing
     cols = Int(buf[8]) - Int(buf[6]) + 1   # Right - Left + 1
     rows = Int(buf[9]) - Int(buf[7]) + 1   # Bottom - Top + 1
-    return (rows > 0 && cols > 0) ? (rows = rows, cols = cols) : nothing
+    return (rows > 0 && cols > 0) ? (rows=rows, cols=cols) : nothing
 end
 
 function terminal_size()
@@ -110,7 +118,7 @@ function terminal_size()
         stdin  # last resort — displaysize will use fallback
     end
     sz = displaysize(io)
-    (rows=sz[1], cols=sz[2])
+    return (rows=sz[1], cols=sz[2])
 end
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -138,39 +146,85 @@ end
 # The thirteen-field positional form, from before `external_size` existed.
 # Callers that spelled every field out in order predate the flag and mean a
 # terminal whose size is probed, which is what `false` says.
-Terminal(buffers::Vector{Buffer}, current::Int, size::Rect, mouse_enabled::Bool,
-         had_gfx::Bool, prev_gfx_bounds::Vector{NTuple{4,Int}}, frame_count::Int,
-         clear_interval::Int, recorder::CastRecorder, io::IO,
-         kitty_keyboard::Bool, graphics_protocol::GraphicsProtocol,
-         remote_tty_path::Union{String,Nothing}) =
-    Terminal(buffers, current, size, mouse_enabled, had_gfx, prev_gfx_bounds,
-             frame_count, clear_interval, recorder, io, kitty_keyboard,
-             graphics_protocol, remote_tty_path, false, false)
+function Terminal(
+    buffers::Vector{Buffer},
+    current::Int,
+    size::Rect,
+    mouse_enabled::Bool,
+    had_gfx::Bool,
+    prev_gfx_bounds::Vector{NTuple{4,Int}},
+    frame_count::Int,
+    clear_interval::Int,
+    recorder::CastRecorder,
+    io::IO,
+    kitty_keyboard::Bool,
+    graphics_protocol::GraphicsProtocol,
+    remote_tty_path::Union{String,Nothing},
+)
+    return Terminal(
+        buffers,
+        current,
+        size,
+        mouse_enabled,
+        had_gfx,
+        prev_gfx_bounds,
+        frame_count,
+        clear_interval,
+        recorder,
+        io,
+        kitty_keyboard,
+        graphics_protocol,
+        remote_tty_path,
+        false,
+        false,
+    )
+end
 
-function Terminal(; io::IO = stdout, size = nothing, remote_tty_path::Union{String,Nothing} = nothing, external_size::Bool = false)
+function Terminal(;
+    io::IO=stdout,
+    size=nothing,
+    remote_tty_path::Union{String,Nothing}=nothing,
+    external_size::Bool=false,
+)
     sz = something(size, terminal_size())
     rect = Rect(1, 1, sz.cols, sz.rows)
-    Terminal([Buffer(rect), Buffer(rect)], 1, rect, true, false, NTuple{4,Int}[], 0, 300, CastRecorder(), io, false, gfx_none, remote_tty_path, external_size, false)
+    return Terminal(
+        [Buffer(rect), Buffer(rect)],
+        1,
+        rect,
+        true,
+        false,
+        NTuple{4,Int}[],
+        0,
+        300,
+        CastRecorder(),
+        io,
+        false,
+        gfx_none,
+        remote_tty_path,
+        external_size,
+        false,
+    )
 end
 
 # Query terminal dimensions from an arbitrary TTY path using `stty size`.
 function _tty_size(path::String)
     try
-        out = readchomp(pipeline(`stty size`, stdin = open(path, "r")))
+        out = readchomp(pipeline(`stty size`; stdin=open(path, "r")))
         parts = Base.split(out)
-        length(parts) == 2 || return (rows = 24, cols = 80)
+        length(parts) == 2 || return (rows=24, cols=80)
         rows = parse(Int, parts[1])
         cols = parse(Int, parts[2])
-        rows > 0 && cols > 0 ? (rows = rows, cols = cols) : (rows = 24, cols = 80)
+        rows > 0 && cols > 0 ? (rows=rows, cols=cols) : (rows=24, cols=80)
     catch
-        (rows = 24, cols = 80)
+        (rows=24, cols=80)
     end
 end
 
 function toggle_mouse!(t::Terminal)
     t.mouse_enabled = !t.mouse_enabled
     print(t.io, t.mouse_enabled ? MOUSE_ON : MOUSE_OFF)
-    Base.flush(t.io)
+    return Base.flush(t.io)
 end
 
 current_buf(t::Terminal) = t.buffers[t.current]
@@ -193,7 +247,7 @@ end
 frame_area(f::Frame) = f.area
 
 function render!(f::Frame, widget, rect::Rect)
-    render(widget, rect, f.buffer)
+    return render(widget, rect, f.buffer)
 end
 
 # ── Pixel helpers (no heavy deps) ─────────────────────────────────────
@@ -235,10 +289,10 @@ Falls back to defaults `(w=8, h=16)` if all methods fail.
 """
 function detect_cell_pixels!()
     _load_sixel_scale!()
-    _detect_cell_pixels_prefs!() && (_detect_sixel_geometry!(); return)
-    _detect_cell_pixels_ioctl!() && (_detect_sixel_geometry!(); return)
+    _detect_cell_pixels_prefs!() && (_detect_sixel_geometry!(); return nothing)
+    _detect_cell_pixels_ioctl!() && (_detect_sixel_geometry!(); return nothing)
     _detect_cell_pixels_escape!()
-    _detect_sixel_geometry!()
+    return _detect_sixel_geometry!()
 end
 
 """
@@ -254,7 +308,7 @@ resolution (common on macOS Retina displays).
 function _load_sixel_scale!()
     sw = Float64(@load_preference("sixel_scale_w", 1.0))
     sh = Float64(@load_preference("sixel_scale_h", 1.0))
-    SIXEL_SCALE[] = (w=sw, h=sh)
+    return SIXEL_SCALE[] = (w=sw, h=sh)
 end
 
 """
@@ -272,12 +326,12 @@ terminals that don't respond.
 Updates `SIXEL_AREA_PX[]`.
 """
 function _detect_sixel_geometry!()
-    @static Sys.iswindows() && return
+    @static Sys.iswindows() && return nothing
     # Try via /dev/tty (works even when stdin/stdout are redirected)
     # O_RDWR=2, O_NONBLOCK=4 on macOS (0x800 on Linux)
     o_nonblock = @static (Sys.isapple() || Sys.isbsd()) ? 0x0004 : 0x0800
     tty_fd = ccall(:open, Cint, (Cstring, Cint), "/dev/tty", 2 | o_nonblock)
-    tty_fd == -1 && return
+    tty_fd == -1 && return nothing
 
     try
         # Save terminal settings
@@ -291,22 +345,19 @@ function _detect_sixel_geometry!()
 
         # Drain stale input (non-blocking, so won't hang)
         drain_buf = zeros(UInt8, 256)
-        while ccall(:read, Cssize_t, (Cint, Ptr{UInt8}, Csize_t),
-                     tty_fd, drain_buf, 256) > 0
+        while ccall(:read, Cssize_t, (Cint, Ptr{UInt8}, Csize_t), tty_fd, drain_buf, 256) > 0
         end
 
         # Send XTSMGRAPHICS query: Pi=2 (sixel geometry), Pa=1 (read)
         query = Vector{UInt8}(codeunits("\e[?2;1;0S"))
-        ccall(:write, Cssize_t, (Cint, Ptr{UInt8}, Csize_t),
-               tty_fd, query, length(query))
+        ccall(:write, Cssize_t, (Cint, Ptr{UInt8}, Csize_t), tty_fd, query, length(query))
 
         # Read response: \e[?2;0;W;HS (poll with non-blocking reads)
         response = UInt8[]
         deadline = time() + 0.5
         buf = zeros(UInt8, 1)
         while time() < deadline
-            n = ccall(:read, Cssize_t, (Cint, Ptr{UInt8}, Csize_t),
-                       tty_fd, buf, 1)
+            n = ccall(:read, Cssize_t, (Cint, Ptr{UInt8}, Csize_t), tty_fd, buf, 1)
             if n > 0
                 push!(response, buf[1])
                 buf[1] == UInt8('S') && break
@@ -321,10 +372,10 @@ function _detect_sixel_geometry!()
         # Parse response
         str = String(response)
         m = match(r"\e\[\?2;0;(\d+);(\d+)S", str)
-        m === nothing && return
+        m === nothing && return nothing
         sw = parse(Int, m.captures[1])
         sh = parse(Int, m.captures[2])
-        (sw > 0 && sh > 0) || return
+        (sw > 0 && sh > 0) || return nothing
         SIXEL_AREA_PX[] = (w=sw, h=sh)
     catch
         # Non-fatal: SIXEL_AREA_PX stays at (0,0)
@@ -333,15 +384,14 @@ function _detect_sixel_geometry!()
     end
 end
 
-function _set_cell_pixel_info!(pixel_w::Int, pixel_h::Int,
-                                cols::Int, rows::Int)
+function _set_cell_pixel_info!(pixel_w::Int, pixel_h::Int, cols::Int, rows::Int)
     (pixel_w > 0 && pixel_h > 0 && cols > 0 && rows > 0) || return false
     TEXT_AREA_PX[] = (w=pixel_w, h=pixel_h)
     TEXT_AREA_CELLS[] = (w=cols, h=rows)
     cw = clamp(pixel_w ÷ cols, 1, 64)
     ch = clamp(pixel_h ÷ rows, 1, 64)
     CELL_PX[] = (w=cw, h=ch)
-    true
+    return true
 end
 
 function _set_cell_pixel_direct!(cw::Int, ch::Int)
@@ -351,7 +401,7 @@ function _set_cell_pixel_direct!(cw::Int, ch::Int)
     CELL_PX[] = (w=cw, h=ch)
     TEXT_AREA_PX[] = (w=cw * sz.cols, h=ch * sz.rows)
     TEXT_AREA_CELLS[] = (w=sz.cols, h=sz.rows)
-    true
+    return true
 end
 
 """
@@ -364,7 +414,7 @@ function _detect_cell_pixels_prefs!()
     cw = @load_preference("cell_pixel_w", 0)
     ch = @load_preference("cell_pixel_h", 0)
     (cw > 0 && ch > 0) || return false
-    _set_cell_pixel_direct!(cw, ch)
+    return _set_cell_pixel_direct!(cw, ch)
 end
 
 """
@@ -386,14 +436,12 @@ function _detect_cell_pixels_ioctl!()
                 if fd_source === :devtty
                     tty_fd = ccall(:open, Cint, (Cstring, Cint), "/dev/tty", 0)
                     tty_fd == -1 && continue
-                    ret = ccall(:ioctl, Cint, (Cint, Culong, Ptr{Cvoid}...),
-                                 tty_fd, tiocgwinsz, p)
+                    ret = ccall(:ioctl, Cint, (Cint, Culong, Ptr{Cvoid}...), tty_fd, tiocgwinsz, p)
                     ccall(:close, Cint, (Cint,), tty_fd)
                     ret == -1 && continue
                 else
                     fd = fd_source === :stdin ? 0 : 1
-                    ret = ccall(:ioctl, Cint, (Cint, Culong, Ptr{Cvoid}...),
-                                 fd, tiocgwinsz, p)
+                    ret = ccall(:ioctl, Cint, (Cint, Culong, Ptr{Cvoid}...), fd, tiocgwinsz, p)
                     ret == -1 && continue
                 end
             end
@@ -404,7 +452,7 @@ function _detect_cell_pixels_ioctl!()
             continue
         end
     end
-    false
+    return false
 end
 
 """
@@ -417,7 +465,7 @@ Query terminal via escape sequences. Tries:
 Temporarily enters raw mode to read responses.
 """
 function _detect_cell_pixels_escape!()
-    stdin isa Base.TTY || return
+    stdin isa Base.TTY || return nothing
 
     set_raw_mode!(true)
     Base.start_reading(stdin)
@@ -466,19 +514,19 @@ function _detect_cell_pixels_escape!()
         ch = parse(Int, m16.captures[1])
         cw = parse(Int, m16.captures[2])
         if _set_cell_pixel_direct!(cw, ch)
-            return
+            return nothing
         end
     end
 
     # Fall back to \e[14t response (text area)
     m14 = match(r"\e\[4;(\d+);(\d+)t", str)
-    m14 === nothing && return
+    m14 === nothing && return nothing
 
     pixel_h = parse(Int, m14.captures[1])
     pixel_w = parse(Int, m14.captures[2])
 
     sz = terminal_size()
-    _set_cell_pixel_info!(pixel_w, pixel_h, sz.cols, sz.rows)
+    return _set_cell_pixel_info!(pixel_w, pixel_h, sz.cols, sz.rows)
 end
 
 # ── Kitty keyboard protocol detection ────────────────────────────────
@@ -553,8 +601,7 @@ function _detect_kitty_graphics!(io::IO)
             b = read(inp, UInt8)
             push!(response, b)
             # Response ends with ESC \ (ST)
-            if length(response) >= 2 &&
-               response[end-1] == UInt8('\e') && b == UInt8('\\')
+            if length(response) >= 2 && response[end - 1] == UInt8('\e') && b == UInt8('\\')
                 break
             end
         else
@@ -629,9 +676,13 @@ Place pre-encoded raster data (sixel or Kitty) into the frame,
 reserving the character buffer area with blanks. When `pixels` is
 provided, the pixel matrix is stored for raster export (GIF/APNG).
 """
-function render_graphics!(f::Frame, data::Vector{UInt8}, area::Rect;
-                          pixels::Union{Matrix{ColorRGBA}, Matrix{ColorRGB}, Nothing}=nothing,
-                          format::GraphicsFormat=gfx_fmt_sixel)
+function render_graphics!(
+    f::Frame,
+    data::Vector{UInt8},
+    area::Rect;
+    pixels::Union{Matrix{ColorRGBA},Matrix{ColorRGB},Nothing}=nothing,
+    format::GraphicsFormat=gfx_fmt_sixel,
+)
     # Blank cells directly (bypass set_char! which preserves old bg)
     buf = f.buffer
     for row in area.y:bottom(area)
@@ -649,9 +700,8 @@ function render_graphics!(f::Frame, data::Vector{UInt8}, area::Rect;
         end
         push!(f.pixel_snapshots, (area.y, area.x, rgba_pixels))
     end
-    nothing
+    return nothing
 end
-
 
 # ── Virtual Framebuffer for sixel compositing ─────────────────────────
 #
@@ -699,19 +749,26 @@ function _fb_init!(fb::PixelFramebuffer, buf::Buffer, area::Rect)
     fb.dirty_x0 = pw + 1
     fb.dirty_y0 = ph + 1
     fb.dirty_x1 = 0
-    fb.dirty_y1 = 0
+    return fb.dirty_y1 = 0
 end
 
 # Zero the framebuffer RGBA data. Called lazily on first blend each frame.
 function _fb_clear!(fb::PixelFramebuffer)
-    fb._cleared && return
+    fb._cleared && return nothing
     fill!(fb.rgba, 0x00)
-    fb._cleared = true
+    return fb._cleared = true
 end
 
 """Blend RGBA image into the framebuffer at the given cell position."""
-function _fb_blend!(fb::PixelFramebuffer, rgba::Vector{UInt8}, w::Int, h::Int,
-                    area::Rect, screen_area::Rect, buf::Buffer)
+function _fb_blend!(
+    fb::PixelFramebuffer,
+    rgba::Vector{UInt8},
+    w::Int,
+    h::Int,
+    area::Rect,
+    screen_area::Rect,
+    buf::Buffer,
+)
     _fb_clear!(fb)  # lazy clear on first blend each frame
     cp = CELL_PX[]
     cpw = max(1, cp.w)
@@ -765,9 +822,21 @@ function _fb_blend!(fb::PixelFramebuffer, rgba::Vector{UInt8}, w::Int, h::Int,
                     else
                         af = a / 255.0
                         inv_af = 1.0 - af
-                        unsafe_store!(dp, unsafe_trunc(UInt8, min(r * af + unsafe_load(dp, 1) * inv_af, 255.0)), 1)
-                        unsafe_store!(dp, unsafe_trunc(UInt8, min(g * af + unsafe_load(dp, 2) * inv_af, 255.0)), 2)
-                        unsafe_store!(dp, unsafe_trunc(UInt8, min(b * af + unsafe_load(dp, 3) * inv_af, 255.0)), 3)
+                        unsafe_store!(
+                            dp,
+                            unsafe_trunc(UInt8, min(r * af + unsafe_load(dp, 1) * inv_af, 255.0)),
+                            1,
+                        )
+                        unsafe_store!(
+                            dp,
+                            unsafe_trunc(UInt8, min(g * af + unsafe_load(dp, 2) * inv_af, 255.0)),
+                            2,
+                        )
+                        unsafe_store!(
+                            dp,
+                            unsafe_trunc(UInt8, min(b * af + unsafe_load(dp, 3) * inv_af, 255.0)),
+                            3,
+                        )
                         unsafe_store!(dp, unsafe_trunc(UInt8, min(da + a * inv_af, 255.0)), 4)
                     end
                 end
@@ -785,13 +854,13 @@ function _fb_blend!(fb::PixelFramebuffer, rgba::Vector{UInt8}, w::Int, h::Int,
     fb.dirty_x0 = min(fb.dirty_x0, x0)
     fb.dirty_y0 = min(fb.dirty_y0, y0)
     fb.dirty_x1 = max(fb.dirty_x1, x1)
-    fb.dirty_y1 = max(fb.dirty_y1, y1)
+    return fb.dirty_y1 = max(fb.dirty_y1, y1)
     # Record this window's cell rect for separate sixel emission
 end
 
 """Encode dirty framebuffer region as sixel and emit as graphics."""
 function _fb_flush!(fb::PixelFramebuffer, f::Frame, screen_area::Rect)
-    fb.dirty || return
+    fb.dirty || return nothing
 
     cp = CELL_PX[]
     cpw = max(1, cp.w)
@@ -924,16 +993,17 @@ function _fb_flush!(fb::PixelFramebuffer, f::Frame, screen_area::Rect)
                             pixels[dy, dx] = cbg
                         else
                             pixels[dy, dx] = ColorRGBA(
-                                fb.rgba[di + 1], fb.rgba[di + 2],
-                                fb.rgba[di + 3], a)
+                                fb.rgba[di + 1], fb.rgba[di + 2], fb.rgba[di + 3], a
+                            )
                         end
                     end
                 end
 
                 data = encode_sixel(pixels)
                 if !isempty(data)
-                    cell_rect = Rect(screen_area.x + col - 1, screen_area.y + row - 1,
-                                     rect_w, rect_h)
+                    cell_rect = Rect(
+                        screen_area.x + col - 1, screen_area.y + row - 1, rect_w, rect_h
+                    )
                     render_graphics!(f, data, cell_rect; pixels=pixels, format=gfx_fmt_sixel)
                 end
 
@@ -959,17 +1029,25 @@ transparent and will not be rendered.
 
 `rgba` must be `w * h * 4` bytes in row-major order (top-to-bottom, left-to-right).
 """
-function render_rgba!(f::Frame, rgba::Vector{UInt8}, w::Int, h::Int, area::Rect;
-                      cols::Int=area.width, rows::Int=area.height, z::Int=-1,
-                      scale_to_cells::Bool=true)
+function render_rgba!(
+    f::Frame,
+    rgba::Vector{UInt8},
+    w::Int,
+    h::Int,
+    area::Rect;
+    cols::Int=area.width,
+    rows::Int=area.height,
+    z::Int=-1,
+    scale_to_cells::Bool=true,
+)
     gfx = GRAPHICS_PROTOCOL[]
-    gfx == gfx_none && return
+    gfx == gfx_none && return nothing
 
     if gfx == gfx_kitty
         c = scale_to_cells ? cols : 0
         r = scale_to_cells ? rows : 0
         data = encode_kitty_rgba(rgba, w, h; cols=c, rows=r, z=z)
-        isempty(data) && return
+        isempty(data) && return nothing
         render_graphics!(f, data, area; format=gfx_fmt_kitty)
     else
         # Sixel: blend into the virtual framebuffer.
@@ -982,10 +1060,10 @@ end
 function _draw_rec_badge!(buf::Buffer, area::Rect)
     label = "● REC"
     rx = right(area) - length(label)
-    rx < area.x && return
-    set_string!(buf, rx, area.y, label,
-                Style(fg=ColorRGB(0xff, 0x40, 0x40), bold=true);
-                max_x=right(area))
+    rx < area.x && return nothing
+    return set_string!(
+        buf, rx, area.y, label, Style(; fg=ColorRGB(0xff, 0x40, 0x40), bold=true); max_x=right(area)
+    )
 end
 
 # ── Draw / Flush ──────────────────────────────────────────────────────
@@ -1007,8 +1085,14 @@ function draw!(func::Function, t::Terminal)
     # Capture frame for .cast recording BEFORE the REC badge is drawn,
     # so the badge appears on-screen but not in the recording.
     if t.recorder.active
-        capture_frame!(t.recorder, current_buf(t), t.size.width, t.size.height;
-                       gfx_regions=f.gfx_regions, pixel_snapshots=f.pixel_snapshots)
+        capture_frame!(
+            t.recorder,
+            current_buf(t),
+            t.size.width,
+            t.size.height;
+            gfx_regions=f.gfx_regions,
+            pixel_snapshots=f.pixel_snapshots,
+        )
         _draw_rec_badge!(current_buf(t), t.size)
     end
     # Filter graphics regions: skip any where a later widget wrote content on top.
@@ -1068,7 +1152,7 @@ function draw!(func::Function, t::Terminal)
     Base.flush(t.io)
     t.had_gfx = has_gfx
     t.prev_gfx_bounds = [(r.row, r.col, r.width, r.height) for r in visible_regions]
-    swap_buffers!(t)
+    return swap_buffers!(t)
 end
 
 const _GFX_BLANK = Cell(' ', RESET)
@@ -1091,7 +1175,7 @@ function _filter_visible_gfx(regions::Vector{GraphicsRegion}, buf::Buffer)
                 c == _GFX_BLANK || return false
             end
         end
-        true
+        return true
     end
 end
 
@@ -1102,9 +1186,12 @@ Force cells that were sixel-covered last frame but not this frame to
 appear changed in the diff, so `flush!` re-emits them.  Writing any
 character to a cell clears the terminal's sixel layer at that position.
 """
-function _dirty_stale_gfx!(prev::Buffer, cur::Buffer,
-                             old_bounds::Vector{NTuple{4,Int}},
-                             new_regions::Vector{GraphicsRegion})
+function _dirty_stale_gfx!(
+    prev::Buffer,
+    cur::Buffer,
+    old_bounds::Vector{NTuple{4,Int}},
+    new_regions::Vector{GraphicsRegion},
+)
     for (orow, ocol, ow, oh) in old_bounds
         for row in orow:(orow + oh - 1)
             for col in ocol:(ocol + ow - 1)
@@ -1121,8 +1208,7 @@ end
 
 @inline function _in_any_gfx_region(col::Int, row::Int, regions::Vector{GraphicsRegion})
     for r in regions
-        if row >= r.row && row < r.row + r.height &&
-           col >= r.col && col < r.col + r.width
+        if row >= r.row && row < r.row + r.height && col >= r.col && col < r.col + r.width
             return true
         end
     end
@@ -1152,8 +1238,7 @@ function flush!(t::Terminal, io::IO)
 
             # Skip cursor move if contiguous
             if row != last_row || col != last_col + 1
-                write(io, "\e[", string(row), ";",
-                      string(col), "H")
+                write(io, "\e[", string(row), ";", string(col), "H")
             end
 
             if cc.style != last_style
@@ -1203,7 +1288,7 @@ end
 function swap_buffers!(t::Terminal)
     other = 3 - t.current
     reset!(t.buffers[other])
-    t.current = other
+    return t.current = other
 end
 
 # ── Remote TTY input ─────────────────────────────────────────────────
@@ -1213,9 +1298,9 @@ end
 # into a BufferStream; INPUT_IO[] is pointed at that stream so the normal
 # poll_event / read_event pipeline works unchanged.
 
-const _REMOTE_INPUT_FD       = Ref{Int32}(-1)
-const _REMOTE_INPUT_STREAM   = Ref{Union{Base.BufferStream, Nothing}}(nothing)
-const _REMOTE_INPUT_TERMIOS  = Ref{Vector{UInt8}}(UInt8[])
+const _REMOTE_INPUT_FD = Ref{Int32}(-1)
+const _REMOTE_INPUT_STREAM = Ref{Union{Base.BufferStream,Nothing}}(nothing)
+const _REMOTE_INPUT_TERMIOS = Ref{Vector{UInt8}}(UInt8[])
 
 function _start_remote_input!(path::String)
     @static Sys.iswindows() && error("Remote TTY input is not supported on Windows")
@@ -1224,7 +1309,7 @@ function _start_remote_input!(path::String)
     # stalls the Julia thread; O_NOCTTY prevents accidental controlling-
     # terminal acquisition (our process already owns the REPL TTY).
     o_nonblock = @static (Sys.isapple() || Sys.isbsd()) ? Cint(0x0004) : Cint(0x0800)
-    o_noctty   = @static (Sys.isapple() || Sys.isbsd()) ? Cint(0x20000) : Cint(0x0400)
+    o_noctty = @static (Sys.isapple() || Sys.isbsd()) ? Cint(0x20000) : Cint(0x0400)
     fd = ccall(:open, Cint, (Cstring, Cint), path, Cint(2) | o_nonblock | o_noctty)
     fd == -1 && error("Cannot open remote TTY for input: $path")
 
@@ -1236,9 +1321,9 @@ function _start_remote_input!(path::String)
     ccall(:cfmakeraw, Cvoid, (Ptr{UInt8},), raw_termios)
     ccall(:tcsetattr, Cint, (Cint, Cint, Ptr{UInt8}), fd, 0, raw_termios)
 
-    _REMOTE_INPUT_FD[]      = fd
+    _REMOTE_INPUT_FD[] = fd
     _REMOTE_INPUT_TERMIOS[] = old_termios
-    _REMOTE_INPUT_STREAM[]  = buf
+    _REMOTE_INPUT_STREAM[] = buf
 
     # Pump bytes from the remote TTY fd into the BufferStream.
     # Uses poll_fd (libuv event-driven) — same pattern as PTY reader.
@@ -1263,13 +1348,13 @@ function _start_remote_input!(path::String)
     end
 
     INPUT_IO[] = buf
-    nothing
+    return nothing
 end
 
 function _stop_remote_input!()
-    @static Sys.iswindows() && return
+    @static Sys.iswindows() && return nothing
     fd = _REMOTE_INPUT_FD[]
-    fd == -1 && return
+    fd == -1 && return nothing
     _REMOTE_INPUT_FD[] = -1          # signals the reader task to stop
     buf = _REMOTE_INPUT_STREAM[]
     _REMOTE_INPUT_STREAM[] = nothing
@@ -1281,7 +1366,7 @@ function _stop_remote_input!()
         _REMOTE_INPUT_TERMIOS[] = UInt8[]
     end
     ccall(:close, Cint, (Cint,), fd)
-    nothing
+    return nothing
 end
 
 """
@@ -1366,12 +1451,11 @@ Detection priority (kitty > sixel):
 - mlterm: `TERM=mlterm` → sixel
 """
 function _detect_graphics_from_env()
-    term      = get(ENV, "TERM", "")
+    term = get(ENV, "TERM", "")
     term_prog = get(ENV, "TERM_PROGRAM", "")
 
     # Kitty: canonical env signals
-    if term == "xterm-kitty" || haskey(ENV, "KITTY_WINDOW_ID") ||
-            term_prog == "kitty"
+    if term == "xterm-kitty" || haskey(ENV, "KITTY_WINDOW_ID") || term_prog == "kitty"
         return gfx_kitty
     end
     # Ghostty: kitty graphics protocol
@@ -1403,7 +1487,7 @@ not, since an injected `io` leaves it `nothing`.
 """
 _is_remote_terminal(t::Terminal) = t.remote_tty_path !== nothing || t.external_size
 
-function enter_tui!(t::Terminal; remote_tty::Bool = _is_remote_terminal(t))
+function enter_tui!(t::Terminal; remote_tty::Bool=_is_remote_terminal(t))
     print(t.io, ALT_SCREEN_ON, CURSOR_HIDE, CLEAR_SCREEN)
     Base.flush(t.io)
     if remote_tty
@@ -1479,7 +1563,7 @@ function enter_tui!(t::Terminal; remote_tty::Bool = _is_remote_terminal(t))
     GRAPHICS_PROTOCOL[] = t.graphics_protocol
     # Clear any probe artifacts (some terminals render APC/CSI probe bytes as
     # raw text) before the first TUI frame, so they don't persist on screen.
-    !remote_tty && (print(t.io, CLEAR_SCREEN); Base.flush(t.io))
+    return !remote_tty && (print(t.io, CLEAR_SCREEN); Base.flush(t.io))
 end
 
 function leave_tui!(t::Terminal)
@@ -1490,36 +1574,50 @@ function leave_tui!(t::Terminal)
     try
         seq = ""
         t.graphics_protocol == gfx_kitty && (seq *= "\e_Ga=d,d=a,q=2\e\\")
-        t.kitty_keyboard                  && (seq *= KITTY_KEYBOARD_OFF)
+        t.kitty_keyboard && (seq *= KITTY_KEYBOARD_OFF)
         seq *= MOUSE_OFF
         print(t.io, seq)
         Base.flush(t.io)
-    catch end
+    catch
+    end
 
     # Sleep briefly while libuv is still active so that any events already
     # in flight (key release for the quit key, final mouse events before
     # MOUSE_OFF reaches the terminal) arrive and are pumped into Julia's
     # stdin buffer.  stop_input! then drains that buffer.
-    try sleep(0.015) catch end
-    try stop_input!() catch end
+    try
+        sleep(0.015)
+    catch
+    end
+    try
+        stop_input!()
+    catch
+    end
     if _is_remote_terminal(t)
         # Frames went somewhere other than this process's terminal, so setup
         # never touched its stdin. Only a tty_out path has remote input to stop;
         # an injected io has none. Either way, leave the host's stdin alone --
         # set_raw_mode!(false) is unconditional once stdin is a TTY, so calling
         # it here would drop an embedding REPL out of raw mode on every exit.
-        t.remote_tty_path === nothing || try _stop_remote_input!() catch end
+        t.remote_tty_path === nothing || try
+            _stop_remote_input!()
+        catch
+        end
     else
-        try set_raw_mode!(false) catch end
+        try
+            set_raw_mode!(false)
+        catch
+        end
     end
     try
         print(t.io, "\e[0m", CURSOR_SHOW, ALT_SCREEN_OFF)
         Base.flush(t.io)
-    catch end
+    catch
+    end
     GRAPHICS_PROTOCOL[] = gfx_none
     _KITTY_SHM_AVAILABLE[] = nothing
     _KITTY_SHM_COUNTER[] = UInt32(0)
-    _kitty_shm_cleanup_all!()   # unlink all shm segments (pending + ring) on TUI exit
+    return _kitty_shm_cleanup_all!()   # unlink all shm segments (pending + ring) on TUI exit
 end
 
 """
@@ -1534,16 +1632,22 @@ Call this immediately before `ccall(:execvp, ...)` or similar process
 replacement from any context (async tasks, bridge code, etc.).
 """
 function prepare_for_exec!()
-    @static Sys.iswindows() && return
+    @static Sys.iswindows() && return nothing
     # 1. Stop libuv stdin reading (before we touch fds)
-    try stop_input!() catch end
+    try
+        stop_input!()
+    catch
+    end
 
     # 2. Exit raw mode while stdin is still accessible via libuv
-    try set_raw_mode!(false) catch end
+    try
+        set_raw_mode!(false)
+    catch
+    end
 
     # 3. Open /dev/tty — the real terminal, bypassing any pipe redirections
     tty_fd = ccall(:open, Cint, (Cstring, Cint), "/dev/tty", 2)  # O_RDWR = 2
-    tty_fd == -1 && return  # not a terminal environment, nothing to restore
+    tty_fd == -1 && return nothing  # not a terminal environment, nothing to restore
 
     try
         # 4. Write terminal restore sequences directly to /dev/tty fd
@@ -1557,8 +1661,7 @@ function prepare_for_exec!()
             ALT_SCREEN_OFF,           # exit alternate screen
         )
         buf = Vector{UInt8}(restore)
-        ccall(:write, Cssize_t, (Cint, Ptr{UInt8}, Csize_t),
-              tty_fd, buf, length(buf))
+        ccall(:write, Cssize_t, (Cint, Ptr{UInt8}, Csize_t), tty_fd, buf, length(buf))
 
         # 5. dup2: restore stdin/stdout/stderr to the terminal
         ccall(:dup2, Cint, (Cint, Cint), tty_fd, 0)  # stdin
@@ -1577,7 +1680,7 @@ function prepare_for_exec!()
     # 8. Clean up all shm segments (pending + ring) before process replacement
     _kitty_shm_cleanup_all!()
 
-    nothing
+    return nothing
 end
 
 const _DISCARD_OUTPUT = (_::AbstractString) -> nothing
@@ -1597,10 +1700,11 @@ function tty_path()
     try
         open(io -> close(io), "/dev/tty", "w")
         return "/dev/tty"
-    catch; end
+    catch
+    end
     # No controlling terminal — get the device path behind stdin
     p = ccall(:ttyname, Cstring, (Cint,), Cint(0))
-    p != C_NULL ? unsafe_string(p) : nothing
+    return p != C_NULL ? unsafe_string(p) : nothing
 end
 
 # Host hook: a guard the embedding host (e.g. KaimonGate) installs so a TUI runs
@@ -1621,11 +1725,11 @@ host-installed capture wrapper, then restore the host's streams. Pass `nothing`
 to clear. Embedding hosts (e.g. KaimonGate) install this so raw-mode TUIs don't
 wedge the host REPL on exit when an output-capture mux is active.
 """
-set_stream_guard!(f) = (_STREAM_GUARD[] = f; nothing)
+set_stream_guard!(f) = (_STREAM_GUARD[]=f; nothing)
 
 """Run `body()` through the installed stream guard (or directly if none). Split out
 so the guard-application is unit-testable without a real terminal."""
-_run_guarded(body) = (g = _STREAM_GUARD[]; g === nothing ? body() : g(body))
+_run_guarded(body) = (g=_STREAM_GUARD[]; g === nothing ? body() : g(body))
 
 """
     with_terminal(f; io=nothing, tty_out=nothing, tty_size=nothing,
@@ -1661,7 +1765,9 @@ absorbs any buffered input without displaying it. Input (keyboard/mouse)
 continues to come from the current terminal or via synthetic events. Terminal
 resize is supported via periodic size polling (once per second).
 """
-function with_terminal(f::Function; io=nothing, tty_out=nothing, tty_size=nothing, on_stdout=nothing, on_stderr=nothing)
+function with_terminal(
+    f::Function; io=nothing, tty_out=nothing, tty_size=nothing, on_stdout=nothing, on_stderr=nothing
+)
     body = function ()
         # `io` is the sink itself rather than a path to one: a socket, a pipe, an
         # IOBuffer. `Terminal` has always been IO-polymorphic — every write goes
@@ -1673,9 +1779,13 @@ function with_terminal(f::Function; io=nothing, tty_out=nothing, tty_size=nothin
         if io !== nothing && tty_size === nothing
             # Size cannot be probed from an arbitrary sink, and guessing would put
             # every frame at the wrong dimensions. Make the caller say.
-            throw(ArgumentError("with_terminal: `tty_size = (rows = ..., cols = ...)` " *
-                                "is required when `io` is given -- an injected sink " *
-                                "cannot be probed for its size"))
+            throw(
+                ArgumentError(
+                    "with_terminal: `tty_size = (rows = ..., cols = ...)` " *
+                    "is required when `io` is given -- an injected sink " *
+                    "cannot be probed for its size",
+                ),
+            )
         end
         # Skip pixel detection when frames go anywhere but the current terminal —
         # detection queries the CURRENT terminal, so its escape-sequence replies
@@ -1708,11 +1818,12 @@ function with_terminal(f::Function; io=nothing, tty_out=nothing, tty_size=nothin
         #
         # An explicit `on_stdout`/`on_stderr` is still honoured -- the caller asked for
         # the lines, so they are still captured and delivered.
-        state = (io === nothing || on_stdout !== nothing || on_stderr !== nothing) ?
-                _start_capture(something(on_stdout, _DISCARD_OUTPUT),
-                               something(on_stderr, _DISCARD_OUTPUT)) : nothing
-        t = Terminal(io = tty_io, size = sz, remote_tty_path = tty_out,
-                     external_size = io !== nothing)
+        state = if (io === nothing || on_stdout !== nothing || on_stderr !== nothing)
+            _start_capture(something(on_stdout, _DISCARD_OUTPUT), something(on_stderr, _DISCARD_OUTPUT))
+        else
+            nothing
+        end
+        t = Terminal(; io=tty_io, size=sz, remote_tty_path=tty_out, external_size=io !== nothing)
         # remote_tty is what keeps this off the local terminal: it skips raw mode
         # on the process's own stdin, and skips the kitty/graphics probes that
         # would write to a terminal that is not where the frames are going. With
@@ -1729,7 +1840,10 @@ function with_terminal(f::Function; io=nothing, tty_out=nothing, tty_size=nothin
             state === nothing || _stop_capture(state)
             # A caller-supplied `io` is the caller's to close: a websocket that
             # outlives one app must not be closed out from under them.
-            (io === nothing && tty_io !== stdout) && try close(tty_io) catch end
+            (io === nothing && tty_io !== stdout) && try
+                close(tty_io)
+            catch
+            end
         end
     end
     # A host (e.g. KaimonGate) may install a guard so the whole TUI lifecycle runs
@@ -1744,8 +1858,8 @@ end
 struct CaptureState
     orig_stdout::Any
     orig_stderr::Any
-    stdout_task::Union{Task, Nothing}
-    stderr_task::Union{Task, Nothing}
+    stdout_task::Union{Task,Nothing}
+    stderr_task::Union{Task,Nothing}
     stdout_wr::Any   # pipe write-end (close to signal reader)
     stderr_wr::Any
 end
@@ -1785,8 +1899,7 @@ function _start_capture(on_stdout, on_stderr)
         end
     end
 
-    CaptureState(orig_stdout, orig_stderr, stdout_task, stderr_task,
-                 stdout_wr, stderr_wr)
+    return CaptureState(orig_stdout, orig_stderr, stdout_task, stderr_task, stdout_wr, stderr_wr)
 end
 
 function _drain_output(rd, callback)
@@ -1804,13 +1917,31 @@ end
 function _stop_capture(s::CaptureState)
     # Restore streams first, then close pipes so reader tasks finish
     if s.orig_stdout !== nothing
-        try redirect_stdout(s.orig_stdout) catch end
+        try
+            redirect_stdout(s.orig_stdout)
+        catch
+        end
     end
     if s.orig_stderr !== nothing
-        try redirect_stderr(s.orig_stderr) catch end
+        try
+            redirect_stderr(s.orig_stderr)
+        catch
+        end
     end
-    s.stdout_wr !== nothing && try close(s.stdout_wr) catch end
-    s.stderr_wr !== nothing && try close(s.stderr_wr) catch end
-    s.stdout_task !== nothing && try wait(s.stdout_task) catch end
-    s.stderr_task !== nothing && try wait(s.stderr_task) catch end
+    s.stdout_wr !== nothing && try
+        close(s.stdout_wr)
+    catch
+    end
+    s.stderr_wr !== nothing && try
+        close(s.stderr_wr)
+    catch
+    end
+    s.stdout_task !== nothing && try
+        wait(s.stdout_task)
+    catch
+    end
+    return s.stderr_task !== nothing && try
+        wait(s.stderr_task)
+    catch
+    end
 end

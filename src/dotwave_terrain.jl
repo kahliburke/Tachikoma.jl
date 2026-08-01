@@ -17,8 +17,7 @@
 @inline _dot_sub_y(y::Int, ub::Bool) = ub ? (y % 2) : (y % 4)
 @inline _dot_bit(sub_x::Int, sub_y::Int, ub::Bool) =
     ub ? (UInt8(1) << (sub_y * 2 + sub_x)) : BRAILLE_MAP[sub_y + 1][sub_x + 1]
-@inline _dot_char(bits::UInt8, ub::Bool) =
-    ub ? QUADRANT_LUT[bits + 1] : Char(BRAILLE_OFFSET + bits)
+@inline _dot_char(bits::UInt8, ub::Bool) = ub ? QUADRANT_LUT[bits + 1] : Char(BRAILLE_OFFSET + bits)
 
 struct WaveLayer
     angle::Float64
@@ -37,28 +36,48 @@ end
 # angle ≈ π/2 → ridges perpendicular to depth (multiple hills front-to-back)
 # angle ≈ 0   → ridges along depth (lateral variation along each ridge)
 const DOTWAVE_PRESETS = DotWavePreset[
-    DotWavePreset("Gentle", [
-        WaveLayer(π/2,   4.0, 0.5, 0.025),
-        WaveLayer(π/3,   2.5, 0.3, 0.018),
-        WaveLayer(0.0,   2.0, 0.2, 0.012),
-    ], 0.12, 0.005),
-    DotWavePreset("Turbulent", [
-        WaveLayer(π/2,   6.0, 0.35, 0.05),
-        WaveLayer(π/3,   5.0, 0.3, 0.04),
-        WaveLayer(0.0,   7.0, 0.2, 0.06),
-        WaveLayer(π/6,   4.0, 0.15, 0.035),
-    ], 0.2, 0.01),
-    DotWavePreset("Ridges", [
-        WaveLayer(π/2,   5.0, 0.55, 0.03),
-        WaveLayer(π/2.3, 3.5, 0.3, 0.02),
-        WaveLayer(0.0,   3.0, 0.15, 0.025),
-    ], 0.08, 0.006),
-    DotWavePreset("Vortex", [
-        WaveLayer(π/4,   5.0, 0.35, 0.04),
-        WaveLayer(3π/4,  5.0, 0.35, 0.04),
-        WaveLayer(π/2,   3.0, 0.2, 0.025),
-        WaveLayer(0.0,   3.0, 0.2, 0.025),
-    ], 0.15, 0.008),
+    DotWavePreset(
+        "Gentle",
+        [
+            WaveLayer(π/2, 4.0, 0.5, 0.025),
+            WaveLayer(π/3, 2.5, 0.3, 0.018),
+            WaveLayer(0.0, 2.0, 0.2, 0.012),
+        ],
+        0.12,
+        0.005,
+    ),
+    DotWavePreset(
+        "Turbulent",
+        [
+            WaveLayer(π/2, 6.0, 0.35, 0.05),
+            WaveLayer(π/3, 5.0, 0.3, 0.04),
+            WaveLayer(0.0, 7.0, 0.2, 0.06),
+            WaveLayer(π/6, 4.0, 0.15, 0.035),
+        ],
+        0.2,
+        0.01,
+    ),
+    DotWavePreset(
+        "Ridges",
+        [
+            WaveLayer(π/2, 5.0, 0.55, 0.03),
+            WaveLayer(π/2.3, 3.5, 0.3, 0.02),
+            WaveLayer(0.0, 3.0, 0.15, 0.025),
+        ],
+        0.08,
+        0.006,
+    ),
+    DotWavePreset(
+        "Vortex",
+        [
+            WaveLayer(π/4, 5.0, 0.35, 0.04),
+            WaveLayer(3π/4, 5.0, 0.35, 0.04),
+            WaveLayer(π/2, 3.0, 0.2, 0.025),
+            WaveLayer(0.0, 3.0, 0.2, 0.025),
+        ],
+        0.15,
+        0.008,
+    ),
 ]
 
 function _dotwave_height(wx::Float64, wz::Float64, t::Float64, preset::DotWavePreset)
@@ -70,7 +89,7 @@ function _dotwave_height(wx::Float64, wz::Float64, t::Float64, preset::DotWavePr
         val += layer.amp * sin(rx * layer.freq + t * layer.speed)
     end
     val += preset.noise_amt * (2.0 * fbm(wx * 2.0, wz * 2.0 + t * preset.noise_drift) - 1.0)
-    val
+    return val
 end
 
 """
@@ -86,15 +105,21 @@ screen; far ridges are thin, dim, and near the horizon.
 `color_transform(::ColorRGB) → ColorRGB` is applied to each cell's
 final color (used by the background system to dim/desaturate).
 """
-function _render_dotwave_terrain!(buf::Buffer, canvas_area::Rect, tick::Int,
-                                  preset::DotWavePreset, amplitude::Float64,
-                                  cam_height::Float64, speed::Float64;
-                                  color_transform::Function=identity)
+function _render_dotwave_terrain!(
+    buf::Buffer,
+    canvas_area::Rect,
+    tick::Int,
+    preset::DotWavePreset,
+    amplitude::Float64,
+    cam_height::Float64,
+    speed::Float64;
+    color_transform::Function=identity,
+)
     t = Float64(tick) * speed
 
     cw = canvas_area.width
     ch = canvas_area.height
-    (cw < 4 || ch < 2) && return
+    (cw < 4 || ch < 2) && return nothing
 
     ub = _use_block_backend()
     dot_w = cw * 2
@@ -141,7 +166,7 @@ function _render_dotwave_terrain!(buf::Buffer, canvas_area::Rect, tick::Int,
             h = col_heights[col] * wave_amp
 
             # Slope shading
-            hl = col > 1  ? col_heights[col - 1] : col_heights[col]
+            hl = col > 1 ? col_heights[col - 1] : col_heights[col]
             hr = col < cw ? col_heights[col + 1] : col_heights[col]
             slope = (hr - hl) * wave_amp
             light = clamp(0.65 - slope * 1.5, 0.1, 1.0)
@@ -188,7 +213,7 @@ function _render_dotwave_terrain!(buf::Buffer, canvas_area::Rect, tick::Int,
             fg = dim_color(fg, z_n * 0.7)
             fg = color_transform(fg)
 
-            set_char!(buf, bx, by, ch_char, Style(fg=fg))
+            set_char!(buf, bx, by, ch_char, Style(; fg=fg))
         end
     end
 end

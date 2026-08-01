@@ -16,19 +16,36 @@
     style_idx::Int = 1  # 1=bracket, 2=box, 3=plain
 
     # Per-style demo tabs
-    bracket_tabs::TabBar = TabBar(["Overview", "Details", "Settings", "Help"];
-        active=1, focused=true, tab_style=TabBarStyle(decoration=BracketTabs()))
-    box_tabs::TabBar = TabBar(["Overview", "Details", "Settings", "Help"];
-        active=1, focused=true, tab_style=TabBarStyle(decoration=BoxTabs()))
-    box_heavy_tabs::TabBar = TabBar(["Server", "Database", "Network"];
-        active=1, tab_style=TabBarStyle(decoration=BoxTabs(box=BOX_HEAVY)))
-    plain_tabs::TabBar = TabBar(["Home", "Search", "Profile", "Settings"];
-        active=1, focused=true, tab_style=TabBarStyle(decoration=PlainTabs(), separator=" · "))
+    bracket_tabs::TabBar = TabBar(
+        ["Overview", "Details", "Settings", "Help"];
+        active=1,
+        focused=true,
+        tab_style=TabBarStyle(decoration=BracketTabs()),
+    )
+    box_tabs::TabBar = TabBar(
+        ["Overview", "Details", "Settings", "Help"];
+        active=1,
+        focused=true,
+        tab_style=TabBarStyle(decoration=BoxTabs()),
+    )
+    box_heavy_tabs::TabBar = TabBar(
+        ["Server", "Database", "Network"];
+        active=1,
+        tab_style=TabBarStyle(decoration=BoxTabs(box=BOX_HEAVY)),
+    )
+    plain_tabs::TabBar = TabBar(
+        ["Home", "Search", "Profile", "Settings"];
+        active=1,
+        focused=true,
+        tab_style=TabBarStyle(decoration=PlainTabs(), separator=" · "),
+    )
 
     # Buttons
     btn_bracket::Button = Button("Submit"; button_style=ButtonStyle())
     btn_bordered::Button = Button("Submit"; button_style=ButtonStyle(decoration=BorderedButton()))
-    btn_heavy::Button = Button("Cancel"; button_style=ButtonStyle(decoration=BorderedButton(box=BOX_HEAVY)))
+    btn_heavy::Button = Button(
+        "Cancel"; button_style=ButtonStyle(decoration=BorderedButton(box=BOX_HEAVY))
+    )
     btn_plain::Button = Button("Skip"; button_style=ButtonStyle(decoration=PlainButton()))
     btn_focus::Int = 1
 end
@@ -38,13 +55,13 @@ should_quit(m::WidgetStylesModel) = m.quit
 function update!(m::WidgetStylesModel, evt::KeyEvent)
     if evt.key == :escape || (evt.key == :char && evt.char == 'q')
         m.quit = true
-        return
+        return nothing
     end
 
     # Number keys switch style section
     if evt.key == :char && evt.char in ('1', '2', '3')
         m.style_idx = Int(evt.char) - Int('0')
-        return
+        return nothing
     end
 
     # Forward keys to the active tab bar
@@ -82,19 +99,22 @@ function view(m::WidgetStylesModel, f::Frame)
     end
 
     # Layout: header | tabs section | buttons section | footer
-    rows = split_layout(Layout(Vertical, [
-        Fixed(1), Fixed(1),  # title + gap
-        Fixed(4),            # tab demos
-        Fixed(1),            # gap
-        Fixed(5),            # button demos
-        Fill(),              # description
-        Fixed(1),            # footer
-    ]), f.area)
-    length(rows) < 7 && return
+    rows = split_layout(
+        Layout(Vertical, [
+            Fixed(1),
+            Fixed(1),  # title + gap
+            Fixed(4),            # tab demos
+            Fixed(1),            # gap
+            Fixed(5),            # button demos
+            Fill(),              # description
+            Fixed(1),            # footer
+        ]),
+        f.area,
+    )
+    length(rows) < 7 && return nothing
 
     # Title
-    set_string!(buf, rows[1].x + 1, rows[1].y,
-                "Widget Styles Demo", tstyle(:title, bold=true))
+    set_string!(buf, rows[1].x + 1, rows[1].y, "Widget Styles Demo", tstyle(:title; bold=true))
 
     # Style selector (inline)
     styles_label = [
@@ -104,7 +124,7 @@ function view(m::WidgetStylesModel, f::Frame)
     ]
     sx = rows[1].x + 22
     for (i, lbl) in enumerate(styles_label)
-        sty = m.style_idx == i ? tstyle(:accent, bold=true) : tstyle(:text_dim)
+        sty = m.style_idx == i ? tstyle(:accent; bold=true) : tstyle(:text_dim)
         set_string!(buf, sx, rows[1].y, lbl, sty)
         sx += length(lbl) + 1
     end
@@ -112,7 +132,7 @@ function view(m::WidgetStylesModel, f::Frame)
     # Tab demos
     tab_area = rows[3]
     tab_cols = split_layout(Layout(Horizontal, [Percent(55), Fill()]), tab_area)
-    length(tab_cols) >= 2 || return
+    length(tab_cols) >= 2 || return nothing
 
     if m.style_idx == 1
         # Bracket tabs
@@ -124,7 +144,9 @@ function view(m::WidgetStylesModel, f::Frame)
         render(m.box_tabs, Rect(tab_cols[1].x, tab_cols[1].y + 1, tab_cols[1].width, 3), buf)
         if tab_cols[2].width > 10
             set_string!(buf, tab_cols[2].x, tab_cols[2].y, "BoxTabs (heavy):", tstyle(:text_dim))
-            render(m.box_heavy_tabs, Rect(tab_cols[2].x, tab_cols[2].y + 1, tab_cols[2].width, 3), buf)
+            render(
+                m.box_heavy_tabs, Rect(tab_cols[2].x, tab_cols[2].y + 1, tab_cols[2].width, 3), buf
+            )
         end
     else
         # Plain tabs
@@ -136,10 +158,10 @@ function view(m::WidgetStylesModel, f::Frame)
     btn_area = rows[5]
     set_string!(buf, btn_area.x, btn_area.y, "Buttons:", tstyle(:text_dim))
     btn_row = Rect(btn_area.x, btn_area.y + 1, btn_area.width, btn_area.height - 1)
-    btn_cols = split_layout(Layout(Horizontal, [
-        Fixed(14), Fixed(14), Fixed(14), Fixed(14),
-    ]), btn_row)
-    length(btn_cols) >= 4 || return
+    btn_cols = split_layout(
+        Layout(Horizontal, [Fixed(14), Fixed(14), Fixed(14), Fixed(14)]), btn_row
+    )
+    length(btn_cols) >= 4 || return nothing
 
     render(m.btn_bracket, btn_cols[1], buf)
     render(m.btn_bordered, Rect(btn_cols[2].x, btn_cols[2].y, btn_cols[2].width, 3), buf)
@@ -158,23 +180,35 @@ function view(m::WidgetStylesModel, f::Frame)
     # Description
     desc_area = rows[6]
     if desc_area.height >= 2
-        set_string!(buf, desc_area.x + 1, desc_area.y + 1,
+        set_string!(
+            buf,
+            desc_area.x + 1,
+            desc_area.y + 1,
             "Widget styles use type-parameterized dispatch: TabBarStyle{D<:TabDecoration}",
-            tstyle(:text_dim))
+            tstyle(:text_dim),
+        )
         if desc_area.height >= 3
-            set_string!(buf, desc_area.x + 1, desc_area.y + 2,
+            set_string!(
+                buf,
+                desc_area.x + 1,
+                desc_area.y + 2,
                 "Define your own struct MyStyle <: TabDecoration and _render_tabs! method",
-                tstyle(:text_dim))
+                tstyle(:text_dim),
+            )
         end
     end
 
     # Footer
-    render(StatusBar(
-        left=[Span("  [1-3]style [←→]tabs [↑↓]buttons [Space]press ", tstyle(:text_dim))],
-        right=[Span("[q/Esc]quit ", tstyle(:text_dim))],
-    ), rows[7], buf)
+    return render(
+        StatusBar(;
+            left=[Span("  [1-3]style [←→]tabs [↑↓]buttons [Space]press ", tstyle(:text_dim))],
+            right=[Span("[q/Esc]quit ", tstyle(:text_dim))],
+        ),
+        rows[7],
+        buf,
+    )
 end
 
 function widget_styles_demo()
-    app(WidgetStylesModel(); fps=30)
+    return app(WidgetStylesModel(); fps=30)
 end

@@ -31,16 +31,17 @@ bg_config() = BG_CONFIG[]
 
 function save_bg_config!()
     c = BG_CONFIG[]
-    @set_preferences!("bg_brightness" => c.brightness,
-                       "bg_saturation" => c.saturation,
-                       "bg_speed" => c.speed)
+    @set_preferences!(
+        "bg_brightness" => c.brightness, "bg_saturation" => c.saturation, "bg_speed" => c.speed
+    )
 end
 
 function load_bg_config!()
-    BG_CONFIG[] = BackgroundConfig(
+    return BG_CONFIG[] = BackgroundConfig(
         @load_preference("bg_brightness", 0.3),
         @load_preference("bg_saturation", 0.5),
-        @load_preference("bg_speed", 0.5))
+        @load_preference("bg_speed", 0.5)
+    )
 end
 
 # ── Color adjustment ─────────────────────────────────────────────────
@@ -48,7 +49,7 @@ end
 function desaturate(c::ColorRGB, amount::Float64)
     gray = 0.299 * Float64(c.r) + 0.587 * Float64(c.g) + 0.114 * Float64(c.b)
     t = clamp(amount, 0.0, 1.0)
-    ColorRGB(
+    return ColorRGB(
         round(UInt8, clamp(Float64(c.r) * (1 - t) + gray * t, 0, 255)),
         round(UInt8, clamp(Float64(c.g) * (1 - t) + gray * t, 0, 255)),
         round(UInt8, clamp(Float64(c.b) * (1 - t) + gray * t, 0, 255)),
@@ -57,17 +58,17 @@ end
 
 function desaturate(c::ColorRGBA, amount::Float64)
     rgb = desaturate(ColorRGB(c), amount)
-    ColorRGBA(rgb, c.a)
+    return ColorRGBA(rgb, c.a)
 end
 
 function _apply_bg_adjustments(c::ColorRGB, brightness::Float64, saturation::Float64)
     c = desaturate(c, 1.0 - saturation)
-    dim_color(c, 1.0 - brightness)
+    return dim_color(c, 1.0 - brightness)
 end
 
 function _apply_bg_adjustments(c::ColorRGBA, brightness::Float64, saturation::Float64)
     rgb = _apply_bg_adjustments(ColorRGB(c), brightness, saturation)
-    ColorRGBA(rgb, c.a)
+    return ColorRGBA(rgb, c.a)
 end
 
 # ── Public API ────────────────────────────────────────────────────────
@@ -85,13 +86,18 @@ background in cells they touch.
 - `saturation` (0–1): color saturation (0 = grayscale)
 - `speed` (>0): animation speed multiplier applied to `tick`
 """
-function render_background!(bg::Background, buf::Buffer, area::Rect, tick::Int;
-                            brightness::Float64=bg_config().brightness,
-                            saturation::Float64=bg_config().saturation,
-                            speed::Float64=bg_config().speed)
+function render_background!(
+    bg::Background,
+    buf::Buffer,
+    area::Rect,
+    tick::Int;
+    brightness::Float64=bg_config().brightness,
+    saturation::Float64=bg_config().saturation,
+    speed::Float64=bg_config().speed,
+)
     scaled_tick = round(Int, Float64(tick) * speed)
     color_fn = c -> _apply_bg_adjustments(c, brightness, saturation)
-    _render_bg!(bg, buf, area, scaled_tick, color_fn)
+    return _render_bg!(bg, buf, area, scaled_tick, color_fn)
 end
 
 # Fallback — subtypes override _render_bg!
@@ -107,14 +113,15 @@ struct DotWaveBackground <: Background
     cam_height::Float64
 end
 
-DotWaveBackground(; preset::Int=1, amplitude::Float64=3.0, cam_height::Float64=6.0) =
-    DotWaveBackground(preset, amplitude, cam_height)
+function DotWaveBackground(; preset::Int=1, amplitude::Float64=3.0, cam_height::Float64=6.0)
+    return DotWaveBackground(preset, amplitude, cam_height)
+end
 
-function _render_bg!(bg::DotWaveBackground, buf::Buffer, area::Rect,
-                     tick::Int, color_fn::Function)
+function _render_bg!(bg::DotWaveBackground, buf::Buffer, area::Rect, tick::Int, color_fn::Function)
     preset = DOTWAVE_PRESETS[clamp(bg.preset_idx, 1, length(DOTWAVE_PRESETS))]
-    _render_dotwave_terrain!(buf, area, tick, preset, bg.amplitude,
-                              bg.cam_height, 1.0; color_transform=color_fn)
+    return _render_dotwave_terrain!(
+        buf, area, tick, preset, bg.amplitude, bg.cam_height, 1.0; color_transform=color_fn
+    )
 end
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -129,14 +136,14 @@ end
 function PhyloTreeBackground(; preset::Int=1)
     idx = clamp(preset, 1, length(PHYLO_PRESETS))
     tree = _generate_phylo_tree(PHYLO_PRESETS[idx])
-    PhyloTreeBackground(idx, tree)
+    return PhyloTreeBackground(idx, tree)
 end
 
-function _render_bg!(bg::PhyloTreeBackground, buf::Buffer, area::Rect,
-                     tick::Int, color_fn::Function)
+function _render_bg!(
+    bg::PhyloTreeBackground, buf::Buffer, area::Rect, tick::Int, color_fn::Function
+)
     preset = PHYLO_PRESETS[clamp(bg.preset_idx, 1, length(PHYLO_PRESETS))]
-    _render_phylo_tree!(buf, area, tick, bg.tree, preset;
-                         color_transform=color_fn)
+    return _render_phylo_tree!(buf, area, tick, bg.tree, preset; color_transform=color_fn)
 end
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -151,12 +158,12 @@ end
 function CladogramBackground(; preset::Int=1)
     idx = clamp(preset, 1, length(CLADO_PRESETS))
     tree = _generate_clado_tree(CLADO_PRESETS[idx])
-    CladogramBackground(idx, tree)
+    return CladogramBackground(idx, tree)
 end
 
-function _render_bg!(bg::CladogramBackground, buf::Buffer, area::Rect,
-                     tick::Int, color_fn::Function)
+function _render_bg!(
+    bg::CladogramBackground, buf::Buffer, area::Rect, tick::Int, color_fn::Function
+)
     preset = CLADO_PRESETS[clamp(bg.preset_idx, 1, length(CLADO_PRESETS))]
-    _render_clado_tree!(buf, area, tick, bg.tree, preset;
-                         color_transform=color_fn)
+    return _render_clado_tree!(buf, area, tick, bg.tree, preset; color_transform=color_fn)
 end

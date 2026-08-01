@@ -14,7 +14,6 @@
 
 using Dates
 
-
 # ── Live recording control ───────────────────────────────────────────
 
 const RECORDING_COUNTDOWN = 5.0  # seconds before capture begins
@@ -26,8 +25,7 @@ const RECORDING_COUNTDOWN = 5.0  # seconds before capture begins
 Begin a live recording session. A 5-second countdown runs first so the
 "Recording in N..." notification disappears before frames are captured.
 """
-function start_recording!(rec::CastRecorder, width::Int, height::Int;
-                          filename::String="")
+function start_recording!(rec::CastRecorder, width::Int, height::Int; filename::String="")
     if isempty(filename)
         # Default: timestamped file in current directory
         ts = Dates.format(Dates.now(), "yyyy-mm-dd_HHMMSS")
@@ -42,7 +40,7 @@ function start_recording!(rec::CastRecorder, width::Int, height::Int;
     empty!(rec.timestamps)
     empty!(rec.cell_snapshots)
     empty!(rec.pixel_snapshots)
-    nothing
+    return nothing
 end
 
 """
@@ -55,9 +53,10 @@ after export is complete to free memory.
 function stop_recording!(rec::CastRecorder)
     rec.active = false
     isempty(rec.cell_snapshots) && return rec.filename
-    write_tach(rec.filename, rec.width, rec.height,
-               rec.cell_snapshots, rec.timestamps, rec.pixel_snapshots)
-    rec.filename
+    write_tach(
+        rec.filename, rec.width, rec.height, rec.cell_snapshots, rec.timestamps, rec.pixel_snapshots
+    )
+    return rec.filename
 end
 
 """
@@ -70,7 +69,7 @@ function clear_recording!(rec::CastRecorder)
     empty!(rec.timestamps)
     empty!(rec.cell_snapshots)
     empty!(rec.pixel_snapshots)
-    nothing
+    return nothing
 end
 
 """
@@ -85,10 +84,15 @@ the .tach format stores cell snapshots directly, and export formats
 During the countdown period, frames are skipped so UI notifications
 (like the countdown itself) don't appear in the recording.
 """
-function capture_frame!(rec::CastRecorder, buf::Buffer, width::Int, height::Int;
-                        gfx_regions::Vector{GraphicsRegion}=GraphicsRegion[],
-                        pixel_snapshots::Vector{PixelSnapshot}=PixelSnapshot[])
-    rec.active || return
+function capture_frame!(
+    rec::CastRecorder,
+    buf::Buffer,
+    width::Int,
+    height::Int;
+    gfx_regions::Vector{GraphicsRegion}=GraphicsRegion[],
+    pixel_snapshots::Vector{PixelSnapshot}=PixelSnapshot[],
+)
+    rec.active || return nothing
     # During countdown, tick elapsed time but don't capture
     if rec.countdown > 0.0
         rec.countdown = max(0.0, RECORDING_COUNTDOWN - (time() - rec.start_time))
@@ -96,16 +100,21 @@ function capture_frame!(rec::CastRecorder, buf::Buffer, width::Int, height::Int;
             # Countdown just finished — reset start_time so timestamps begin at 0
             rec.start_time = time()
         end
-        return
+        return nothing
     end
     push!(rec.timestamps, time() - rec.start_time)
     push!(rec.cell_snapshots, copy(buf.content))
     # Pixel data for graphics regions (copy matrices so originals can mutate)
-    push!(rec.pixel_snapshots, isempty(pixel_snapshots) ? PixelSnapshot[] :
-        [(r, c, copy(px)) for (r, c, px) in pixel_snapshots])
-    nothing
+    push!(
+        rec.pixel_snapshots,
+        if isempty(pixel_snapshots)
+            PixelSnapshot[]
+        else
+            [(r, c, copy(px)) for (r, c, px) in pixel_snapshots]
+        end,
+    )
+    return nothing
 end
-
 
 # ── Headless recording ───────────────────────────────────────────────
 
@@ -126,12 +135,17 @@ record_app(DashboardModel(), "dashboard.tach";
            width=80, height=24, frames=180, fps=15)
 ```
 """
-function record_app(model::Model, filename::String;
-                    width::Int=80, height::Int=24,
-                    frames::Int=120, fps::Int=30,
-                    events::Vector{<:Tuple}=Tuple{Int,Event}[],
-                    realtime::Bool=false,
-                    warmup::Int=0)
+function record_app(
+    model::Model,
+    filename::String;
+    width::Int=80,
+    height::Int=24,
+    frames::Int=120,
+    fps::Int=30,
+    events::Vector{<:Tuple}=Tuple{Int,Event}[],
+    realtime::Bool=false,
+    warmup::Int=0,
+)
     tb = TestBackend(width, height)
     buf = tb.buf
     area = Rect(1, 1, width, height)
@@ -185,15 +199,21 @@ function record_app(model::Model, filename::String;
         tq = task_queue(model)
         if tq !== nothing
             drain_tasks!(tq) do tevt
-                update!(model, tevt)
+                return update!(model, tevt)
             end
         end
 
         # Only capture after warmup
         if capture_num > 0
             push!(cell_snapshots, copy(buf.content))
-            push!(pixel_snapshots, isempty(f.pixel_snapshots) ? PixelSnapshot[] :
-                [(r, c, copy(px)) for (r, c, px) in f.pixel_snapshots])
+            push!(
+                pixel_snapshots,
+                if isempty(f.pixel_snapshots)
+                    PixelSnapshot[]
+                else
+                    [(r, c, copy(px)) for (r, c, px) in f.pixel_snapshots]
+                end,
+            )
             push!(timestamps, t)
             t += dt
 
@@ -202,7 +222,7 @@ function record_app(model::Model, filename::String;
     end
 
     write_tach(filename, width, height, cell_snapshots, timestamps, pixel_snapshots)
-    filename
+    return filename
 end
 
 """
@@ -227,9 +247,9 @@ end
 """
 function record_gif end
 
-function record_widget(func::Function, filename::String,
-                       width::Int, height::Int, num_frames::Int;
-                       fps::Int=10)
+function record_widget(
+    func::Function, filename::String, width::Int, height::Int, num_frames::Int; fps::Int=10
+)
     tb = TestBackend(width, height)
     buf = tb.buf
     area = Rect(1, 1, width, height)
@@ -249,12 +269,18 @@ function record_widget(func::Function, filename::String,
             func(buf, area, i)
         end
         push!(cell_snapshots, copy(buf.content))
-        push!(pixel_snapshots, isempty(f.pixel_snapshots) ? PixelSnapshot[] :
-            [(r, c, copy(px)) for (r, c, px) in f.pixel_snapshots])
+        push!(
+            pixel_snapshots,
+            if isempty(f.pixel_snapshots)
+                PixelSnapshot[]
+            else
+                [(r, c, copy(px)) for (r, c, px) in f.pixel_snapshots]
+            end,
+        )
         push!(timestamps, t)
         t += dt
     end
 
     write_tach(filename, width, height, cell_snapshots, timestamps, pixel_snapshots)
-    filename
+    return filename
 end

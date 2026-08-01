@@ -28,8 +28,10 @@ via `PRAGMA table_info` to determine column names and types.
 - `sortable::Bool=true`: whether columns are sortable by default
 - `default_order::String=""`: SQL ORDER BY clause used when no user sort is active (e.g. `"timestamp DESC"`)
 """
-function SQLitePagedProvider(db::SQLite.DB, table_name::String;
-    columns::Union{Vector{PagedColumn}, Nothing}=nothing,
+function SQLitePagedProvider(
+    db::SQLite.DB,
+    table_name::String;
+    columns::Union{Vector{PagedColumn},Nothing}=nothing,
     filterable::Bool=true,
     sortable::Bool=true,
     default_order::String="",
@@ -56,21 +58,26 @@ function SQLitePagedProvider(db::SQLite.DB, table_name::String;
     cols = columns !== nothing ? columns : auto_columns
 
     # Register REGEXP function for regex support
-    SQLite.register(db, (pat, val) -> begin
-        val === missing && return false
-        try
-            occursin(Regex(string(pat), "i"), string(val))
-        catch
-            false
-        end
-    end, nargs=2, name="REGEXP")
+    SQLite.register(
+        db,
+        (pat, val) -> begin
+            val === missing && return false
+            try
+                occursin(Regex(string(pat), "i"), string(val))
+            catch
+                false
+            end
+        end;
+        nargs=2,
+        name="REGEXP",
+    )
 
     # Capabilities: include regex since REGEXP is registered
     text_ops = [filter_contains, filter_eq, filter_neq, filter_regex]
     numeric_ops = [filter_eq, filter_neq, filter_gt, filter_gte, filter_lt, filter_lte]
     caps = FilterCapabilities(text_ops, numeric_ops)
 
-    SQLitePagedProvider(db, table_name, cols, db_col_names, caps, default_order)
+    return SQLitePagedProvider(db, table_name, cols, db_col_names, caps, default_order)
 end
 
 Tachikoma.column_defs(p::SQLitePagedProvider) = p.columns
@@ -133,12 +140,17 @@ function Tachikoma.fetch_page(p::SQLitePagedProvider, req::PageRequest)
 
     # COUNT query
     count_params = copy(params)
-    total = first(DBInterface.execute(p.db,
-        "SELECT COUNT(*) FROM \"$(p.table_name)\"$where_sql", count_params))[1]
+    total = first(
+        DBInterface.execute(
+            p.db, "SELECT COUNT(*) FROM \"$(p.table_name)\"$where_sql", count_params
+        ),
+    )[1]
 
     # ORDER BY: user sort takes priority; fall back to default_order if set
     order_sql = ""
-    if req.sort_col > 0 && req.sort_col <= length(p.db_col_names) && req.sort_dir != Tachikoma.sort_none
+    if req.sort_col > 0 &&
+        req.sort_col <= length(p.db_col_names) &&
+        req.sort_dir != Tachikoma.sort_none
         dir = req.sort_dir == Tachikoma.sort_asc ? "ASC" : "DESC"
         order_sql = " ORDER BY \"$(p.db_col_names[req.sort_col])\" $dir"
     elseif !isempty(p.default_order)
@@ -160,12 +172,12 @@ function Tachikoma.fetch_page(p::SQLitePagedProvider, req::PageRequest)
         push!(rows, row)
     end
 
-    PageResult(rows, total)
+    return PageResult(rows, total)
 end
 
 function __init__()
-    Tachikoma.Paged._create_sqlite_provider[] = (db, table_name; kwargs...) ->
-        SQLitePagedProvider(db, table_name; kwargs...)
+    Tachikoma.Paged._create_sqlite_provider[] =
+        (db, table_name; kwargs...) -> SQLitePagedProvider(db, table_name; kwargs...)
     @debug "Tachikoma: SQLite database provider enabled"
 end
 

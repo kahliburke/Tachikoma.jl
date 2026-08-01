@@ -6,7 +6,7 @@
 # Supports 0-9, A-Z, colon, period, dash, space.
 # ═══════════════════════════════════════════════════════════════════════
 
-const BIGTEXT_GLYPHS = Dict{Char, NTuple{5, String}}(
+const BIGTEXT_GLYPHS = Dict{Char,NTuple{5,String}}(
     '0' => ("███", "█ █", "█ █", "█ █", "███"),
     '1' => (" █ ", "██ ", " █ ", " █ ", "███"),
     '2' => ("███", "  █", "███", "█  ", "███"),
@@ -60,26 +60,22 @@ struct BigText
     text::String
     style::Style
     fill_char::Char            # character used for filled pixels
-    style_fn::Union{Nothing, Function}  # (x, y) -> Style, overrides style if set
+    style_fn::Union{Nothing,Function}  # (x, y) -> Style, overrides style if set
 end
 
-function BigText(text::String;
-    style=tstyle(:primary, bold=true),
-    fill_char='█',
-    style_fn=nothing,
-)
-    BigText(uppercase(text), style, fill_char, style_fn)
+function BigText(text::String; style=tstyle(:primary; bold=true), fill_char=('█'), style_fn=nothing)
+    return BigText(uppercase(text), style, fill_char, style_fn)
 end
 
 """Return (width, height) in terminal cells for this BigText widget."""
 function intrinsic_size(bt::BigText)
     n = length(bt.text)
     w = n == 0 ? 0 : n * (BIGTEXT_GLYPH_W + BIGTEXT_GAP) - BIGTEXT_GAP
-    (w, BIGTEXT_GLYPH_H)
+    return (w, BIGTEXT_GLYPH_H)
 end
 
 function render(bt::BigText, rect::Rect, buf::Buffer)
-    (rect.width < 1 || rect.height < BIGTEXT_GLYPH_H) && return
+    (rect.width < 1 || rect.height < BIGTEXT_GLYPH_H) && return nothing
 
     cx = rect.x
     for ch in bt.text

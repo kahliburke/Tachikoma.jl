@@ -14,7 +14,7 @@ mutable struct Modal
     confirm_style::Style           # when selected
     cancel_style::Style            # when selected
     dim_style::Style               # unselected button
-    tick::Union{Int, Nothing}
+    tick::Union{Int,Nothing}
     # Cached button hit areas (set during render)
     _cancel_rect::Rect
     _confirm_rect::Rect
@@ -26,24 +26,36 @@ function Modal(;
     confirm_label="OK",
     cancel_label="Cancel",
     selected=:cancel,
-    border_style=tstyle(:warning, bold=true),
-    title_style=tstyle(:warning, bold=true),
+    border_style=tstyle(:warning; bold=true),
+    title_style=tstyle(:warning; bold=true),
     text_style=tstyle(:text),
-    confirm_style=tstyle(:error, bold=true),
-    cancel_style=tstyle(:text_bright, bold=true),
+    confirm_style=tstyle(:error; bold=true),
+    cancel_style=tstyle(:text_bright; bold=true),
     dim_style=tstyle(:text_dim),
     tick=nothing,
 )
-    Modal(title, message, confirm_label, cancel_label, selected,
-          border_style, title_style, text_style,
-          confirm_style, cancel_style, dim_style, tick,
-          Rect(), Rect())
+    return Modal(
+        title,
+        message,
+        confirm_label,
+        cancel_label,
+        selected,
+        border_style,
+        title_style,
+        text_style,
+        confirm_style,
+        cancel_style,
+        dim_style,
+        tick,
+        Rect(),
+        Rect(),
+    )
 end
 
 focusable(::Modal) = true
 
 function render(modal::Modal, area::Rect, buf::Buffer)
-    (area.width < 10 || area.height < 5) && return
+    (area.width < 10 || area.height < 5) && return nothing
 
     # Parse message lines
     lines = Base.split(modal.message, '\n')
@@ -71,16 +83,16 @@ function render(modal::Modal, area::Rect, buf::Buffer)
 
     # Draw border — shimmer if tick is provided
     if modal.tick !== nothing && animations_enabled()
-        border_shimmer!(buf, modal_rect, modal.border_style.fg,
-                        modal.tick; box=BOX_HEAVY, intensity=0.12)
+        border_shimmer!(
+            buf, modal_rect, modal.border_style.fg, modal.tick; box=BOX_HEAVY, intensity=0.12
+        )
         # Title
         if !isempty(modal.title) && modal_rect.width > 4
-            set_string!(buf, modal_rect.x + 2, modal_rect.y,
-                        " $(modal.title) ", modal.title_style)
+            set_string!(buf, modal_rect.x + 2, modal_rect.y, " $(modal.title) ", modal.title_style)
         end
-        content = inner_area(Block(box=BOX_HEAVY), modal_rect)
+        content = inner_area(Block(; box=BOX_HEAVY), modal_rect)
     else
-        block = Block(
+        block = Block(;
             title="$(modal.title)",
             border_style=modal.border_style,
             title_style=modal.title_style,
@@ -88,7 +100,7 @@ function render(modal::Modal, area::Rect, buf::Buffer)
         )
         content = render(block, modal_rect, buf)
     end
-    (content.width < 1 || content.height < 1) && return
+    (content.width < 1 || content.height < 1) && return nothing
 
     # Clear interior
     for row in content.y:bottom(content)
@@ -108,11 +120,11 @@ function render(modal::Modal, area::Rect, buf::Buffer)
 
     # Render buttons at bottom
     btn_y = bottom(content) - 1
-    btn_y <= msg_y && return
+    btn_y <= msg_y && return nothing
 
     has_cancel = !isempty(modal.cancel_label)
     has_confirm = !isempty(modal.confirm_label)
-    (!has_cancel && !has_confirm) && return
+    (!has_cancel && !has_confirm) && return nothing
 
     cancel_str = has_cancel ? "[ $(modal.cancel_label) ]" : ""
     confirm_str = has_confirm ? "[ $(modal.confirm_label) ]" : ""
@@ -128,10 +140,10 @@ function render(modal::Modal, area::Rect, buf::Buffer)
         p = pulse(modal.tick; period=60, lo=0.0, hi=0.3)
         if modal.selected == :cancel && has_cancel
             fg = brighten(to_rgb(cancel_s.fg), p)
-            cancel_s = Style(fg=fg, bold=true)
+            cancel_s = Style(; fg=fg, bold=true)
         elseif modal.selected == :confirm && has_confirm
             fg = brighten(to_rgb(confirm_s.fg), p)
-            confirm_s = Style(fg=fg, bold=true)
+            confirm_s = Style(; fg=fg, bold=true)
         end
     end
 
@@ -172,7 +184,7 @@ function handle_key!(modal::Modal, evt::KeyEvent)
     elseif evt.key == :escape
         return :cancel
     end
-    false
+    return false
 end
 
 # ── Mouse handling ───────────────────────────────────────────────────
@@ -204,5 +216,5 @@ function handle_mouse!(modal::Modal, evt::MouseEvent)
             return :none
         end
     end
-    false
+    return false
 end

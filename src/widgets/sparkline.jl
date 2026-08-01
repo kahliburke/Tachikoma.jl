@@ -4,18 +4,13 @@
 
 struct Sparkline
     data::Vector{Float64}
-    block::Union{Block, Nothing}
+    block::Union{Block,Nothing}
     style::Style
-    max_val::Union{Float64, Nothing}  # nothing = auto-scale
+    max_val::Union{Float64,Nothing}  # nothing = auto-scale
 end
 
-function Sparkline(data::Vector{<:Real};
-    block=nothing,
-    style=tstyle(:primary),
-    max_val=nothing,
-)
-    Sparkline(Float64.(data), block, style,
-              max_val === nothing ? nothing : Float64(max_val))
+function Sparkline(data::Vector{<:Real}; block=nothing, style=tstyle(:primary), max_val=nothing)
+    return Sparkline(Float64.(data), block, style, max_val === nothing ? nothing : Float64(max_val))
 end
 
 function render(sp::Sparkline, rect::Rect, buf::Buffer)
@@ -24,9 +19,9 @@ function render(sp::Sparkline, rect::Rect, buf::Buffer)
     else
         rect
     end
-    (content.width < 1 || content.height < 1) && return
+    (content.width < 1 || content.height < 1) && return nothing
 
-    isempty(sp.data) && return
+    isempty(sp.data) && return nothing
 
     w = content.width
     h = content.height
@@ -36,8 +31,7 @@ function render(sp::Sparkline, rect::Rect, buf::Buffer)
     start = max(1, n - w + 1)
     visible = sp.data[start:n]
 
-    mx = sp.max_val !== nothing ? sp.max_val :
-         maximum(visible; init=1.0)
+    mx = sp.max_val !== nothing ? sp.max_val : maximum(visible; init=1.0)
     mx = mx <= 0.0 ? 1.0 : mx
 
     for (i, val) in enumerate(visible)

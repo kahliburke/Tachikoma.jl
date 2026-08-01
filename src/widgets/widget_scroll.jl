@@ -8,7 +8,7 @@ mutable struct WidgetScroll
     virtual_height::Int      # total height of the widget content
     offset_x::Int            # horizontal scroll offset (0-based)
     offset_y::Int            # vertical scroll offset (0-based)
-    block::Union{Block, Nothing}
+    block::Union{Block,Nothing}
     show_vertical_scrollbar::Bool
     show_horizontal_scrollbar::Bool
     dragging::Bool           # currently drag-panning
@@ -17,15 +17,34 @@ mutable struct WidgetScroll
     drag_start_ox::Int       # offset_x at drag start
     drag_start_oy::Int       # offset_y at drag start
     _last_area::Rect         # cached for mouse hit testing
-    _virt_buf::Union{Buffer, Nothing}  # cached virtual buffer (reused across frames)
+    _virt_buf::Union{Buffer,Nothing}  # cached virtual buffer (reused across frames)
 end
 
-function WidgetScroll(widget; virtual_width::Int=0, virtual_height::Int=100,
-                      block=nothing, show_vertical_scrollbar::Bool=true,
-                      show_horizontal_scrollbar::Bool=false)
-    WidgetScroll(widget, virtual_width, virtual_height, 0, 0,
-                 block, show_vertical_scrollbar, show_horizontal_scrollbar,
-                 false, 0, 0, 0, 0, Rect(), nothing)
+function WidgetScroll(
+    widget;
+    virtual_width::Int=0,
+    virtual_height::Int=100,
+    block=nothing,
+    show_vertical_scrollbar::Bool=true,
+    show_horizontal_scrollbar::Bool=false,
+)
+    return WidgetScroll(
+        widget,
+        virtual_width,
+        virtual_height,
+        0,
+        0,
+        block,
+        show_vertical_scrollbar,
+        show_horizontal_scrollbar,
+        false,
+        0,
+        0,
+        0,
+        0,
+        Rect(),
+        nothing,
+    )
 end
 
 focusable(::WidgetScroll) = true
@@ -37,7 +56,7 @@ function _scroll_needs(ws::WidgetScroll, area::Rect)
     need_v = ws.show_vertical_scrollbar && (ws.virtual_height > area.height)
     need_h = ws.show_horizontal_scrollbar && (vw > area.width)
     content_h = area.height - (need_h ? 1 : 0)
-    content_w = area.width  - (need_v ? 1 : 0)
+    content_w = area.width - (need_v ? 1 : 0)
     max_oy = max(0, ws.virtual_height - content_h)
     max_ox = max(0, vw - content_w)
     return need_v, need_h, content_h, content_w, max_oy, max_ox, vw
@@ -46,21 +65,30 @@ end
 function handle_key!(ws::WidgetScroll, evt::KeyEvent)::Bool
     _, _, _, _, max_oy, max_ox, _ = _scroll_needs(ws, ws._last_area)
     if evt.key == :up
-        ws.offset_y = max(0, ws.offset_y - 1); return true
+        ws.offset_y = max(0, ws.offset_y - 1)
+        return true
     elseif evt.key == :down
-        ws.offset_y = min(max_oy, ws.offset_y + 1); return true
+        ws.offset_y = min(max_oy, ws.offset_y + 1)
+        return true
     elseif evt.key == :left
-        ws.offset_x = max(0, ws.offset_x - 2); return true
+        ws.offset_x = max(0, ws.offset_x - 2)
+        return true
     elseif evt.key == :right
-        ws.offset_x = min(max_ox, ws.offset_x + 2); return true
+        ws.offset_x = min(max_ox, ws.offset_x + 2)
+        return true
     elseif evt.key == :pageup
-        ws.offset_y = max(0, ws.offset_y - 10); return true
+        ws.offset_y = max(0, ws.offset_y - 10)
+        return true
     elseif evt.key == :pagedown
-        ws.offset_y = min(max_oy, ws.offset_y + 10); return true
+        ws.offset_y = min(max_oy, ws.offset_y + 10)
+        return true
     elseif evt.key == :home
-        ws.offset_x = 0; ws.offset_y = 0; return true
+        ws.offset_x = 0
+        ws.offset_y = 0
+        return true
     elseif evt.key == :end_key
-        ws.offset_y = max_oy; return true
+        ws.offset_y = max_oy
+        return true
     end
     # Forward to inner widget
     focusable(ws.widget) && return handle_key!(ws.widget, evt)
@@ -107,9 +135,8 @@ function handle_mouse!(ws::WidgetScroll, evt::MouseEvent)::Symbol
         end
     end
 
-    :none
+    return :none
 end
-
 
 function render(ws::WidgetScroll, rect::Rect, buf::Buffer)
     inner = if ws.block !== nothing
@@ -117,15 +144,14 @@ function render(ws::WidgetScroll, rect::Rect, buf::Buffer)
     else
         rect
     end
-    inner.width < 2 && return
+    inner.width < 2 && return nothing
     ws._last_area = inner
 
     # Virtual dimensions
     vh = max(ws.virtual_height, inner.height)
     vw = ws.virtual_width > 0 ? max(ws.virtual_width, inner.width) : inner.width
 
-    need_v, need_h, content_h, content_w, max_oy, max_ox, _ =
-        _scroll_needs(ws, inner)
+    need_v, need_h, content_h, content_w, max_oy, max_ox, _ = _scroll_needs(ws, inner)
 
     virt_rect = Rect(1, 1, vw, vh)
 
@@ -168,7 +194,7 @@ function render(ws::WidgetScroll, rect::Rect, buf::Buffer)
         for dy in 0:(content_h - 1)
             y = inner.y + dy
             in_thumb = dy >= bar_pos && dy < bar_pos + bar_h
-            st = in_thumb ? tstyle(:border) : tstyle(:border, dim=true)
+            st = in_thumb ? tstyle(:border) : tstyle(:border; dim=true)
             set_char!(buf, sb_x, y, '█', st)
         end
     end
@@ -181,7 +207,7 @@ function render(ws::WidgetScroll, rect::Rect, buf::Buffer)
         for dx in 0:(content_w - 1)
             x = inner.x + dx
             in_thumb = dx >= bar_pos && dx < bar_pos + bar_w
-            st = in_thumb ? tstyle(:border) : tstyle(:border, dim=true)
+            st = in_thumb ? tstyle(:border) : tstyle(:border; dim=true)
             set_char!(buf, x, sb_y, '🬋', st)
         end
     end

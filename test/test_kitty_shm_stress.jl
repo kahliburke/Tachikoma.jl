@@ -19,8 +19,7 @@
 # ═══════════════════════════════════════════════════════════════════════
 
 using Tachikoma
-using Tachikoma: _KITTY_SHM_CURRENT, _KITTY_SHM_PREVIOUS, _KITTY_SHM_COUNTER,
-                 encode_kitty, ColorRGB
+using Tachikoma: _KITTY_SHM_CURRENT, _KITTY_SHM_PREVIOUS, _KITTY_SHM_COUNTER, encode_kitty, ColorRGB
 
 @enum StressMode mode_pixel mode_raw
 
@@ -29,7 +28,7 @@ using Tachikoma: _KITTY_SHM_CURRENT, _KITTY_SHM_PREVIOUS, _KITTY_SHM_COUNTER,
     tick::Int = 0
     n_widgets::Int = 4
     mode::StressMode = mode_pixel
-    imgs::Vector{Union{PixelImage, Nothing}} = Union{PixelImage, Nothing}[]
+    imgs::Vector{Union{PixelImage,Nothing}} = Union{PixelImage,Nothing}[]
 end
 
 Tachikoma.should_quit(m::ShmStressModel) = m.quit
@@ -61,7 +60,7 @@ function _make_tile_pixels(idx::Int, tick::Int)
             pixels[py, px] = ColorRGB(r, g, b)
         end
     end
-    pixels
+    return pixels
 end
 
 function _draw_panel!(img::PixelImage, idx::Int, tick::Int)
@@ -139,20 +138,28 @@ function Tachikoma.view(m::ShmStressModel, f::Frame)
     area = f.area
 
     rows = split_layout(Layout(Vertical, [Fixed(2), Fill(), Fixed(1)]), area)
-    length(rows) < 3 && return
+    length(rows) < 3 && return nothing
     header_area, grid_area, footer_area = rows[1], rows[2], rows[3]
 
     n = m.n_widgets
     mode_label = m.mode == mode_pixel ? "pixel" : "raw"
     proto = graphics_protocol()
-    proto_label = proto == gfx_kitty ? "KITTY (shm)" :
-                  proto == gfx_sixel ? "SIXEL (no shm)" : "NONE (braille)"
+    proto_label = if proto == gfx_kitty
+        "KITTY (shm)"
+    elseif proto == gfx_sixel
+        "SIXEL (no shm)"
+    else
+        "NONE (braille)"
+    end
     label = "SHM Stress — $(mode_label) — $(n) widgets — $proto_label"
-    set_string!(buf, header_area.x + 1, header_area.y, label,
-                tstyle(:accent, bold=true))
-    set_string!(buf, header_area.x + 1, header_area.y + 1,
-                "[+] add  [-] remove  [Q/ESC] quit",
-                tstyle(:secondary))
+    set_string!(buf, header_area.x + 1, header_area.y, label, tstyle(:accent; bold=true))
+    set_string!(
+        buf,
+        header_area.x + 1,
+        header_area.y + 1,
+        "[+] add  [-] remove  [Q/ESC] quit",
+        tstyle(:secondary),
+    )
 
     if m.mode == mode_pixel
         _view_pixel!(m, f, grid_area)
@@ -165,7 +172,7 @@ function Tachikoma.view(m::ShmStressModel, f::Frame)
     n_prev = length(_KITTY_SHM_PREVIOUS)
     total = Int(_KITTY_SHM_COUNTER[])
     stats = "shm: current=$(n_cur) previous=$(n_prev) total_created=$(total)  frame=$(m.tick)"
-    set_string!(buf, footer_area.x + 1, footer_area.y, stats, tstyle(:secondary))
+    return set_string!(buf, footer_area.x + 1, footer_area.y, stats, tstyle(:secondary))
 end
 
 # Parse args: [pixel|raw] [N]
@@ -179,5 +186,5 @@ let mode = mode_pixel, n = 4
             n = parse(Int, arg)
         end
     end
-    app(ShmStressModel(n_widgets=n, mode=mode); fps=30)
+    app(ShmStressModel(; n_widgets=n, mode=mode); fps=30)
 end

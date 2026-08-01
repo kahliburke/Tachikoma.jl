@@ -5,18 +5,20 @@ using CommonMark
 
 # ── Public entry point ───────────────────────────────────────────────
 
-function Tachikoma.markdown_to_spans(md::AbstractString, width::Int;
-                                      h1_style::Tachikoma.Style = Tachikoma.Style(fg=Tachikoma.SKY.c400, bold=true),
-                                      h2_style::Tachikoma.Style = Tachikoma.Style(fg=Tachikoma.SKY.c500, bold=true),
-                                      h3_style::Tachikoma.Style = Tachikoma.Style(fg=Tachikoma.SKY.c600, bold=true),
-                                      bold_style::Tachikoma.Style = Tachikoma.Style(bold=true),
-                                      emph_style::Tachikoma.Style = Tachikoma.Style(dim=true),
-                                      code_style::Tachikoma.Style = Tachikoma.Style(fg=Tachikoma.GREEN.c400,
-                                                                                     bg=Tachikoma.SLATE.c800),
-                                      link_style::Tachikoma.Style = Tachikoma.Style(fg=Tachikoma.BLUE.c400),
-                                      quote_style::Tachikoma.Style = Tachikoma.Style(fg=Tachikoma.SLATE.c400),
-                                      text_style::Tachikoma.Style = Tachikoma.Style(fg=Tachikoma.SLATE.c200),
-                                      hr_style::Tachikoma.Style = Tachikoma.Style(fg=Tachikoma.SLATE.c600))
+function Tachikoma.markdown_to_spans(
+    md::AbstractString,
+    width::Int;
+    h1_style::Tachikoma.Style=Tachikoma.Style(; fg=Tachikoma.SKY.c400, bold=true),
+    h2_style::Tachikoma.Style=Tachikoma.Style(; fg=Tachikoma.SKY.c500, bold=true),
+    h3_style::Tachikoma.Style=Tachikoma.Style(; fg=Tachikoma.SKY.c600, bold=true),
+    bold_style::Tachikoma.Style=Tachikoma.Style(; bold=true),
+    emph_style::Tachikoma.Style=Tachikoma.Style(; dim=true),
+    code_style::Tachikoma.Style=Tachikoma.Style(; fg=Tachikoma.GREEN.c400, bg=Tachikoma.SLATE.c800),
+    link_style::Tachikoma.Style=Tachikoma.Style(; fg=Tachikoma.BLUE.c400),
+    quote_style::Tachikoma.Style=Tachikoma.Style(; fg=Tachikoma.SLATE.c400),
+    text_style::Tachikoma.Style=Tachikoma.Style(; fg=Tachikoma.SLATE.c200),
+    hr_style::Tachikoma.Style=Tachikoma.Style(; fg=Tachikoma.SLATE.c600),
+)
     width < 1 && return [Tachikoma.Span[]]
     parser = CommonMark.Parser()
     CommonMark.enable!(parser, CommonMark.TableRule())
@@ -24,15 +26,25 @@ function Tachikoma.markdown_to_spans(md::AbstractString, width::Int;
         CommonMark.enable!(parser, CommonMark.TaskListRule())
     end
     ast = parser(md)
-    ctx = WalkContext(width, h1_style, h2_style, h3_style,
-                      bold_style, emph_style, code_style, link_style,
-                      quote_style, text_style, hr_style)
+    ctx = WalkContext(
+        width,
+        h1_style,
+        h2_style,
+        h3_style,
+        bold_style,
+        emph_style,
+        code_style,
+        link_style,
+        quote_style,
+        text_style,
+        hr_style,
+    )
     _walk_blocks!(ctx, ast)
     # Remove trailing blank line if present
     while !isempty(ctx.lines) && _is_blank_line(ctx.lines[end])
         pop!(ctx.lines)
     end
-    isempty(ctx.lines) ? [Tachikoma.Span[]] : ctx.lines
+    return isempty(ctx.lines) ? [Tachikoma.Span[]] : ctx.lines
 end
 
 # ── Context ──────────────────────────────────────────────────────────
@@ -55,8 +67,22 @@ struct WalkContext
 end
 
 function WalkContext(width, h1, h2, h3, bold, emph, code, link, quote_s, text, hr)
-    WalkContext(width, h1, h2, h3, bold, emph, code, link, quote_s, text, hr,
-                Vector{Tachikoma.Span}[], String[], Tachikoma.Style[])
+    return WalkContext(
+        width,
+        h1,
+        h2,
+        h3,
+        bold,
+        emph,
+        code,
+        link,
+        quote_s,
+        text,
+        hr,
+        Vector{Tachikoma.Span}[],
+        String[],
+        Tachikoma.Style[],
+    )
 end
 
 _current_prefix(ctx::WalkContext) = join(ctx.prefix)
@@ -68,15 +94,16 @@ function _push_line!(ctx::WalkContext, spans::Vector{Tachikoma.Span})
         pstyle = isempty(ctx.prefix_style) ? ctx.text : ctx.prefix_style[end]
         pushfirst!(spans, Tachikoma.Span(pfx, pstyle))
     end
-    push!(ctx.lines, spans)
+    return push!(ctx.lines, spans)
 end
 
 function _push_blank!(ctx::WalkContext)
-    _push_line!(ctx, Tachikoma.Span[])
+    return _push_line!(ctx, Tachikoma.Span[])
 end
 
-_is_blank_line(spans::Vector{Tachikoma.Span}) =
-    isempty(spans) || all(s -> isempty(strip(s.content)), spans)
+function _is_blank_line(spans::Vector{Tachikoma.Span})
+    return isempty(spans) || all(s -> isempty(strip(s.content)), spans)
+end
 
 # ── Block-level walker ───────────────────────────────────────────────
 
@@ -114,10 +141,16 @@ end
 
 function _handle_heading!(ctx::WalkContext, node)
     level = node.t.level
-    style = level == 1 ? ctx.h1 : level == 2 ? ctx.h2 : ctx.h3
+    style = if level == 1
+        ctx.h1
+    elseif level == 2
+        ctx.h2
+    else
+        ctx.h3
+    end
     spans = _collect_inlines(ctx, node, style)
     _push_line!(ctx, spans)
-    _push_blank!(ctx)
+    return _push_blank!(ctx)
 end
 
 # ── Paragraph ────────────────────────────────────────────────────────
@@ -129,7 +162,7 @@ function _handle_paragraph!(ctx::WalkContext, node)
     for line in wrapped
         _push_line!(ctx, line)
     end
-    _push_blank!(ctx)
+    return _push_blank!(ctx)
 end
 
 # ── CodeBlock ────────────────────────────────────────────────────────
@@ -139,36 +172,39 @@ end
 # Supported: Julia, Python, Shell, TypeScript/JavaScript.
 # Other languages fall back to uniform code_style.
 
-function _tokens_to_spans(chars::Vector{Char}, tokens::Vector{Tachikoma.Token},
-                           code_bg::Tachikoma.AbstractColor)
-    isempty(tokens) && return [Tachikoma.Span(String(chars), Tachikoma.Style(bg=code_bg))]
+function _tokens_to_spans(
+    chars::Vector{Char}, tokens::Vector{Tachikoma.Token}, code_bg::Tachikoma.AbstractColor
+)
+    isempty(tokens) && return [Tachikoma.Span(String(chars), Tachikoma.Style(; bg=code_bg))]
     spans = Tachikoma.Span[]
     pos = 1
     for tok in tokens
         if tok.start > pos
-            push!(spans, Tachikoma.Span(String(chars[pos:tok.start-1]),
-                                        Tachikoma.Style(bg=code_bg)))
+            push!(
+                spans,
+                Tachikoma.Span(String(chars[pos:(tok.start - 1)]), Tachikoma.Style(; bg=code_bg)),
+            )
         end
         ts = Tachikoma.token_style(tok.kind)
-        merged = Tachikoma.Style(fg=ts.fg, bg=code_bg,
-                                  bold=ts.bold, dim=ts.dim,
-                                  italic=ts.italic, underline=ts.underline)
+        merged = Tachikoma.Style(;
+            fg=ts.fg, bg=code_bg, bold=ts.bold, dim=ts.dim, italic=ts.italic, underline=ts.underline
+        )
         push!(spans, Tachikoma.Span(String(chars[tok.start:tok.stop]), merged))
         pos = tok.stop + 1
     end
     if pos <= length(chars)
-        push!(spans, Tachikoma.Span(String(chars[pos:end]),
-                                    Tachikoma.Style(bg=code_bg)))
+        push!(spans, Tachikoma.Span(String(chars[pos:end]), Tachikoma.Style(; bg=code_bg)))
     end
-    spans
+    return spans
 end
 
-function _highlight_code_line(line::AbstractString, code_bg::Tachikoma.AbstractColor,
-                               lang::AbstractString)
+function _highlight_code_line(
+    line::AbstractString, code_bg::Tachikoma.AbstractColor, lang::AbstractString
+)
     chars = collect(Char, line)
     tokens = Tachikoma.tokenize_code(lang, chars)
     tokens === nothing && return nothing
-    _tokens_to_spans(chars, tokens, code_bg)
+    return _tokens_to_spans(chars, tokens, code_bg)
 end
 
 function _handle_codeblock!(ctx::WalkContext, node)
@@ -186,7 +222,7 @@ function _handle_codeblock!(ctx::WalkContext, node)
             _push_line!(ctx, [Tachikoma.Span(string(line), ctx.code)])
         end
     end
-    _push_blank!(ctx)
+    return _push_blank!(ctx)
 end
 
 # ── BlockQuote ───────────────────────────────────────────────────────
@@ -196,7 +232,7 @@ function _handle_blockquote!(ctx::WalkContext, node)
     push!(ctx.prefix_style, ctx.quote_s)
     _walk_blocks!(ctx, node)
     pop!(ctx.prefix)
-    pop!(ctx.prefix_style)
+    return pop!(ctx.prefix_style)
 end
 
 # ── List ─────────────────────────────────────────────────────────────
@@ -260,7 +296,7 @@ end
 function _handle_hr!(ctx::WalkContext)
     avail = ctx.width - _current_prefix_len(ctx)
     _push_line!(ctx, [Tachikoma.Span("─"^max(1, avail), ctx.hr)])
-    _push_blank!(ctx)
+    return _push_blank!(ctx)
 end
 
 # ── Inline collector ─────────────────────────────────────────────────
@@ -306,13 +342,14 @@ function _collect_inlines(ctx::WalkContext, node, base_style::Tachikoma.Style)
             push!(spans, Tachikoma.Span(" ", style_stack[end]))
         end
     end
-    spans
+    return spans
 end
 
 # ── Word wrapper ─────────────────────────────────────────────────────
 
-function _wrap_spans(spans::Vector{Tachikoma.Span}, width::Int,
-                     space_style::Tachikoma.Style=Tachikoma.Style())
+function _wrap_spans(
+    spans::Vector{Tachikoma.Span}, width::Int, space_style::Tachikoma.Style=Tachikoma.Style()
+)
     width < 1 && return [spans]
     lines = Vector{Tachikoma.Span}[]
     current = Tachikoma.Span[]
@@ -366,7 +403,7 @@ function _wrap_spans(spans::Vector{Tachikoma.Span}, width::Int,
         end
     end
     !isempty(current) && push!(lines, current)
-    isempty(lines) ? [Tachikoma.Span[]] : lines
+    return isempty(lines) ? [Tachikoma.Span[]] : lines
 end
 
 function __init__()

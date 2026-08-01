@@ -86,16 +86,16 @@ function handle_resize!(rl::ResizableLayout, evt::MouseEvent)
         if evt.alt
             pane = _find_pane(rl, evt.x, evt.y)
             if pane > 0
-                rl.drag = DragState(drag_swap, 0, pos,
-                                    Int[], Constraint[], pane)
+                rl.drag = DragState(drag_swap, 0, pos, Int[], Constraint[], pane)
                 return true
             end
         end
 
         # Normal drag on border → resize
         if border > 0
-            rl.drag = DragState(drag_active, border, pos,
-                               _current_sizes(rl), copy(rl.constraints), 0)
+            rl.drag = DragState(
+                drag_active, border, pos, _current_sizes(rl), copy(rl.constraints), 0
+            )
             return true
         end
     end
@@ -104,7 +104,7 @@ function handle_resize!(rl::ResizableLayout, evt::MouseEvent)
 end
 
 function render_resize_handles!(buf::Buffer, rl::ResizableLayout)
-    isempty(rl.rects) && return
+    isempty(rl.rects) && return nothing
     active_idx = rl.drag.status == drag_active ? rl.drag.border_index : 0
 
     for i in 1:(length(rl.rects) - 1)
@@ -113,7 +113,7 @@ function render_resize_handles!(buf::Buffer, rl::ResizableLayout)
         (is_active || is_hover) || continue
 
         style = if is_active
-            tstyle(:primary, bold=true)
+            tstyle(:primary; bold=true)
         else
             tstyle(:accent)
         end
@@ -136,7 +136,7 @@ function render_resize_handles!(buf::Buffer, rl::ResizableLayout)
         src = rl.drag.source_pane
         if src <= length(rl.rects)
             r = rl.rects[src]
-            style = tstyle(:accent, bold=true)
+            style = tstyle(:accent; bold=true)
             for bx in r.x:right(r)
                 set_char!(buf, bx, r.y, '─', style)
                 set_char!(buf, bx, bottom(r), '─', style)
@@ -151,5 +151,5 @@ function render_resize_handles!(buf::Buffer, rl::ResizableLayout)
             set_char!(buf, right(r), bottom(r), '┘', style)
         end
     end
-    nothing
+    return nothing
 end

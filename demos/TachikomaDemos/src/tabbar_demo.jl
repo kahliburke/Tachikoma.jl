@@ -9,26 +9,26 @@
 # ═══════════════════════════════════════════════════════════════════════
 
 const _TABBAR_DEMO_COLORS = [
-    Style(fg=ColorRGB(0x5b, 0x9b, 0xd5)),  # steel blue
-    Style(fg=ColorRGB(0x6b, 0xb5, 0x8a)),  # sage green
-    Style(fg=ColorRGB(0xd4, 0x9a, 0x6a)),  # warm amber
-    Style(fg=ColorRGB(0x9b, 0x85, 0xc8)),  # soft purple
-    Style(fg=ColorRGB(0x5e, 0xb8, 0xb8)),  # teal
-    Style(fg=ColorRGB(0xc4, 0x7d, 0x7d)),  # muted rose
-    Style(fg=ColorRGB(0xd1, 0x8e, 0x54)),  # burnt orange
-    Style(fg=ColorRGB(0x7e, 0xa8, 0xd4)),  # sky blue
-    Style(fg=ColorRGB(0x8b, 0xb0, 0x6e)),  # olive green
-    Style(fg=ColorRGB(0xcc, 0x88, 0xaa)),  # dusty pink
-    Style(fg=ColorRGB(0x88, 0xcc, 0x99)),  # mint
-    Style(fg=ColorRGB(0xbb, 0x99, 0x55)),  # gold
+    Style(; fg=ColorRGB(0x5b, 0x9b, 0xd5)),  # steel blue
+    Style(; fg=ColorRGB(0x6b, 0xb5, 0x8a)),  # sage green
+    Style(; fg=ColorRGB(0xd4, 0x9a, 0x6a)),  # warm amber
+    Style(; fg=ColorRGB(0x9b, 0x85, 0xc8)),  # soft purple
+    Style(; fg=ColorRGB(0x5e, 0xb8, 0xb8)),  # teal
+    Style(; fg=ColorRGB(0xc4, 0x7d, 0x7d)),  # muted rose
+    Style(; fg=ColorRGB(0xd1, 0x8e, 0x54)),  # burnt orange
+    Style(; fg=ColorRGB(0x7e, 0xa8, 0xd4)),  # sky blue
+    Style(; fg=ColorRGB(0x8b, 0xb0, 0x6e)),  # olive green
+    Style(; fg=ColorRGB(0xcc, 0x88, 0xaa)),  # dusty pink
+    Style(; fg=ColorRGB(0x88, 0xcc, 0x99)),  # mint
+    Style(; fg=ColorRGB(0xbb, 0x99, 0x55)),  # gold
 ]
 
 const _DEMO_DECORATIONS = [
     ("Bracket", BracketTabs()),
-    ("Box (Rounded)", BoxTabs(box=BOX_ROUNDED)),
-    ("Box (Heavy)", BoxTabs(box=BOX_HEAVY)),
-    ("Box (Double)", BoxTabs(box=BOX_DOUBLE)),
-    ("Box (Plain)", BoxTabs(box=BOX_PLAIN)),
+    ("Box (Rounded)", BoxTabs(; box=BOX_ROUNDED)),
+    ("Box (Heavy)", BoxTabs(; box=BOX_HEAVY)),
+    ("Box (Double)", BoxTabs(; box=BOX_DOUBLE)),
+    ("Box (Plain)", BoxTabs(; box=BOX_PLAIN)),
     ("Plain", PlainTabs()),
 ]
 
@@ -41,9 +41,23 @@ const _DEMO_DECORATIONS = [
 
     # Overflow demo: many tabs
     many_tabs::TabBar = TabBar(
-        ["Server", "Database", "Cache", "Network", "Auth", "Logs",
-         "Metrics", "Config", "Deploy", "Monitor", "Alerts", "Storage"];
-        active=1, focused=false)
+        [
+            "Server",
+            "Database",
+            "Cache",
+            "Network",
+            "Auth",
+            "Logs",
+            "Metrics",
+            "Config",
+            "Deploy",
+            "Monitor",
+            "Alerts",
+            "Storage",
+        ];
+        active=1,
+        focused=false,
+    )
 
     # Style cycling
     decoration_idx::Int = 2  # start with Box (Rounded)
@@ -55,10 +69,10 @@ const _DEMO_DECORATIONS = [
 
     # Activity tab data
     log_lines::Vector{String} = String[]
-    log_pane::ScrollPane = ScrollPane(String[];
-        block=Block(title="Activity Log",
-                    border_style=tstyle(:border),
-                    title_style=tstyle(:title)))
+    log_pane::ScrollPane = ScrollPane(
+        String[];
+        block=Block(title="Activity Log", border_style=tstyle(:border), title_style=tstyle(:title)),
+    )
 
     # Settings tab data
     cb_notifications::Checkbox = Checkbox("Enable notifications"; checked=true)
@@ -69,64 +83,72 @@ end
 
 should_quit(m::TabBarDemoModel) = m.quit
 
-const _LOG_SOURCES = [
-    "Server", "Database", "Cache", "Worker", "Scheduler", "Monitor",
-]
+const _LOG_SOURCES = ["Server", "Database", "Cache", "Worker", "Scheduler", "Monitor"]
 const _LOG_ACTIONS = [
-    "request processed", "connection opened", "query completed",
-    "cache invalidated", "task dispatched", "heartbeat received",
-    "checkpoint saved", "config reloaded", "metric flushed",
-    "session renewed", "index rebuilt", "lock acquired",
+    "request processed",
+    "connection opened",
+    "query completed",
+    "cache invalidated",
+    "task dispatched",
+    "heartbeat received",
+    "checkpoint saved",
+    "config reloaded",
+    "metric flushed",
+    "session renewed",
+    "index rebuilt",
+    "lock acquired",
 ]
 
 function _random_log_line(tick::Int)
     src = _LOG_SOURCES[mod1(tick * 7 + 3, length(_LOG_SOURCES))]
     act = _LOG_ACTIONS[mod1(tick * 13 + 5, length(_LOG_ACTIONS))]
     ts = lpad(string(tick), 5, '0')
-    "[$ts] $src: $act"
+    return "[$ts] $src: $act"
 end
 
 function _apply_tab_style!(m::TabBarDemoModel)
     _, dec = _DEMO_DECORATIONS[m.decoration_idx]
     colors = m.colors_enabled ? _TABBAR_DEMO_COLORS : Style[]
-    style = TabBarStyle(decoration=dec, tab_colors=colors)
+    style = TabBarStyle(; decoration=dec, tab_colors=colors)
     # Recreate tab bars with new style (preserving active tab and focus)
     active1, focused1 = m.tabs.active, m.tabs.focused
     active2, focused2 = m.many_tabs.active, m.many_tabs.focused
     m.tabs = TabBar(m.tabs.labels; active=active1, focused=focused1, tab_style=style)
-    m.many_tabs = TabBar(m.many_tabs.labels; active=active2, focused=focused2, tab_style=style)
+    return m.many_tabs = TabBar(
+        m.many_tabs.labels; active=active2, focused=focused2, tab_style=style
+    )
 end
 
 function update!(m::TabBarDemoModel, evt::KeyEvent)
     if evt.key == :escape || (evt.key == :char && evt.char == 'q')
         m.quit = true
-        return
+        return nothing
     end
 
     # [d] cycle decoration style
     if evt.key == :char && evt.char == 'd'
         m.decoration_idx = mod1(m.decoration_idx + 1, length(_DEMO_DECORATIONS))
         _apply_tab_style!(m)
-        return
+        return nothing
     end
 
     # [c] toggle per-tab colors
     if evt.key == :char && evt.char == 'c'
         m.colors_enabled = !m.colors_enabled
         _apply_tab_style!(m)
-        return
+        return nothing
     end
 
     # [F2] toggle focus between tab bars
     if evt.key == :f2
         m.tabs.focused = !m.tabs.focused
         m.many_tabs.focused = !m.many_tabs.focused
-        return
+        return nothing
     end
 
     # TabBar key handling
-    handle_key!(m.tabs, evt) && return
-    handle_key!(m.many_tabs, evt) && return
+    handle_key!(m.tabs, evt) && return nothing
+    handle_key!(m.many_tabs, evt) && return nothing
 
     # Per-tab key handling
     tab = value(m.tabs)
@@ -147,7 +169,7 @@ end
 
 function update!(m::TabBarDemoModel, evt::MouseEvent)
     handle_mouse!(m.tabs, evt)
-    handle_mouse!(m.many_tabs, evt)
+    return handle_mouse!(m.many_tabs, evt)
 end
 
 function view(m::TabBarDemoModel, f::Frame)
@@ -164,10 +186,14 @@ function view(m::TabBarDemoModel, f::Frame)
         line = _random_log_line(m.tick)
         push!(m.log_lines, line)
         length(m.log_lines) > 200 && popfirst!(m.log_lines)
-        m.log_pane = ScrollPane(m.log_lines;
-            block=Block(title="Activity Log ($(length(m.log_lines)) entries)",
-                        border_style=tstyle(:border),
-                        title_style=tstyle(:title)))
+        m.log_pane = ScrollPane(
+            m.log_lines;
+            block=Block(;
+                title="Activity Log ($(length(m.log_lines)) entries)",
+                border_style=tstyle(:border),
+                title_style=tstyle(:title),
+            ),
+        )
     end
 
     # Update sparkline data
@@ -181,9 +207,8 @@ function view(m::TabBarDemoModel, f::Frame)
     # Layout: overflow label+tabs | main tabs | content | footer
     dec = m.tabs.tab_style.decoration
     tab_h = tab_height(dec)
-    rows = split_layout(Layout(Vertical,
-        [Fixed(tab_h), Fixed(tab_h), Fill(), Fixed(1)]), f.area)
-    length(rows) < 4 && return
+    rows = split_layout(Layout(Vertical, [Fixed(tab_h), Fixed(tab_h), Fill(), Fixed(1)]), f.area)
+    length(rows) < 4 && return nothing
     overflow_area = rows[1]
     tab_area = rows[2]
     content_area = rows[3]
@@ -193,10 +218,14 @@ function view(m::TabBarDemoModel, f::Frame)
     overflow_label = "Overflow ($(value(m.many_tabs))/$(length(m.many_tabs.labels)))"
     ov_style = m.many_tabs.focused ? tstyle(:accent) : tstyle(:text_dim)
     label_w = length(overflow_label) + 1
-    set_string!(buf, overflow_area.x, overflow_area.y + (tab_h > 1 ? 1 : 0),
-                overflow_label, ov_style)
-    render(m.many_tabs, Rect(overflow_area.x + label_w, overflow_area.y,
-                             overflow_area.width - label_w, tab_h), buf)
+    set_string!(
+        buf, overflow_area.x, overflow_area.y + (tab_h > 1 ? 1 : 0), overflow_label, ov_style
+    )
+    render(
+        m.many_tabs,
+        Rect(overflow_area.x + label_w, overflow_area.y, overflow_area.width - label_w, tab_h),
+        buf,
+    )
 
     # Main tab bar
     render(m.tabs, tab_area, buf)
@@ -214,49 +243,70 @@ function view(m::TabBarDemoModel, f::Frame)
     # Footer with style info
     dec_name, _ = _DEMO_DECORATIONS[m.decoration_idx]
     colors_str = m.colors_enabled ? "on" : "off"
-    render(StatusBar(
-        left=[Span("  [d]ecoration: $dec_name  [c]olors: $colors_str  [F2]focus  [←→]tabs ", tstyle(:text_dim))],
-        right=[Span("[q/Esc]quit ", tstyle(:text_dim))],
-    ), footer_area, buf)
+    return render(
+        StatusBar(;
+            left=[
+                Span(
+                    "  [d]ecoration: $dec_name  [c]olors: $colors_str  [F2]focus  [←→]tabs ",
+                    tstyle(:text_dim),
+                ),
+            ],
+            right=[Span("[q/Esc]quit ", tstyle(:text_dim))],
+        ),
+        footer_area,
+        buf,
+    )
 end
 
 function _view_overview(m::TabBarDemoModel, area::Rect, buf::Buffer)
-    block = Block(title="System Overview",
-                  border_style=tstyle(:border),
-                  title_style=tstyle(:title))
+    block = Block(;
+        title="System Overview", border_style=tstyle(:border), title_style=tstyle(:title)
+    )
     inner = render(block, area, buf)
-    inner.height < 8 && return
+    inner.height < 8 && return nothing
 
     rows = split_layout(Layout(Vertical, [Fixed(4), Fixed(1), Fixed(4), Fill()]), inner)
-    length(rows) < 3 && return
+    length(rows) < 3 && return nothing
 
     cpu_pct = round(Int, m.cpu_data[end] * 100)
-    render(Sparkline(m.cpu_data;
-        block=Block(title="CPU ($cpu_pct%)", border_style=tstyle(:border)),
-        style=tstyle(:primary),
-    ), rows[1], buf)
+    render(
+        Sparkline(
+            m.cpu_data;
+            block=Block(; title="CPU ($cpu_pct%)", border_style=tstyle(:border)),
+            style=tstyle(:primary),
+        ),
+        rows[1],
+        buf,
+    )
 
     mem_pct = round(Int, m.mem_data[end] * 100)
-    render(Sparkline(m.mem_data;
-        block=Block(title="Memory ($mem_pct%)", border_style=tstyle(:border)),
-        style=tstyle(:accent),
-    ), rows[3], buf)
+    render(
+        Sparkline(
+            m.mem_data;
+            block=Block(; title="Memory ($mem_pct%)", border_style=tstyle(:border)),
+            style=tstyle(:accent),
+        ),
+        rows[3],
+        buf,
+    )
 
     if length(rows) >= 4 && rows[4].height >= 1
         summary_y = rows[4].y
         uptime_secs = m.tick ÷ 30
-        set_string!(buf, inner.x + 1, summary_y,
-                    "Uptime: $(uptime_secs)s  │  Logs: $(length(m.log_lines))  │  Tabs: $(length(m.tabs.labels))",
-                    tstyle(:text_dim))
+        set_string!(
+            buf,
+            inner.x + 1,
+            summary_y,
+            "Uptime: $(uptime_secs)s  │  Logs: $(length(m.log_lines))  │  Tabs: $(length(m.tabs.labels))",
+            tstyle(:text_dim),
+        )
     end
 end
 
 function _view_settings(m::TabBarDemoModel, area::Rect, buf::Buffer)
-    block = Block(title="Settings",
-                  border_style=tstyle(:border),
-                  title_style=tstyle(:title))
+    block = Block(; title="Settings", border_style=tstyle(:border), title_style=tstyle(:title))
     inner = render(block, area, buf)
-    inner.height < 6 && return
+    inner.height < 6 && return nothing
 
     cbs = (m.cb_notifications, m.cb_autosave, m.cb_animations)
     for (i, cb) in enumerate(cbs)
@@ -272,16 +322,19 @@ function _view_settings(m::TabBarDemoModel, area::Rect, buf::Buffer)
 
     y += 1
     if y <= bottom(inner)
-        vals = join([
-            "notifications=$(value(m.cb_notifications))",
-            "autosave=$(value(m.cb_autosave))",
-            "animations=$(value(m.cb_animations))",
-        ], "  ")
+        vals = join(
+            [
+                "notifications=$(value(m.cb_notifications))",
+                "autosave=$(value(m.cb_autosave))",
+                "animations=$(value(m.cb_animations))",
+            ],
+            "  ",
+        )
         set_string!(buf, inner.x, y, vals, tstyle(:text_dim))
     end
 end
 
 function tabbar_demo(; theme_name=nothing)
     theme_name !== nothing && set_theme!(theme_name)
-    app(TabBarDemoModel(); fps=30)
+    return app(TabBarDemoModel(); fps=30)
 end

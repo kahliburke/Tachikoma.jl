@@ -10,9 +10,7 @@
 # [tab] switch focus    [q/Esc] quit
 # ═══════════════════════════════════════════════════════════════════════
 
-const LOG_PREFIXES = [
-    "INFO", "WARN", "DEBUG", "ERROR", "TRACE",
-]
+const LOG_PREFIXES = ["INFO", "WARN", "DEBUG", "ERROR", "TRACE"]
 
 const LOG_MESSAGES = [
     "Connection established on port 8080",
@@ -45,34 +43,40 @@ const LOG_MESSAGES = [
 
     # Left pane: plain string auto-follow log
     log_lines::Vector{String} = String[]
-    log_pane::ScrollPane = ScrollPane(String[];
-        block=Block(title="Live Log (auto-follow)",
-                    border_style=tstyle(:border),
-                    title_style=tstyle(:title)))
+    log_pane::ScrollPane = ScrollPane(
+        String[];
+        block=Block(
+            title="Live Log (auto-follow)", border_style=tstyle(:border), title_style=tstyle(:title)
+        ),
+    )
 
     # Right-top: reverse mode log
     reverse_lines::Vector{String} = String[]
-    reverse_pane::ScrollPane = ScrollPane(String[];
+    reverse_pane::ScrollPane = ScrollPane(
+        String[];
         reverse=true,
-        block=Block(title="Reverse Log (newest first)",
-                    border_style=tstyle(:border),
-                    title_style=tstyle(:title)))
+        block=Block(
+            title="Reverse Log (newest first)",
+            border_style=tstyle(:border),
+            title_style=tstyle(:title),
+        ),
+    )
 
     # Right-bottom: styled spans
     styled_lines::Vector{Vector{Span}} = Vector{Span}[]
-    styled_pane::ScrollPane = ScrollPane(Vector{Span}[];
-        block=Block(title="Styled Log",
-                    border_style=tstyle(:border),
-                    title_style=tstyle(:title)))
+    styled_pane::ScrollPane = ScrollPane(
+        Vector{Span}[];
+        block=Block(title="Styled Log", border_style=tstyle(:border), title_style=tstyle(:title)),
+    )
 end
 
 should_quit(m::ScrollPaneDemoModel) = m.quit
 
 function _log_style(prefix::String)
-    prefix == "ERROR" && return Style(fg=ColorRGB(0xff, 0x55, 0x55), bold=true)
-    prefix == "WARN"  && return Style(fg=ColorRGB(0xff, 0xcc, 0x00))
-    prefix == "DEBUG" && return Style(fg=ColorRGB(0x88, 0x88, 0xaa))
-    prefix == "TRACE" && return Style(fg=ColorRGB(0x66, 0x66, 0x77))
+    prefix == "ERROR" && return Style(; fg=ColorRGB(0xff, 0x55, 0x55), bold=true)
+    prefix == "WARN" && return Style(; fg=ColorRGB(0xff, 0xcc, 0x00))
+    prefix == "DEBUG" && return Style(; fg=ColorRGB(0x88, 0x88, 0xaa))
+    prefix == "TRACE" && return Style(; fg=ColorRGB(0x66, 0x66, 0x77))
     return tstyle(:text)  # INFO
 end
 
@@ -91,27 +95,27 @@ end
 
 function update!(m::ScrollPaneDemoModel, evt::KeyEvent)
     if evt.key == :char
-        evt.char == 'q' && (m.quit = true; return)
-        evt.char == ' ' && (m.paused = !m.paused; return)
+        evt.char == 'q' && (m.quit=true; return nothing)
+        evt.char == ' ' && (m.paused=(!m.paused); return nothing)
         evt.char == 'f' && begin
             pane = _pane_for_focus(m)
             pane.following = !pane.following
-            return
+            return nothing
         end
     end
-    evt.key == :escape && (m.quit = true; return)
-    evt.key == :tab && (m.focus = mod1(m.focus + 1, 3); return)
-    evt.key == :backtab && (m.focus = mod1(m.focus - 1, 3); return)
+    evt.key == :escape && (m.quit=true; return nothing)
+    evt.key == :tab && (m.focus=mod1(m.focus + 1, 3); return nothing)
+    evt.key == :backtab && (m.focus=mod1(m.focus - 1, 3); return nothing)
 
     # Delegate to focused pane
-    handle_key!(_pane_for_focus(m), evt)
+    return handle_key!(_pane_for_focus(m), evt)
 end
 
 function update!(m::ScrollPaneDemoModel, evt::MouseEvent)
     # Try each pane for mouse events
-    handle_mouse!(m.log_pane, evt) && return
-    handle_mouse!(m.reverse_pane, evt) && return
-    handle_mouse!(m.styled_pane, evt) && return
+    handle_mouse!(m.log_pane, evt) && return nothing
+    handle_mouse!(m.reverse_pane, evt) && return nothing
+    handle_mouse!(m.styled_pane, evt) && return nothing
 end
 
 function view(m::ScrollPaneDemoModel, f::Frame)
@@ -131,42 +135,44 @@ function view(m::ScrollPaneDemoModel, f::Frame)
         styled = [
             Span("[$(lpad(m.tick, 6, '0'))] ", tstyle(:text_dim)),
             Span(rpad(prefix, 6), _log_style(prefix)),
-            Span(LOG_MESSAGES[mod1(m.tick * 13 + m.tick ÷ 5, length(LOG_MESSAGES))],
-                 tstyle(:text)),
+            Span(LOG_MESSAGES[mod1(m.tick * 13 + m.tick ÷ 5, length(LOG_MESSAGES))], tstyle(:text)),
         ]
         push_line!(m.styled_pane, styled)
     end
 
     # Layout: left | right (top / bottom)
     rows = split_layout(Layout(Vertical, [Fill(), Fixed(1)]), f.area)
-    length(rows) < 2 && return
+    length(rows) < 2 && return nothing
     main_area = rows[1]
     footer_area = rows[2]
 
     cols = split_layout(Layout(Horizontal, [Percent(50), Fill()]), main_area)
-    length(cols) < 2 && return
+    length(cols) < 2 && return nothing
     left_area = cols[1]
     right_area = cols[2]
 
     right_rows = split_layout(Layout(Vertical, [Percent(50), Fill()]), right_area)
-    length(right_rows) < 2 && return
+    length(right_rows) < 2 && return nothing
     rtop_area = right_rows[1]
     rbot_area = right_rows[2]
 
     # Update block titles with focus indicator
     focus_marker(idx) = m.focus == idx ? "● " : "○ "
-    m.log_pane.block = Block(
+    m.log_pane.block = Block(;
         title="$(focus_marker(1))Live Log (follow=$(m.log_pane.following))",
         border_style=m.focus == 1 ? tstyle(:accent) : tstyle(:border),
-        title_style=m.focus == 1 ? tstyle(:accent, bold=true) : tstyle(:title))
-    m.reverse_pane.block = Block(
+        title_style=m.focus == 1 ? tstyle(:accent; bold=true) : tstyle(:title),
+    )
+    m.reverse_pane.block = Block(;
         title="$(focus_marker(2))Reverse Log",
         border_style=m.focus == 2 ? tstyle(:accent) : tstyle(:border),
-        title_style=m.focus == 2 ? tstyle(:accent, bold=true) : tstyle(:title))
-    m.styled_pane.block = Block(
+        title_style=m.focus == 2 ? tstyle(:accent; bold=true) : tstyle(:title),
+    )
+    m.styled_pane.block = Block(;
         title="$(focus_marker(3))Styled Log",
         border_style=m.focus == 3 ? tstyle(:accent) : tstyle(:border),
-        title_style=m.focus == 3 ? tstyle(:accent, bold=true) : tstyle(:title))
+        title_style=m.focus == 3 ? tstyle(:accent; bold=true) : tstyle(:title),
+    )
 
     # Render panes
     render(m.log_pane, left_area, buf)
@@ -176,15 +182,23 @@ function view(m::ScrollPaneDemoModel, f::Frame)
     # Footer
     n_lines = length(m.log_pane.content::Vector{String})
     status = m.paused ? "PAUSED" : "STREAMING"
-    render(StatusBar(
-        left=[Span("  [Tab]focus [↑↓/PgUp/PgDn]scroll [Space]$(status) [f]follow ",
-                    tstyle(:text_dim))],
-        right=[Span("$(n_lines) lines  [q/Esc]quit ", tstyle(:text_dim))],
-    ), footer_area, buf)
+    return render(
+        StatusBar(;
+            left=[
+                Span(
+                    "  [Tab]focus [↑↓/PgUp/PgDn]scroll [Space]$(status) [f]follow ",
+                    tstyle(:text_dim),
+                ),
+            ],
+            right=[Span("$(n_lines) lines  [q/Esc]quit ", tstyle(:text_dim))],
+        ),
+        footer_area,
+        buf,
+    )
 end
 
 function scrollpane_demo(; theme_name=nothing)
     theme_name !== nothing && set_theme!(theme_name)
     model = ScrollPaneDemoModel()
-    app(model; fps=30)
+    return app(model; fps=30)
 end

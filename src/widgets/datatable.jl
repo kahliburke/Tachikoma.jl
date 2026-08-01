@@ -10,7 +10,7 @@ struct DataColumn
     values::Vector{Any}
     width::Int                     # 0 = auto
     align::ColumnAlign
-    format::Union{Function, Nothing}  # value -> String
+    format::Union{Function,Nothing}  # value -> String
 end
 
 """
@@ -18,19 +18,17 @@ end
 
 A column in a `DataTable`. Set `width=0` for auto-sizing, `format` for custom display.
 """
-function DataColumn(name::String, values::Vector;
-    width::Int=0,
-    align::ColumnAlign=col_left,
-    format=nothing,
+function DataColumn(
+    name::String, values::Vector; width::Int=0, align::ColumnAlign=col_left, format=nothing
 )
-    DataColumn(name, collect(Any, values), width, align, format)
+    return DataColumn(name, collect(Any, values), width, align, format)
 end
 
 mutable struct DataTable
     columns::Vector{DataColumn}
     selected::Int                  # 0 = no selection, 1-based row
     offset::Int                    # scroll offset (0-based)
-    block::Union{Block, Nothing}
+    block::Union{Block,Nothing}
     show_scrollbar::Bool
     sort_col::Int                  # 0 = unsorted
     sort_dir::SortDir
@@ -39,7 +37,7 @@ mutable struct DataTable
     header_style::Style
     selected_style::Style
     alt_style::Style
-    tick::Union{Int, Nothing}
+    tick::Union{Int,Nothing}
     # Column resize
     col_widths::Vector{Int}        # user-overridden widths (0 = auto); populated on first render
     col_drag::Int                  # 0 = idle, >0 = index of column border being dragged
@@ -49,7 +47,7 @@ mutable struct DataTable
     # Horizontal scroll
     col_offset::Int                # first visible column index (0-based, 0 = show from col 1)
     # Detail view
-    detail_fn::Union{Function, Nothing}  # (columns, row_idx) -> Vector{Pair{String,String}}
+    detail_fn::Union{Function,Nothing}  # (columns, row_idx) -> Vector{Pair{String,String}}
     detail_key::Symbol             # key to open detail view (default :char with 'd')
     detail_char::Char              # the char to match (default 'd')
     show_detail::Bool              # whether detail popup is visible
@@ -64,36 +62,61 @@ mutable struct DataTable
     last_widths::Vector{Int}       # rendered widths from last frame (for drag start)
 end
 
-function DataTable(columns::Vector{DataColumn};
+function DataTable(
+    columns::Vector{DataColumn};
     selected::Int=0,
-    block::Union{Block, Nothing}=nothing,
+    block::Union{Block,Nothing}=nothing,
     show_scrollbar::Bool=true,
     style::Style=tstyle(:text),
-    header_style::Style=tstyle(:title, bold=true),
-    selected_style::Style=tstyle(:accent, bold=true),
-    alt_style::Style=tstyle(:text, dim=true),
-    tick::Union{Int, Nothing}=nothing,
-    detail_fn::Union{Function, Nothing}=nothing,
+    header_style::Style=tstyle(:title; bold=true),
+    selected_style::Style=tstyle(:accent; bold=true),
+    alt_style::Style=tstyle(:text; dim=true),
+    tick::Union{Int,Nothing}=nothing,
+    detail_fn::Union{Function,Nothing}=nothing,
     detail_key::Symbol=:char,
-    detail_char::Char='d',
+    detail_char::Char=('d'),
     row_styles::Vector{Style}=Style[],
 )
     n = _dt_nrows(columns)
     perm = collect(1:n)
     sel = clamp(selected, 0, n)
-    DataTable(columns, sel, 0, block, show_scrollbar, 0, sort_none, perm,
-              style, header_style, selected_style, alt_style, tick,
-              Int[], 0, 0, 0, 0,   # col resize
-              0,                     # col_offset
-              detail_fn, detail_key, detail_char, false, 0, 0,  # detail view
-              row_styles,             # per-row styles
-              Rect(), Tuple{Int,Int}[], Int[])  # cached render state
+    return DataTable(
+        columns,
+        sel,
+        0,
+        block,
+        show_scrollbar,
+        0,
+        sort_none,
+        perm,
+        style,
+        header_style,
+        selected_style,
+        alt_style,
+        tick,
+        Int[],
+        0,
+        0,
+        0,
+        0,   # col resize
+        0,                     # col_offset
+        detail_fn,
+        detail_key,
+        detail_char,
+        false,
+        0,
+        0,  # detail view
+        row_styles,             # per-row styles
+        Rect(),
+        Tuple{Int,Int}[],
+        Int[],
+    )  # cached render state
 end
 
 # Convenience: headers + data vectors
 function DataTable(headers::Vector{String}, data::Vector{<:AbstractVector}; kwargs...)
     cols = [DataColumn(h, collect(Any, v)) for (h, v) in zip(headers, data)]
-    DataTable(cols; kwargs...)
+    return DataTable(cols; kwargs...)
 end
 
 _dt_nrows(cols::Vector{DataColumn}) = isempty(cols) ? 0 : maximum(length(c.values) for c in cols)
@@ -102,13 +125,13 @@ function _dt_format_cell(col::DataColumn, row::Int)
     row > length(col.values) && return ""
     v = col.values[row]
     v isa Span && return v.content  # extract text from styled cell
-    col.format !== nothing ? col.format(v) : string(v)
+    return col.format !== nothing ? col.format(v) : string(v)
 end
 
 # ── Sorting ──
 
 function sort_by!(dt::DataTable, col_idx::Int)
-    (col_idx < 1 || col_idx > length(dt.columns)) && return
+    (col_idx < 1 || col_idx > length(dt.columns)) && return nothing
     if dt.sort_col == col_idx
         # Cycle: none → asc → desc → none
         dt.sort_dir = if dt.sort_dir == sort_none
@@ -128,15 +151,16 @@ function sort_by!(dt::DataTable, col_idx::Int)
         dt.sort_perm = collect(1:n)
     else
         col = dt.columns[dt.sort_col]
-        dt.sort_perm = sortperm(col.values[1:min(n, length(col.values))];
-                                rev=(dt.sort_dir == sort_desc))
+        dt.sort_perm = sortperm(
+            col.values[1:min(n, length(col.values))]; rev=(dt.sort_dir == sort_desc)
+        )
     end
 end
 
 # ── Key handling ──
 
 value(dt::DataTable) = dt.selected
-set_value!(dt::DataTable, idx::Int) = (dt.selected = clamp(idx, 0, _dt_nrows(dt.columns)); nothing)
+set_value!(dt::DataTable, idx::Int) = (dt.selected=clamp(idx, 0, _dt_nrows(dt.columns)); nothing)
 
 focusable(::DataTable) = true
 
@@ -192,7 +216,7 @@ function handle_key!(dt::DataTable, evt::KeyEvent)::Bool
             return true
         end
     end
-    false
+    return false
 end
 
 function _dt_handle_detail_key!(dt::DataTable, evt::KeyEvent)::Bool
@@ -214,13 +238,13 @@ function _dt_handle_detail_key!(dt::DataTable, evt::KeyEvent)::Bool
         dt.detail_scroll = min(dt.detail_scroll + 1, max_scroll)
         return true
     end
-    true  # consume all keys while detail is open
+    return true  # consume all keys while detail is open
 end
 
 """Convenience overload using cached content area from last render."""
 function handle_mouse!(dt::DataTable, evt::MouseEvent)::Bool
     dt.last_content_area.width > 0 || return false
-    handle_mouse!(dt, evt, dt.last_content_area)
+    return handle_mouse!(dt, evt, dt.last_content_area)
 end
 
 function handle_mouse!(dt::DataTable, evt::MouseEvent, content_area::Rect)::Bool
@@ -253,15 +277,17 @@ function handle_mouse!(dt::DataTable, evt::MouseEvent, content_area::Rect)::Bool
         if border_idx > 0 && (evt.y == header_y || evt.y == header_y + 1)
             dt.col_drag = border_idx
             dt.col_drag_start_x = evt.x
-            dt.col_drag_start_w = length(dt.last_widths) >= border_idx ? dt.last_widths[border_idx] : 10
+            dt.col_drag_start_w =
+                length(dt.last_widths) >= border_idx ? dt.last_widths[border_idx] : 10
             return true
         end
     end
 
     n = _dt_nrows(dt.columns)
     vis_h = content_area.height - 2  # header + separator
-    hit = list_hit(evt, Rect(content_area.x, content_area.y + 2, content_area.width, vis_h),
-                   dt.offset, n)
+    hit = list_hit(
+        evt, Rect(content_area.x, content_area.y + 2, content_area.width, vis_h), dt.offset, n
+    )
     if hit > 0
         dt.selected = hit
         return true
@@ -271,7 +297,7 @@ function handle_mouse!(dt::DataTable, evt::MouseEvent, content_area::Rect)::Bool
         dt.offset = new_off
         return true
     end
-    false
+    return false
 end
 
 """Find column index whose right border is near x (±1 cell tolerance). Returns 0 if none."""
@@ -300,7 +326,7 @@ function _dt_visible_cols(dt::DataTable, total_width::Int)
         x += w + sep
         count += 1
     end
-    count
+    return count
 end
 
 function _dt_compute_widths(dt::DataTable, total_width::Int)
@@ -313,7 +339,7 @@ function _dt_compute_widths(dt::DataTable, total_width::Int)
     if length(dt.col_widths) < nc
         old_len = length(dt.col_widths)
         resize!(dt.col_widths, nc)
-        dt.col_widths[old_len+1:nc] .= 0
+        dt.col_widths[(old_len + 1):nc] .= 0
     end
 
     widths = zeros(Int, nc)
@@ -355,7 +381,7 @@ function _dt_compute_widths(dt::DataTable, total_width::Int)
         end
     end
 
-    widths
+    return widths
 end
 
 # ── Render ──
@@ -366,10 +392,10 @@ function render(dt::DataTable, rect::Rect, buf::Buffer)
     else
         rect
     end
-    (content_area.width < 4 || content_area.height < 3) && return
+    (content_area.width < 4 || content_area.height < 3) && return nothing
 
     nc = length(dt.columns)
-    nc == 0 && return
+    nc == 0 && return nothing
     n = _dt_nrows(dt.columns)
 
     # Cache content area for mouse hit testing
@@ -431,12 +457,15 @@ function render(dt::DataTable, rect::Rect, buf::Buffer)
         else
             ""
         end
-        text = textwidth(hdr) + textwidth(indicator) <= w ?
-            string(hdr, indicator) : truncate_to_width(hdr, w)
+        text = if textwidth(hdr) + textwidth(indicator) <= w
+            string(hdr, indicator)
+        else
+            truncate_to_width(hdr, w)
+        end
 
         # Highlight hovered border column header
         hdr_style = if dt.col_hover_border > 0 && i == dt.col_hover_border
-            Style(fg=dt.header_style.fg, bold=true, underline=true)
+            Style(; fg=dt.header_style.fg, bold=true, underline=true)
         else
             dt.header_style
         end
@@ -451,7 +480,7 @@ function render(dt::DataTable, rect::Rect, buf::Buffer)
         else
             # Trailing border after last column — drag target for resizing it
             if hx <= max_x
-                set_char!(buf, hx, hy, '│', tstyle(:border, dim=true))
+                set_char!(buf, hx, hy, '│', tstyle(:border; dim=true))
                 push!(dt.last_col_positions, (hx, i))
             end
         end
@@ -463,7 +492,7 @@ function render(dt::DataTable, rect::Rect, buf::Buffer)
     for i in first_col:nc
         sx > max_x && break
         w = widths[i]
-        for dx in 0:w-1
+        for dx in 0:(w - 1)
             sx + dx <= max_x && set_char!(buf, sx + dx, sep_y, '─', tstyle(:border))
         end
         sx += w
@@ -475,7 +504,7 @@ function render(dt::DataTable, rect::Rect, buf::Buffer)
         else
             # Trailing separator after last column
             if sx <= max_x
-                set_char!(buf, sx, sep_y, '┤', tstyle(:border, dim=true))
+                set_char!(buf, sx, sep_y, '┤', tstyle(:border; dim=true))
             end
         end
     end
@@ -513,7 +542,7 @@ function render(dt::DataTable, rect::Rect, buf::Buffer)
             base_fg = to_rgb(row_style.fg)
             p = pulse(dt.tick; period=80, lo=0.0, hi=0.2)
             anim_fg = brighten(base_fg, p * 0.3)
-            row_style = Style(fg=anim_fg, bold=row_style.bold)
+            row_style = Style(; fg=anim_fg, bold=row_style.bold)
         end
 
         if is_selected
@@ -547,8 +576,7 @@ function render(dt::DataTable, rect::Rect, buf::Buffer)
                 rx
             end
 
-            set_string!(buf, cell_x, ry, cell_text, cell_style;
-                        max_x=min(rx + w - 1, max_x))
+            set_string!(buf, cell_x, ry, cell_text, cell_style; max_x=min(rx + w - 1, max_x))
             rx += w
             if i < nc
                 if rx <= max_x
@@ -558,7 +586,7 @@ function render(dt::DataTable, rect::Rect, buf::Buffer)
             else
                 # Trailing border after last column
                 if rx <= max_x
-                    set_char!(buf, rx, ry, '│', tstyle(:border, dim=true))
+                    set_char!(buf, rx, ry, '│', tstyle(:border; dim=true))
                 end
             end
         end
@@ -566,8 +594,7 @@ function render(dt::DataTable, rect::Rect, buf::Buffer)
 
     # ── Scrollbar ──
     if sb_w > 0
-        sb_rect = Rect(right(content_area), content_area.y + 2,
-                        1, vis_h)
+        sb_rect = Rect(right(content_area), content_area.y + 2, 1, vis_h)
         sb = Scrollbar(n, vis_h, dt.offset)
         render(sb, sb_rect, buf)
     end
@@ -582,7 +609,7 @@ end
 
 """Default detail function: shows all column values for a row."""
 function datatable_detail(columns::Vector{DataColumn}, row::Int)
-    [col.name => _dt_format_cell(col, row) for col in columns]
+    return [col.name => _dt_format_cell(col, row) for col in columns]
 end
 
 function _dt_render_detail!(dt::DataTable, content_area::Rect, buf::Buffer)
@@ -590,7 +617,7 @@ function _dt_render_detail!(dt::DataTable, content_area::Rect, buf::Buffer)
     data_row = dt.sort_perm[min(dt.detail_row, length(dt.sort_perm))]
     fields = dt.detail_fn(dt.columns, data_row)
     nf = length(fields)
-    nf == 0 && return
+    nf == 0 && return nothing
 
     # Modal dimensions
     label_w = maximum(length(first(p)) for p in fields) + 2
@@ -598,21 +625,21 @@ function _dt_render_detail!(dt::DataTable, content_area::Rect, buf::Buffer)
     inner_w = label_w + val_w + 1
     modal_w = min(content_area.width - 4, max(inner_w + 4, 30))
     modal_h = min(content_area.height - 4, nf + 4)  # title + sep + fields + sep + help
-    modal_h < 4 && return
+    modal_h < 4 && return nothing
 
     # Center the modal
     modal_pos = center(content_area, modal_w, modal_h)
     mx, my = modal_pos.x, modal_pos.y
 
     border_style = tstyle(:accent)
-    title_style = tstyle(:title, bold=true)
+    title_style = tstyle(:title; bold=true)
     label_style = tstyle(:text_dim)
     value_style = tstyle(:text)
     bg_style = tstyle(:text)
 
     # Dim background (fill modal area with background)
-    for ry in my:my+modal_h-1
-        for rx in mx:mx+modal_w-1
+    for ry in my:(my + modal_h - 1)
+        for rx in mx:(mx + modal_w - 1)
             set_char!(buf, rx, ry, ' ', bg_style)
         end
     end
@@ -621,7 +648,7 @@ function _dt_render_detail!(dt::DataTable, content_area::Rect, buf::Buffer)
     set_char!(buf, mx, my, '┃', border_style)
     title = " Record Detail "
     set_string!(buf, mx + 2, my, title, title_style; max_x=mx + modal_w - 2)
-    for rx in mx + 2 + length(title):mx + modal_w - 2
+    for rx in (mx + 2 + length(title)):(mx + modal_w - 2)
         set_char!(buf, rx, my, ' ', bg_style)
     end
     set_char!(buf, mx + modal_w - 1, my, '┃', border_style)
@@ -629,7 +656,7 @@ function _dt_render_detail!(dt::DataTable, content_area::Rect, buf::Buffer)
     # Title separator
     sep_y = my + 1
     set_char!(buf, mx, sep_y, '┃', border_style)
-    for rx in mx+1:mx+modal_w-2
+    for rx in (mx + 1):(mx + modal_w - 2)
         set_char!(buf, rx, sep_y, '─', border_style)
     end
     set_char!(buf, mx + modal_w - 1, sep_y, '┃', border_style)
@@ -646,10 +673,8 @@ function _dt_render_detail!(dt::DataTable, content_area::Rect, buf::Buffer)
         if field_idx <= nf
             label, val = fields[field_idx]
             label_text = rpad(label * ":", label_w)
-            set_string!(buf, mx + 2, fy, label_text, label_style;
-                        max_x=mx + 2 + label_w - 1)
-            set_string!(buf, mx + 2 + label_w, fy, val, value_style;
-                        max_x=mx + modal_w - 2)
+            set_string!(buf, mx + 2, fy, label_text, label_style; max_x=mx + 2 + label_w - 1)
+            set_string!(buf, mx + 2 + label_w, fy, val, value_style; max_x=mx + modal_w - 2)
         end
         set_char!(buf, mx + modal_w - 1, fy, '┃', border_style)
     end
@@ -657,7 +682,7 @@ function _dt_render_detail!(dt::DataTable, content_area::Rect, buf::Buffer)
     # Bottom separator
     bsep_y = my + modal_h - 2
     set_char!(buf, mx, bsep_y, '┃', border_style)
-    for rx in mx+1:mx+modal_w-2
+    for rx in (mx + 1):(mx + modal_w - 2)
         set_char!(buf, rx, bsep_y, '─', border_style)
     end
     set_char!(buf, mx + modal_w - 1, bsep_y, '┃', border_style)
@@ -666,7 +691,6 @@ function _dt_render_detail!(dt::DataTable, content_area::Rect, buf::Buffer)
     help_y = my + modal_h - 1
     set_char!(buf, mx, help_y, '┃', border_style)
     help_text = " [↑↓]scroll [Esc/$(dt.detail_char)]close "
-    set_string!(buf, mx + 2, help_y, help_text, label_style;
-                max_x=mx + modal_w - 2)
-    set_char!(buf, mx + modal_w - 1, help_y, '┃', border_style)
+    set_string!(buf, mx + 2, help_y, help_text, label_style; max_x=mx + modal_w - 2)
+    return set_char!(buf, mx + modal_w - 1, help_y, '┃', border_style)
 end

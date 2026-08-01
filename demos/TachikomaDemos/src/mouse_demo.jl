@@ -10,14 +10,14 @@
     quit::Bool = false
     tick::Int = 0
     # Canvas state (created on first view when we know the size)
-    canvas::Union{Canvas, BlockCanvas, Nothing} = nothing
+    canvas::Union{Canvas,BlockCanvas,Nothing} = nothing
     canvas_area::Rect = Rect()
     # Brush
     brush_size::Int = 1
     # Last event info
     last_event::String = "move the mouse..."
     # Trail effect: recent points for glow
-    trail::Vector{Tuple{Int, Int}} = Tuple{Int, Int}[]
+    trail::Vector{Tuple{Int,Int}} = Tuple{Int,Int}[]
     trail_max::Int = 40
     # Stats
     clicks::Int = 0
@@ -35,20 +35,20 @@ function update!(m::MouseDemoModel, evt::KeyEvent)
         evt.char == '=' && (m.brush_size = min(8, m.brush_size + 1))
         evt.char == '-' && (m.brush_size = max(1, m.brush_size - 1))
     end
-    evt.key == :escape && (m.quit = true)
+    return evt.key == :escape && (m.quit = true)
 end
 
 function update!(m::MouseDemoModel, evt::MouseEvent)
     mods = ""
-    evt.ctrl  && (mods *= " +ctrl")
+    evt.ctrl && (mods *= " +ctrl")
     evt.shift && (mods *= " +shift")
-    evt.alt   && (mods *= " +alt")
+    evt.alt && (mods *= " +alt")
     m.last_event = "$(evt.button) $(evt.action) ($(evt.x),$(evt.y))$(mods)"
 
     # Check if click is in canvas area
     ca = m.canvas_area
-    m.canvas === nothing && return
-    ca.width == 0 && return
+    m.canvas === nothing && return nothing
+    ca.width == 0 && return nothing
     in_canvas = contains(ca, evt.x, evt.y)
 
     if evt.button == mouse_scroll_up
@@ -76,7 +76,7 @@ end
 
 function clear_canvas!(m::MouseDemoModel)
     m.canvas !== nothing && clear!(m.canvas)
-    empty!(m.trail)
+    return empty!(m.trail)
 end
 
 function screen_to_dot(m::MouseDemoModel, sx::Int, sy::Int)
@@ -86,11 +86,11 @@ function screen_to_dot(m::MouseDemoModel, sx::Int, sy::Int)
     cy = sy - ca.y
     dx = cx * 2
     dy = cy * 4
-    (dx, dy)
+    return (dx, dy)
 end
 
 function paint!(m::MouseDemoModel, sx::Int, sy::Int)
-    m.canvas === nothing && return
+    m.canvas === nothing && return nothing
     dx, dy = screen_to_dot(m, sx, sy)
     r = m.brush_size - 1
     for bx in (dx - r):(dx + r)
@@ -106,7 +106,7 @@ function paint!(m::MouseDemoModel, sx::Int, sy::Int)
 end
 
 function erase!(m::MouseDemoModel, sx::Int, sy::Int)
-    m.canvas === nothing && return
+    m.canvas === nothing && return nothing
     dx, dy = screen_to_dot(m, sx, sy)
     r = m.brush_size + 1  # slightly larger eraser
     for bx in (dx - r):(dx + r)
@@ -122,30 +122,25 @@ function view(m::MouseDemoModel, f::Frame)
 
     # Layout: header | [canvas | info] | footer
     rows = split_layout(Layout(Vertical, [Fixed(1), Fill(), Fixed(1)]), f.area)
-    length(rows) < 3 && return
+    length(rows) < 3 && return nothing
     header = rows[1]
     main_area = rows[2]
     footer = rows[3]
 
     # Split main into canvas and info panel
     cols = split_layout(Layout(Horizontal, [Fill(), Fixed(28)]), main_area)
-    length(cols) < 2 && return
+    length(cols) < 2 && return nothing
     canvas_rect = cols[1]
     info_rect = cols[2]
 
     # ── Header ──
     si = mod1(m.tick ÷ 3, length(SPINNER_BRAILLE))
     set_char!(buf, header.x, header.y, SPINNER_BRAILLE[si], tstyle(:accent))
-    set_string!(buf, header.x + 2, header.y,
-                "Mouse Demo", tstyle(:primary, bold=true))
-    set_string!(buf, header.x + 14, header.y,
-                " $(DOT) draw with your mouse", tstyle(:text_dim))
+    set_string!(buf, header.x + 2, header.y, "Mouse Demo", tstyle(:primary; bold=true))
+    set_string!(buf, header.x + 14, header.y, " $(DOT) draw with your mouse", tstyle(:text_dim))
 
     # ── Canvas ──
-    canvas_block = Block(
-        border_style=tstyle(:border),
-        title_style=tstyle(:title),
-    )
+    canvas_block = Block(; border_style=tstyle(:border), title_style=tstyle(:title))
     canvas_inner = render(canvas_block, canvas_rect, buf)
     m.canvas_area = canvas_inner
 
@@ -165,39 +160,31 @@ function view(m::MouseDemoModel, f::Frame)
     end
 
     # ── Info panel ──
-    info_block = Block(
-        title="info",
-        border_style=tstyle(:border),
-        title_style=tstyle(:title),
-    )
+    info_block = Block(; title="info", border_style=tstyle(:border), title_style=tstyle(:title))
     info_inner = render(info_block, info_rect, buf)
     iy = info_inner.y
 
     # Brush size visualization
-    set_string!(buf, info_inner.x, iy, "brush", tstyle(:text, bold=true))
+    set_string!(buf, info_inner.x, iy, "brush", tstyle(:text; bold=true))
     iy += 1
     brush_vis = repeat("●", m.brush_size) * repeat("○", 8 - m.brush_size)
     set_string!(buf, info_inner.x, iy, brush_vis, tstyle(:accent))
     iy += 1
-    set_string!(buf, info_inner.x, iy,
-                "size: $(m.brush_size)", tstyle(:text_dim))
+    set_string!(buf, info_inner.x, iy, "size: $(m.brush_size)", tstyle(:text_dim))
 
     # Stats
     iy += 2
-    set_string!(buf, info_inner.x, iy, "stats", tstyle(:text, bold=true))
+    set_string!(buf, info_inner.x, iy, "stats", tstyle(:text; bold=true))
     iy += 1
-    set_string!(buf, info_inner.x, iy,
-                "clicks: $(m.clicks)", tstyle(:text))
+    set_string!(buf, info_inner.x, iy, "clicks: $(m.clicks)", tstyle(:text))
     iy += 1
-    set_string!(buf, info_inner.x, iy,
-                "drags:  $(m.drags)", tstyle(:text))
+    set_string!(buf, info_inner.x, iy, "drags:  $(m.drags)", tstyle(:text))
     iy += 1
-    set_string!(buf, info_inner.x, iy,
-                "scrolls: $(m.scrolls)", tstyle(:text))
+    set_string!(buf, info_inner.x, iy, "scrolls: $(m.scrolls)", tstyle(:text))
 
     # Last event
     iy += 2
-    set_string!(buf, info_inner.x, iy, "last event", tstyle(:text, bold=true))
+    set_string!(buf, info_inner.x, iy, "last event", tstyle(:text; bold=true))
     iy += 1
     # Truncate to panel width
     evt_str = m.last_event
@@ -209,7 +196,7 @@ function view(m::MouseDemoModel, f::Frame)
 
     # Controls
     iy += 2
-    set_string!(buf, info_inner.x, iy, "controls", tstyle(:text, bold=true))
+    set_string!(buf, info_inner.x, iy, "controls", tstyle(:text; bold=true))
     iy += 1
     controls = [
         "L-click  draw",
@@ -226,14 +213,19 @@ function view(m::MouseDemoModel, f::Frame)
     end
 
     # ── Footer ──
-    render(StatusBar(
-        left=[Span("  brush=$(m.brush_size) $(DOT) trail=$(length(m.trail)) ",
-                    tstyle(:text_dim))],
-        right=[Span("[q/Esc]quit ", tstyle(:text_dim))],
-    ), footer, buf)
+    return render(
+        StatusBar(;
+            left=[
+                Span("  brush=$(m.brush_size) $(DOT) trail=$(length(m.trail)) ", tstyle(:text_dim))
+            ],
+            right=[Span("[q/Esc]quit ", tstyle(:text_dim))],
+        ),
+        footer,
+        buf,
+    )
 end
 
 function mouse_demo(; theme_name=nothing)
     theme_name !== nothing && set_theme!(theme_name)
-    app(MouseDemoModel(); fps=30)
+    return app(MouseDemoModel(); fps=30)
 end

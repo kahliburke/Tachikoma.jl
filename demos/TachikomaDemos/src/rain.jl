@@ -23,7 +23,7 @@ function random_drop(col::Int, max_height::Int)
     len = rand(8:25)
     spd = 0.2 + rand() * 0.8
     chars = [rand(RAIN_CHARS) for _ in 1:len]
-    RainDrop(col, -rand(0:max_height), spd, len, chars)
+    return RainDrop(col, -rand(0:max_height), spd, len, chars)
 end
 
 @kwdef mutable struct RainModel <: Model
@@ -41,7 +41,7 @@ function init!(m::RainModel, t::Terminal)
     h = t.size.height
     n_drops = round(Int, w * m.density)
     m.drops = [random_drop(rand(1:w), h) for _ in 1:n_drops]
-    m.initialized = true
+    return m.initialized = true
 end
 
 function update!(m::RainModel, evt::KeyEvent)
@@ -52,7 +52,7 @@ function update!(m::RainModel, evt::KeyEvent)
         evt.char == '=' && (m.density = min(1.0, m.density + 0.05))
         evt.char == '-' && (m.density = max(0.1, m.density - 0.05))
     end
-    evt.key == :escape && (m.quit = true)
+    return evt.key == :escape && (m.quit = true)
 end
 
 function rain_color(th::Theme, intensity::Float64)
@@ -60,15 +60,15 @@ function rain_color(th::Theme, intensity::Float64)
     # Head is brightest (accent), tail fades through primary to dim
     if intensity > 0.9
         # Head: bright white/accent
-        return tstyle(:text_bright, bold=true)
+        return tstyle(:text_bright; bold=true)
     elseif intensity > 0.6
         return tstyle(:accent)
     elseif intensity > 0.3
         return tstyle(:primary)
     elseif intensity > 0.1
-        return tstyle(:secondary, dim=true)
+        return tstyle(:secondary; dim=true)
     else
-        return tstyle(:text_dim, dim=true)
+        return tstyle(:text_dim; dim=true)
     end
 end
 
@@ -124,10 +124,10 @@ function view(m::RainModel, f::Frame)
     # Status bar at bottom
     status_y = h
     inst = " [+-]density [k/e/m/a/n/c]theme [q]quit"
-    set_string!(buf, 1, status_y, inst, tstyle(:text_dim, dim=true))
+    return set_string!(buf, 1, status_y, inst, tstyle(:text_dim; dim=true))
 end
 
 function rain(; theme_name=nothing, density=0.4)
     theme_name !== nothing && set_theme!(theme_name)
-    app(RainModel(density=density); fps=30)
+    return app(RainModel(; density=density); fps=30)
 end

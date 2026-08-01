@@ -13,14 +13,13 @@ mutable struct PixelImage
     pixel_h::Int
     cells_w::Int                    # cell dims this buffer was sized for
     cells_h::Int
-    block::Union{Block, Nothing}
+    block::Union{Block,Nothing}
     bg::ColorRGBA                    # current empty/background pixel color
     bg_tracks_canvas::Bool           # if true, bg follows canvas_bg() on sync
     style::Style                    # braille fallback style
     color::ColorRGBA                 # current drawing color
     decay::DecayParams              # per-widget decay (default: off)
 end
-
 
 """
     _pixelimage_pixel_dims(cells_w, cells_h)
@@ -56,7 +55,7 @@ function _pixelimage_pixel_dims(cells_w::Int, cells_h::Int)
         pw = max(1, round(Int, pw * ss.w))
         ph = max(1, round(Int, ph * ss.h))
     end
-    (pw, ph)
+    return (pw, ph)
 end
 
 """
@@ -66,17 +65,31 @@ end
 Create a PixelImage widget sized for `cells_w × cells_h` terminal cells.
 Pixel dimensions are computed from terminal cell metrics.
 """
-function PixelImage(cells_w::Int, cells_h::Int;
-                    block::Union{Block, Nothing}=nothing,
-                    style::Style=tstyle(:primary),
-                    decay::DecayParams=DecayParams(),
-                    bg::Union{ColorRGBA, Nothing}=nothing)
+function PixelImage(
+    cells_w::Int,
+    cells_h::Int;
+    block::Union{Block,Nothing}=nothing,
+    style::Style=tstyle(:primary),
+    decay::DecayParams=DecayParams(),
+    bg::Union{ColorRGBA,Nothing}=nothing,
+)
     pw, ph = _pixelimage_pixel_dims(cells_w, cells_h)
     color = _style_to_rgb(style)
     tracks = bg === nothing
     actual_bg = tracks ? canvas_bg() : bg
-    PixelImage(fill(actual_bg, ph, pw), pw, ph, cells_w, cells_h,
-               block, actual_bg, tracks, style, color, decay)
+    return PixelImage(
+        fill(actual_bg, ph, pw),
+        pw,
+        ph,
+        cells_w,
+        cells_h,
+        block,
+        actual_bg,
+        tracks,
+        style,
+        color,
+        decay,
+    )
 end
 
 """
@@ -96,7 +109,7 @@ function set_background!(img::PixelImage, bg::ColorRGBA)
         img.bg = bg
     end
     img.bg_tracks_canvas = false
-    img
+    return img
 end
 
 set_background!(img::PixelImage, bg::ColorRGB) = set_background!(img, ColorRGBA(bg))
@@ -109,7 +122,7 @@ syncs (clears, resizes, theme changes).
 """
 function reset_background!(img::PixelImage)
     img.bg_tracks_canvas = true
-    _sync_pixelimage_bg!(img)
+    return _sync_pixelimage_bg!(img)
 end
 
 function _sync_pixelimage_bg!(img::PixelImage)
@@ -121,7 +134,7 @@ function _sync_pixelimage_bg!(img::PixelImage)
         img.pixels[i] == old_bg && (img.pixels[i] = new_bg)
     end
     img.bg = new_bg
-    img
+    return img
 end
 
 # ── Drawing API (pixel-native, 1-based coordinates) ──────────────────
@@ -131,13 +144,14 @@ end
 
 Set a single pixel at 1-based coordinates. Bounds-checked.
 """
-set_pixel!(img::PixelImage, px::Int, py::Int, color::ColorRGB) =
-    set_pixel!(img, px, py, ColorRGBA(color))
+function set_pixel!(img::PixelImage, px::Int, py::Int, color::ColorRGB)
+    return set_pixel!(img, px, py, ColorRGBA(color))
+end
 
 function set_pixel!(img::PixelImage, px::Int, py::Int, color::ColorRGBA)
-    (px >= 1 && py >= 1 && px <= img.pixel_w && py <= img.pixel_h) || return
+    (px >= 1 && py >= 1 && px <= img.pixel_w && py <= img.pixel_h) || return nothing
     img.pixels[py, px] = color
-    nothing
+    return nothing
 end
 
 """
@@ -146,9 +160,9 @@ end
 Set a single pixel using `img.color`.
 """
 function set_pixel!(img::PixelImage, px::Int, py::Int)
-    (px >= 1 && py >= 1 && px <= img.pixel_w && py <= img.pixel_h) || return
+    (px >= 1 && py >= 1 && px <= img.pixel_w && py <= img.pixel_h) || return nothing
     img.pixels[py, px] = img.color
-    nothing
+    return nothing
 end
 
 """
@@ -156,23 +170,24 @@ end
 
 Fill a rectangle of pixels. Coordinates are 1-based and clamped.
 """
-fill_rect!(img::PixelImage, x0::Int, y0::Int, x1::Int, y1::Int, color::ColorRGB) =
-    fill_rect!(img, x0, y0, x1, y1, ColorRGBA(color))
+function fill_rect!(img::PixelImage, x0::Int, y0::Int, x1::Int, y1::Int, color::ColorRGB)
+    return fill_rect!(img, x0, y0, x1, y1, ColorRGBA(color))
+end
 
 function fill_rect!(img::PixelImage, x0::Int, y0::Int, x1::Int, y1::Int, color::ColorRGBA)
     px0 = max(1, x0)
     py0 = max(1, y0)
     px1 = min(img.pixel_w, x1)
     py1 = min(img.pixel_h, y1)
-    px0 > px1 && return
-    py0 > py1 && return
+    px0 > px1 && return nothing
+    py0 > py1 && return nothing
     pixels = img.pixels
     @inbounds for py in py0:py1
         for px in px0:px1
             pixels[py, px] = color
         end
     end
-    nothing
+    return nothing
 end
 
 """
@@ -180,8 +195,9 @@ end
 
 Bresenham line drawing at pixel resolution (1-based).
 """
-pixel_line!(img::PixelImage, x0::Int, y0::Int, x1::Int, y1::Int, color::ColorRGB) =
-    pixel_line!(img, x0, y0, x1, y1, ColorRGBA(color))
+function pixel_line!(img::PixelImage, x0::Int, y0::Int, x1::Int, y1::Int, color::ColorRGB)
+    return pixel_line!(img, x0, y0, x1, y1, ColorRGBA(color))
+end
 
 function pixel_line!(img::PixelImage, x0::Int, y0::Int, x1::Int, y1::Int, color::ColorRGBA)
     dx = abs(x1 - x0)
@@ -210,7 +226,7 @@ end
 Bresenham line using `img.color`.
 """
 function pixel_line!(img::PixelImage, x0::Int, y0::Int, x1::Int, y1::Int)
-    pixel_line!(img, x0, y0, x1, y1, img.color)
+    return pixel_line!(img, x0, y0, x1, y1, img.color)
 end
 
 """
@@ -220,7 +236,7 @@ Clear all pixels to the current background color.
 """
 function clear!(img::PixelImage)
     _sync_pixelimage_bg!(img)
-    fill!(img.pixels, img.bg)
+    return fill!(img.pixels, img.bg)
 end
 
 """
@@ -231,7 +247,7 @@ Source is indexed [row, col].
 """
 function load_pixels!(img::PixelImage, src::Matrix{ColorRGBA})
     sh, sw = size(src)
-    (sh == 0 || sw == 0) && return
+    (sh == 0 || sw == 0) && return nothing
     ph, pw = img.pixel_h, img.pixel_w
     pixels = img.pixels
     @inbounds for py in 1:ph
@@ -241,21 +257,21 @@ function load_pixels!(img::PixelImage, src::Matrix{ColorRGBA})
             pixels[py, px] = src[sy, sx]
         end
     end
-    nothing
+    return nothing
 end
 
 # ── Internal: resize pixel buffer if cell dims changed ───────────────
 
 function _pixelimage_resize!(si::PixelImage, cells_w::Int, cells_h::Int)
     _sync_pixelimage_bg!(si)
-    (cells_w == si.cells_w && cells_h == si.cells_h) && return
+    (cells_w == si.cells_w && cells_h == si.cells_h) && return nothing
     pw, ph = _pixelimage_pixel_dims(cells_w, cells_h)
     si.pixels = fill(si.bg, ph, pw)
     si.pixel_w = pw
     si.pixel_h = ph
     si.cells_w = cells_w
     si.cells_h = cells_h
-    nothing
+    return nothing
 end
 
 # ── Render: Frame path (raster output) ────────────────────────────────
@@ -272,24 +288,25 @@ function render(si::PixelImage, rect::Rect, f::Frame; tick::Int=0)
     else
         rect
     end
-    (content.width < 1 || content.height < 1) && return
+    (content.width < 1 || content.height < 1) && return nothing
 
     _pixelimage_resize!(si, content.width, content.height)
     gfx = GRAPHICS_PROTOCOL[]
     if gfx == gfx_none
         render(si, content, buf)
-        return
+        return nothing
     end
     if gfx == gfx_kitty
-        data = encode_kitty(si.pixels; decay=si.decay, tick=tick,
-                            cols=content.width, rows=content.height)
+        data = encode_kitty(
+            si.pixels; decay=si.decay, tick=tick, cols=content.width, rows=content.height
+        )
         fmt = gfx_fmt_kitty
     else
         data = encode_sixel(si.pixels; decay=si.decay, tick=tick)
         fmt = gfx_fmt_sixel
     end
     isempty(data) || render_graphics!(f, data, content; pixels=si.pixels, format=fmt)
-    nothing
+    return nothing
 end
 
 # ── Render: Buffer path (braille fallback) ───────────────────────────
@@ -305,7 +322,7 @@ function render(si::PixelImage, rect::Rect, buf::Buffer)
     else
         rect
     end
-    (content.width < 1 || content.height < 1) && return
+    (content.width < 1 || content.height < 1) && return nothing
 
     _pixelimage_resize!(si, content.width, content.height)
 

@@ -20,9 +20,7 @@ mutable struct PixelCanvas
     color::ColorRGBA
 end
 
-
-function PixelCanvas(width::Int, height::Int;
-                     style::Style=tstyle(:primary))
+function PixelCanvas(width::Int, height::Int; style::Style=tstyle(:primary))
     sap = SIXEL_AREA_PX[]
     tac = TEXT_AREA_CELLS[]
     if sap.w > 0 && tac.w > 0
@@ -44,26 +42,23 @@ function PixelCanvas(width::Int, height::Int;
     end
     color = _style_to_rgb(style)
     bg = canvas_bg()
-    PixelCanvas(width, height,
-                fill(bg, ph, pw),
-                pw, ph,
-                width * 2, height * 4,
-                bg,
-                style, color)
+    return PixelCanvas(
+        width, height, fill(bg, ph, pw), pw, ph, width * 2, height * 4, bg, style, color
+    )
 end
 
 function Base.show(io::IO, c::PixelCanvas)
-    print(io, "PixelCanvas($(c.width)×$(c.height) cells, $(c.pixel_w)×$(c.pixel_h) px)")
+    return print(io, "PixelCanvas($(c.width)×$(c.height) cells, $(c.pixel_w)×$(c.pixel_h) px)")
 end
 
 function Base.show(io::IO, ::MIME"text/plain", c::PixelCanvas)
-    print(io, "PixelCanvas($(c.width)×$(c.height) cells, $(c.pixel_w)×$(c.pixel_h) px)")
+    return print(io, "PixelCanvas($(c.width)×$(c.height) cells, $(c.pixel_w)×$(c.pixel_h) px)")
 end
 
 function _style_to_rgb(s::Style)
     s.fg isa ColorRGB && return ColorRGBA(s.fg)
     s.fg isa Color256 && return ColorRGBA(to_rgb(s.fg))
-    ColorRGBA(0xff, 0xff, 0xff, 0xff)
+    return ColorRGBA(0xff, 0xff, 0xff, 0xff)
 end
 
 function _sync_canvas_bg!(c::PixelCanvas)
@@ -74,7 +69,7 @@ function _sync_canvas_bg!(c::PixelCanvas)
         c.pixels[i] == old_bg && (c.pixels[i] = new_bg)
     end
     c.bg = new_bg
-    c
+    return c
 end
 
 # ── Pixel-level API (native resolution) ──────────────────────────────
@@ -87,9 +82,9 @@ px ∈ [1, c.pixel_w], py ∈ [1, c.pixel_h].
 Uses c.color for the pixel color.
 """
 function set_pixel!(c::PixelCanvas, px::Int, py::Int)
-    (px >= 1 && py >= 1 && px <= c.pixel_w && py <= c.pixel_h) || return
+    (px >= 1 && py >= 1 && px <= c.pixel_w && py <= c.pixel_h) || return nothing
     c.pixels[py, px] = c.color
-    nothing
+    return nothing
 end
 
 """
@@ -97,13 +92,14 @@ end
 
 Set a single pixel with an explicit color.
 """
-set_pixel!(c::PixelCanvas, px::Int, py::Int, color::ColorRGB) =
-    set_pixel!(c, px, py, ColorRGBA(color))
+function set_pixel!(c::PixelCanvas, px::Int, py::Int, color::ColorRGB)
+    return set_pixel!(c, px, py, ColorRGBA(color))
+end
 
 function set_pixel!(c::PixelCanvas, px::Int, py::Int, color::ColorRGBA)
-    (px >= 1 && py >= 1 && px <= c.pixel_w && py <= c.pixel_h) || return
+    (px >= 1 && py >= 1 && px <= c.pixel_w && py <= c.pixel_h) || return nothing
     c.pixels[py, px] = color
-    nothing
+    return nothing
 end
 
 """
@@ -113,23 +109,24 @@ Fill a rectangle of pixels with a single color. Coordinates are 1-based
 and clamped to canvas bounds. Use this instead of looping `set_pixel!`
 for block fills — avoids per-pixel bounds checking overhead.
 """
-fill_pixel_rect!(c::PixelCanvas, x0::Int, y0::Int, x1::Int, y1::Int, color::ColorRGB) =
-    fill_pixel_rect!(c, x0, y0, x1, y1, ColorRGBA(color))
+function fill_pixel_rect!(c::PixelCanvas, x0::Int, y0::Int, x1::Int, y1::Int, color::ColorRGB)
+    return fill_pixel_rect!(c, x0, y0, x1, y1, ColorRGBA(color))
+end
 
 function fill_pixel_rect!(c::PixelCanvas, x0::Int, y0::Int, x1::Int, y1::Int, color::ColorRGBA)
     px0 = max(1, x0)
     py0 = max(1, y0)
     px1 = min(c.pixel_w, x1)
     py1 = min(c.pixel_h, y1)
-    px0 > px1 && return
-    py0 > py1 && return
+    px0 > px1 && return nothing
+    py0 > py1 && return nothing
     pixels = c.pixels
     @inbounds for py in py0:py1
         for px in px0:px1
             pixels[py, px] = color
         end
     end
-    nothing
+    return nothing
 end
 
 """
@@ -168,8 +165,8 @@ Each dot maps to a proportional slice of the pixel buffer, ensuring
 full coverage with no gaps at the edges.
 """
 function set_point!(c::PixelCanvas, dx::Int, dy::Int)
-    (dx >= 0 && dy >= 0) || return
-    (dx < c.dot_w && dy < c.dot_h) || return
+    (dx >= 0 && dy >= 0) || return nothing
+    (dx < c.dot_w && dy < c.dot_h) || return nothing
     # Proportional mapping: dot dx covers pixels [dx*pw/dw+1, (dx+1)*pw/dw]
     # This distributes pixels evenly and covers the full buffer.
     pw, dw = c.pixel_w, c.dot_w
@@ -183,7 +180,7 @@ function set_point!(c::PixelCanvas, dx::Int, dy::Int)
             c.pixels[py, px] = c.color
         end
     end
-    nothing
+    return nothing
 end
 
 """
@@ -192,8 +189,8 @@ end
 Clear a point in dot-space coordinates.
 """
 function unset_point!(c::PixelCanvas, dx::Int, dy::Int)
-    (dx >= 0 && dy >= 0) || return
-    (dx < c.dot_w && dy < c.dot_h) || return
+    (dx >= 0 && dy >= 0) || return nothing
+    (dx < c.dot_w && dy < c.dot_h) || return nothing
     _sync_canvas_bg!(c)
     pw, dw = c.pixel_w, c.dot_w
     ph, dh = c.pixel_h, c.dot_h
@@ -206,7 +203,7 @@ function unset_point!(c::PixelCanvas, dx::Int, dy::Int)
             c.pixels[py, px] = c.bg
         end
     end
-    nothing
+    return nothing
 end
 
 """
@@ -216,7 +213,7 @@ Clear all pixels.
 """
 function clear!(c::PixelCanvas)
     _sync_canvas_bg!(c)
-    fill!(c.pixels, c.bg)
+    return fill!(c.pixels, c.bg)
 end
 
 """
@@ -254,21 +251,19 @@ Primary render path: encodes pixels via the detected graphics protocol
 and places them into the frame's region list. Decay defaults to off
 (clean rendering); pass `decay=decay_params()` for bit-rot effects.
 """
-function render(c::PixelCanvas, rect::Rect, f::Frame;
-                tick::Int=0, decay::DecayParams=DecayParams())
-    (rect.width < 1 || rect.height < 1) && return
+function render(c::PixelCanvas, rect::Rect, f::Frame; tick::Int=0, decay::DecayParams=DecayParams())
+    (rect.width < 1 || rect.height < 1) && return nothing
     _sync_canvas_bg!(c)
     gfx = GRAPHICS_PROTOCOL[]
     if gfx == gfx_kitty
-        data = encode_kitty(c.pixels; decay=decay, tick=tick,
-                            cols=rect.width, rows=rect.height)
+        data = encode_kitty(c.pixels; decay=decay, tick=tick, cols=rect.width, rows=rect.height)
         fmt = gfx_fmt_kitty
     else
         data = encode_sixel(c.pixels; decay=decay, tick=tick)
         fmt = gfx_fmt_sixel
     end
     isempty(data) || render_graphics!(f, data, rect; pixels=c.pixels, format=fmt)
-    nothing
+    return nothing
 end
 
 """
@@ -278,7 +273,7 @@ Fallback render path: samples pixel buffer to braille characters,
 same visual as Canvas but at pixel resolution.
 """
 function render(c::PixelCanvas, rect::Rect, buf::Buffer)
-    (rect.width < 1 || rect.height < 1) && return
+    (rect.width < 1 || rect.height < 1) && return nothing
     _sync_canvas_bg!(c)
     pw, dw = c.pixel_w, c.dot_w
     ph, dh = c.pixel_h, c.dot_h
@@ -316,8 +311,7 @@ end
 Backend-agnostic canvas factory. Returns BlockCanvas or Canvas
 depending on the active render backend preference.
 """
-function create_canvas(width::Int, height::Int;
-                       style::Style=tstyle(:primary))
+function create_canvas(width::Int, height::Int; style::Style=tstyle(:primary))
     rb = RENDER_BACKEND[]
     if rb == block_backend
         BlockCanvas(width, height; style)
@@ -340,10 +334,8 @@ canvas_dot_size(c::PixelCanvas) = (c.dot_w, c.dot_h)
 Backend-agnostic render helper. Dispatches to the correct render
 method for Canvas, BlockCanvas, or PixelCanvas.
 """
-render_canvas(c::Canvas, rect::Rect, f::Frame; tick::Int=0) =
-    render(c, rect, f.buffer)
-render_canvas(c::PixelCanvas, rect::Rect, f::Frame; tick::Int=0) =
-    render(c, rect, f; tick=tick)
+render_canvas(c::Canvas, rect::Rect, f::Frame; tick::Int=0) = render(c, rect, f.buffer)
+render_canvas(c::PixelCanvas, rect::Rect, f::Frame; tick::Int=0) = render(c, rect, f; tick=tick)
 
 # ── Shape primitives (same API as Canvas) ──
 
@@ -352,28 +344,38 @@ function rect!(c::PixelCanvas, x0::Int, y0::Int, x1::Int, y1::Int)
     line!(c, x1, y0, x1, y1)
     line!(c, x1, y1, x0, y1)
     line!(c, x0, y1, x0, y0)
-    nothing
+    return nothing
 end
 
 function circle!(c::PixelCanvas, cx::Int, cy::Int, r::Int)
-    r < 0 && return
-    x = r; y = 0; err = 1 - r
+    r < 0 && return nothing
+    x = r
+    y = 0
+    err = 1 - r
     while x >= y
-        set_point!(c, cx + x, cy + y); set_point!(c, cx - x, cy + y)
-        set_point!(c, cx + x, cy - y); set_point!(c, cx - x, cy - y)
-        set_point!(c, cx + y, cy + x); set_point!(c, cx - y, cy + x)
-        set_point!(c, cx + y, cy - x); set_point!(c, cx - y, cy - x)
+        set_point!(c, cx + x, cy + y)
+        set_point!(c, cx - x, cy + y)
+        set_point!(c, cx + x, cy - y)
+        set_point!(c, cx - x, cy - y)
+        set_point!(c, cx + y, cy + x)
+        set_point!(c, cx - y, cy + x)
+        set_point!(c, cx + y, cy - x)
+        set_point!(c, cx - y, cy - x)
         y += 1
-        if err < 0; err += 2y + 1
-        else x -= 1; err += 2(y - x) + 1
+        if err < 0
+            err += 2y + 1
+        else
+            x -= 1
+            err += 2(y - x) + 1
         end
     end
-    nothing
+    return nothing
 end
 
-function arc!(c::PixelCanvas, cx::Int, cy::Int, r::Int,
-              start_deg::Float64, end_deg::Float64; steps::Int=0)
-    r < 0 && return
+function arc!(
+    c::PixelCanvas, cx::Int, cy::Int, r::Int, start_deg::Float64, end_deg::Float64; steps::Int=0
+)
+    r < 0 && return nothing
     if steps <= 0
         steps = max(8, round(Int, abs(end_deg - start_deg) / 360.0 * 2π * r))
     end
@@ -390,5 +392,5 @@ function arc!(c::PixelCanvas, cx::Int, cy::Int, r::Int,
             line!(c, px, py, dx, dy)
         end
     end
-    nothing
+    return nothing
 end

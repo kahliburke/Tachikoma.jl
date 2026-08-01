@@ -27,38 +27,36 @@ mutable struct Canvas
     style::Style
 end
 
-function Canvas(width::Int, height::Int;
-    style=tstyle(:primary),
-)
-    Canvas(width, height, zeros(UInt8, width, height), style)
+function Canvas(width::Int, height::Int; style=tstyle(:primary))
+    return Canvas(width, height, zeros(UInt8, width, height), style)
 end
 
 # Dot-space coordinates → cell + sub-position
 # dx: 0..width*2-1, dy: 0..height*4-1
 function set_point!(c::Canvas, dx::Int, dy::Int)
-    (dx >= 0 && dy >= 0) || return
+    (dx >= 0 && dy >= 0) || return nothing
     cx = dx ÷ 2 + 1  # terminal column (1-based)
     cy = dy ÷ 4 + 1  # terminal row (1-based)
-    (cx <= c.width && cy <= c.height) || return
+    (cx <= c.width && cy <= c.height) || return nothing
     sx = dx % 2       # sub-x: 0=left, 1=right
     sy = dy % 4       # sub-y: 0-3
     c.dots[cx, cy] |= BRAILLE_MAP[sy + 1][sx + 1]
-    nothing
+    return nothing
 end
 
 function unset_point!(c::Canvas, dx::Int, dy::Int)
-    (dx >= 0 && dy >= 0) || return
+    (dx >= 0 && dy >= 0) || return nothing
     cx = dx ÷ 2 + 1
     cy = dy ÷ 4 + 1
-    (cx <= c.width && cy <= c.height) || return
+    (cx <= c.width && cy <= c.height) || return nothing
     sx = dx % 2
     sy = dy % 4
     c.dots[cx, cy] &= ~BRAILLE_MAP[sy + 1][sx + 1]
-    nothing
+    return nothing
 end
 
 function clear!(c::Canvas)
-    fill!(c.dots, 0x00)
+    return fill!(c.dots, 0x00)
 end
 
 # Bresenham line drawing in dot-space
@@ -90,11 +88,11 @@ function rect!(c::Canvas, x0::Int, y0::Int, x1::Int, y1::Int)
     line!(c, x1, y0, x1, y1)  # right
     line!(c, x1, y1, x0, y1)  # bottom
     line!(c, x0, y1, x0, y0)  # left
-    nothing
+    return nothing
 end
 
 function circle!(c::Canvas, cx::Int, cy::Int, r::Int)
-    r < 0 && return
+    r < 0 && return nothing
     # Midpoint circle algorithm
     x = r
     y = 0
@@ -116,12 +114,13 @@ function circle!(c::Canvas, cx::Int, cy::Int, r::Int)
             err += 2(y - x) + 1
         end
     end
-    nothing
+    return nothing
 end
 
-function arc!(c::Canvas, cx::Int, cy::Int, r::Int,
-              start_deg::Float64, end_deg::Float64; steps::Int=0)
-    r < 0 && return
+function arc!(
+    c::Canvas, cx::Int, cy::Int, r::Int, start_deg::Float64, end_deg::Float64; steps::Int=0
+)
+    r < 0 && return nothing
     if steps <= 0
         steps = max(8, round(Int, abs(end_deg - start_deg) / 360.0 * 2π * r))
     end
@@ -138,11 +137,11 @@ function arc!(c::Canvas, cx::Int, cy::Int, r::Int,
             line!(c, px, py, dx, dy)
         end
     end
-    nothing
+    return nothing
 end
 
 function render(c::Canvas, rect::Rect, buf::Buffer)
-    (rect.width < 1 || rect.height < 1) && return
+    (rect.width < 1 || rect.height < 1) && return nothing
     for cy in 1:min(c.height, rect.height)
         for cx in 1:min(c.width, rect.width)
             bits = c.dots[cx, cy]

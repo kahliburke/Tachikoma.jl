@@ -18,11 +18,11 @@ Span(s::AbstractString) = Span(s, tstyle(:text))
 
 mutable struct Paragraph
     spans::Vector{Span}
-    block::Union{Block, Nothing}
+    block::Union{Block,Nothing}
     wrap::WrapMode
     alignment::Alignment
     scroll_offset::Int
-    tick::Union{Int, Nothing}
+    tick::Union{Int,Nothing}
     show_scrollbar::Bool
 end
 
@@ -41,11 +41,18 @@ When `ansi=false`, escape sequences are stripped and text is shown unstyled.
 When `raw=true`, escape sequences are shown as visible literals (e.g. `␛[31m`)
 for debugging — this overrides `ansi`.
 """
-function Paragraph(text::AbstractString;
-                   block=nothing, style=tstyle(:text),
-                   wrap::WrapMode=no_wrap, alignment::Alignment=align_left,
-                   scroll_offset::Int=0, tick=nothing, show_scrollbar::Bool=true,
-                   ansi::Bool=ansi_enabled(), raw::Bool=false)
+function Paragraph(
+    text::AbstractString;
+    block=nothing,
+    style=tstyle(:text),
+    wrap::WrapMode=no_wrap,
+    alignment::Alignment=align_left,
+    scroll_offset::Int=0,
+    tick=nothing,
+    show_scrollbar::Bool=true,
+    ansi::Bool=ansi_enabled(),
+    raw::Bool=false,
+)
     spans = if raw && contains(text, '\e')
         [Span(replace(text, '\e' => '␛'), style)]
     elseif ansi && contains(text, '\e')
@@ -54,13 +61,19 @@ function Paragraph(text::AbstractString;
         clean = contains(text, '\e') ? _strip_ansi(text) : text
         [Span(clean, style)]
     end
-    Paragraph(spans, block, wrap, alignment, scroll_offset, tick, show_scrollbar)
+    return Paragraph(spans, block, wrap, alignment, scroll_offset, tick, show_scrollbar)
 end
 
-function Paragraph(spans::Vector{Span}; block=nothing,
-                   wrap::WrapMode=no_wrap, alignment::Alignment=align_left,
-                   scroll_offset::Int=0, tick=nothing, show_scrollbar::Bool=true)
-    Paragraph(spans, block, wrap, alignment, scroll_offset, tick, show_scrollbar)
+function Paragraph(
+    spans::Vector{Span};
+    block=nothing,
+    wrap::WrapMode=no_wrap,
+    alignment::Alignment=align_left,
+    scroll_offset::Int=0,
+    tick=nothing,
+    show_scrollbar::Bool=true,
+)
+    return Paragraph(spans, block, wrap, alignment, scroll_offset, tick, show_scrollbar)
 end
 
 # ── Layout pass: break spans into visual lines ──
@@ -75,13 +88,13 @@ function _layout_lines(spans::Vector{Span}, width::Int, wrap::WrapMode)
     function flush_line!()
         push!(lines, current_line)
         current_line = Tuple{String,Style}[]
-        col = 0
+        return col = 0
     end
 
     function add_text!(text::AbstractString, style::Style)
-        isempty(text) && return
+        isempty(text) && return nothing
         push!(current_line, (String(text), style))
-        col += textwidth(text)
+        return col += textwidth(text)
     end
 
     for span in spans
@@ -129,7 +142,7 @@ function _layout_lines(spans::Vector{Span}, width::Int, wrap::WrapMode)
                     end
                     # Ensure at least one grapheme per line to avoid infinite loop
                     take_n = max(take_n, 1)
-                    add_text!(join(graphemes[gi:gi+take_n-1]), span.style)
+                    add_text!(join(graphemes[gi:(gi + take_n - 1)]), span.style)
                     gi += take_n
                 end
 
@@ -141,14 +154,14 @@ function _layout_lines(spans::Vector{Span}, width::Int, wrap::WrapMode)
                     while j <= ngraphs && graphemes[j] != " "
                         j += 1
                     end
-                    word = join(graphemes[i:j-1])
+                    word = join(graphemes[i:(j - 1)])
                     wwidth = textwidth(word)
                     # Collect trailing spaces
                     k = j
                     while k <= ngraphs && graphemes[k] == " "
                         k += 1
                     end
-                    spaces = join(graphemes[j:k-1])
+                    spaces = join(graphemes[j:(k - 1)])
                     swidth = textwidth(spaces)
 
                     if wwidth == 0
@@ -166,7 +179,7 @@ function _layout_lines(spans::Vector{Span}, width::Int, wrap::WrapMode)
 
                     # Grapheme-break words wider than the line
                     if wwidth > width
-                        wgraphs = graphemes[i:j-1]
+                        wgraphs = graphemes[i:(j - 1)]
                         wi = 1
                         wn = length(wgraphs)
                         while wi <= wn
@@ -184,7 +197,7 @@ function _layout_lines(spans::Vector{Span}, width::Int, wrap::WrapMode)
                                 take_n += 1
                             end
                             take_n = max(take_n, 1)
-                            add_text!(join(wgraphs[wi:wi+take_n-1]), span.style)
+                            add_text!(join(wgraphs[wi:(wi + take_n - 1)]), span.style)
                             wi += take_n
                         end
                     else
@@ -206,7 +219,7 @@ function _layout_lines(spans::Vector{Span}, width::Int, wrap::WrapMode)
         push!(lines, current_line)
     end
 
-    lines
+    return lines
 end
 
 # ── Render ──
@@ -218,7 +231,7 @@ function render(p::Paragraph, rect::Rect, buf::Buffer)
         rect
     end
 
-    (content_area.width < 1 || content_area.height < 1) && return
+    (content_area.width < 1 || content_area.height < 1) && return nothing
 
     if p.wrap == no_wrap && p.alignment == align_left && p.scroll_offset == 0
         # Fast path: original behavior (no scrollbar needed — no scrolling)
@@ -231,13 +244,13 @@ function render(p::Paragraph, rect::Rect, buf::Buffer)
                 if pi > 1
                     col = content_area.x
                     row += 1
-                    row > bottom(content_area) && return
+                    row > bottom(content_area) && return nothing
                 end
                 col > rx && continue
                 col = set_string!(buf, col, row, part, span.style; max_x=rx)
             end
         end
-        return
+        return nothing
     end
 
     # Layout pass (use full width first to determine if scrollbar is needed)
@@ -248,8 +261,9 @@ function render(p::Paragraph, rect::Rect, buf::Buffer)
     # Re-layout with reduced width if scrollbar takes a column
     text_area = content_area
     if needs_scrollbar && content_area.width > 1
-        text_area = Rect(content_area.x, content_area.y,
-                         content_area.width - 1, content_area.height)
+        text_area = Rect(
+            content_area.x, content_area.y, content_area.width - 1, content_area.height
+        )
         lines = _layout_lines(p.spans, text_area.width, p.wrap)
         total_lines = length(lines)
     end
@@ -290,8 +304,7 @@ function render(p::Paragraph, rect::Rect, buf::Buffer)
 
     # Scrollbar
     if needs_scrollbar && content_area.width > 1
-        sb_rect = Rect(right(content_area), content_area.y,
-                       1, content_area.height)
+        sb_rect = Rect(right(content_area), content_area.y, 1, content_area.height)
         sb = Scrollbar(total_lines, content_area.height, offset)
         render(sb, sb_rect, buf)
     end
@@ -302,7 +315,7 @@ end
 # If the paragraph has a scrollbar, the caller should account for the
 # 1-column reduction — or call this twice (once to check, once with reduced width).
 function paragraph_line_count(p::Paragraph, width::Int)
-    length(_layout_lines(p.spans, width, p.wrap))
+    return length(_layout_lines(p.spans, width, p.wrap))
 end
 
 # ── Scrollable paragraph (keyboard + mouse) ──
@@ -334,7 +347,7 @@ function handle_key!(p::Paragraph, evt::KeyEvent)::Bool
         p.scroll_offset = typemax(Int) ÷ 2  # will be clamped at render
         return true
     end
-    false
+    return false
 end
 
 function handle_mouse!(p::Paragraph, evt::MouseEvent)::Bool
@@ -346,5 +359,5 @@ function handle_mouse!(p::Paragraph, evt::MouseEvent)::Bool
         p.scroll_offset += 1
         return true
     end
-    false
+    return false
 end

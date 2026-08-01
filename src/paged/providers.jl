@@ -31,7 +31,7 @@ function fetch_page(p::InMemoryPagedProvider, req::PageRequest)
             for ci in 1:length(p.data)
                 occursin(q, lowercase(string(p.data[ci][ri]))) && return true
             end
-            false
+            return false
         end
     end
 
@@ -60,5 +60,5 @@ function fetch_page(p::InMemoryPagedProvider, req::PageRequest)
     ncols = length(p.data)
     rows = [Any[p.data[ci][ri] for ci in 1:ncols] for ri in page_indices]
 
-    PageResult(rows, total)
+    return PageResult(rows, total)
 end

@@ -94,7 +94,7 @@ function _pdt_handle_filter_modal_key!(pdt::PagedDataTable, evt::KeyEvent)::Bool
         end
         handle_key!(fm.value_input, evt)
     end
-    true
+    return true
 end
 
 # ── Filter modal helpers ──────────────────────────────────────────────
@@ -113,7 +113,7 @@ function _pdt_open_filter_modal!(pdt::PagedDataTable)
             break
         end
     end
-    fm.col_cursor == 0 && return  # no filterable columns
+    fm.col_cursor == 0 && return nothing  # no filterable columns
 
     _pdt_sync_filter_modal_ops!(pdt)
 
@@ -132,8 +132,8 @@ end
 
 function _pdt_sync_filter_modal_ops!(pdt::PagedDataTable)
     fm = pdt.filter_modal
-    fm.col_cursor < 1 && return
-    fm.col_cursor > length(pdt.columns) && return
+    fm.col_cursor < 1 && return nothing
+    fm.col_cursor > length(pdt.columns) && return nothing
 
     col = pdt.columns[fm.col_cursor]
     caps = filter_capabilities(pdt.provider)

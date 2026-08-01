@@ -8,7 +8,7 @@
 # inside a terminal widget, recursively up to 20 levels deep.
 # ═══════════════════════════════════════════════════════════════════════
 
-import Tachikoma
+using Tachikoma: Tachikoma
 
 _tachikoma_depth() = parse(Int, get(ENV, "TACHIKOMA_DEPTH", "0"))
 const _TACHIKOMA_MAX_DEPTH = 6
@@ -29,7 +29,7 @@ end
     terminals::Vector{Tachikoma.TerminalWidget} = Tachikoma.TerminalWidget[]
     repls::Vector{Tachikoma.REPLWidget} = Tachikoma.REPLWidget[]
     layout_mode::Symbol = :none   # :none, :tile, :cascade
-    _wake_fn::Union{Function, Nothing} = nothing
+    _wake_fn::Union{Function,Nothing} = nothing
 end
 
 Tachikoma.should_quit(m::TerminalDemoModel) = m.quit
@@ -62,12 +62,12 @@ function _new_window_geometry(wm::Tachikoma.WindowManager, area::Tachikoma.Rect)
     y = area.y + 1 + offset
     x = min(x, Tachikoma.right(area) - w)
     y = min(y, Tachikoma.bottom(area) - h)
-    (x, y, w, h)
+    return (x, y, w, h)
 end
 
 function _close_window!(m::TerminalDemoModel, win_id::Symbol)
     idx = findfirst(w -> w.id == win_id, m.wm.windows)
-    idx === nothing && return
+    idx === nothing && return nothing
     win = m.wm.windows[idx]
     if win.content isa Tachikoma.TerminalWidget
         Tachikoma.close!(win.content)
@@ -77,7 +77,7 @@ function _close_window!(m::TerminalDemoModel, win_id::Symbol)
         filter!(r -> r !== win.content, m.repls)
     end
     deleteat!(m.wm, idx)
-    _reapply_layout!(m)
+    return _reapply_layout!(m)
 end
 
 function _spawn_terminal!(m::TerminalDemoModel, area::Tachikoma.Rect)
@@ -86,22 +86,24 @@ function _spawn_terminal!(m::TerminalDemoModel, area::Tachikoma.Rect)
     x, y, w, h = _new_window_geometry(m.wm, area)
 
     shell = get(ENV, "SHELL", "/bin/sh")
-    tw = Tachikoma.TerminalWidget([shell];
-        rows=h - 2, cols=w - 2, focused=true)
+    tw = Tachikoma.TerminalWidget([shell]; rows=h - 2, cols=w - 2, focused=true)
     m._wake_fn !== nothing && Tachikoma.set_wake!(tw, m._wake_fn)
     push!(m.terminals, tw)
 
     win_id = Symbol("term_$n")
-    win = Tachikoma.FloatingWindow(
-        id = win_id,
-        title = "Terminal #$n",
-        x = x, y = y, width = w, height = h,
-        content = tw,
-        border_color = _TERM_COLORS[mod1(n, length(_TERM_COLORS))],
-        closeable = true,
-        on_close = () -> _close_window!(m, win_id),
+    win = Tachikoma.FloatingWindow(;
+        id=win_id,
+        title="Terminal #$n",
+        x=x,
+        y=y,
+        width=w,
+        height=h,
+        content=tw,
+        border_color=_TERM_COLORS[mod1(n, length(_TERM_COLORS))],
+        closeable=true,
+        on_close=() -> _close_window!(m, win_id),
     )
-    push!(m.wm, win)
+    return push!(m.wm, win)
 end
 
 function _spawn_repl!(m::TerminalDemoModel, area::Tachikoma.Rect)
@@ -114,16 +116,19 @@ function _spawn_repl!(m::TerminalDemoModel, area::Tachikoma.Rect)
     push!(m.repls, rw)
 
     win_id = Symbol("repl_$n")
-    win = Tachikoma.FloatingWindow(
-        id = win_id,
-        title = "Julia REPL #$n",
-        x = x, y = y, width = w, height = h,
-        content = rw,
-        border_color = _REPL_COLORS[mod1(n, length(_REPL_COLORS))],
-        closeable = true,
-        on_close = () -> _close_window!(m, win_id),
+    win = Tachikoma.FloatingWindow(;
+        id=win_id,
+        title="Julia REPL #$n",
+        x=x,
+        y=y,
+        width=w,
+        height=h,
+        content=rw,
+        border_color=_REPL_COLORS[mod1(n, length(_REPL_COLORS))],
+        closeable=true,
+        on_close=() -> _close_window!(m, win_id),
     )
-    push!(m.wm, win)
+    return push!(m.wm, win)
 end
 
 # ── Recursive "all the way down" spawn ───────────────────────────────
@@ -140,10 +145,10 @@ const _DEPTH_COLORS = [
 function _spawn_recursive!(m::TerminalDemoModel, area::Tachikoma.Rect)
     next_depth = _tachikoma_depth() + 1
     if next_depth > _TACHIKOMA_MAX_DEPTH
-        return  # too deep, refuse
+        return nothing  # too deep, refuse
     end
 
-    _DEMOS_PROJECT === nothing && return
+    _DEMOS_PROJECT === nothing && return nothing
 
     m.recurse_count += 1
     n = m.recurse_count
@@ -156,23 +161,25 @@ function _spawn_recursive!(m::TerminalDemoModel, area::Tachikoma.Rect)
     terminal_demo(; tty_out = tty_path())
     """
     cmd = [julia_bin, "--project=$_DEMOS_PROJECT", "-e", script]
-    tw = Tachikoma.TerminalWidget(cmd;
-        rows=h - 2, cols=w - 2, focused=true)
+    tw = Tachikoma.TerminalWidget(cmd; rows=h - 2, cols=w - 2, focused=true)
     m._wake_fn !== nothing && Tachikoma.set_wake!(tw, m._wake_fn)
     push!(m.terminals, tw)
 
     win_id = Symbol("recurse_$n")
     depth_label = join(["🐢" for _ in 1:min(next_depth, 5)]) * (next_depth > 5 ? "+" : "")
-    win = Tachikoma.FloatingWindow(
-        id = win_id,
-        title = "$depth_label Depth $next_depth",
-        x = x, y = y, width = w, height = h,
-        content = tw,
-        border_color = _DEPTH_COLORS[mod1(next_depth, length(_DEPTH_COLORS))],
-        closeable = true,
-        on_close = () -> _close_window!(m, win_id),
+    win = Tachikoma.FloatingWindow(;
+        id=win_id,
+        title="$depth_label Depth $next_depth",
+        x=x,
+        y=y,
+        width=w,
+        height=h,
+        content=tw,
+        border_color=_DEPTH_COLORS[mod1(next_depth, length(_DEPTH_COLORS))],
+        closeable=true,
+        on_close=() -> _close_window!(m, win_id),
     )
-    push!(m.wm, win)
+    return push!(m.wm, win)
 end
 
 # ── Layout helpers ────────────────────────────────────────────────────
@@ -209,7 +216,7 @@ function Tachikoma.has_pending_output(m::TerminalDemoModel)
     for rw in m.repls
         isready(rw.tw.pty.output) && return true
     end
-    false
+    return false
 end
 
 function Tachikoma.set_wake!(m::TerminalDemoModel, notify::Function)
@@ -228,7 +235,7 @@ function Tachikoma.update!(m::TerminalDemoModel, evt::Tachikoma.Event)
     if evt isa Tachikoma.KeyEvent
         if evt.key == :escape
             m.quit = true
-            return
+            return nothing
         end
 
         # Ctrl+N: spawn new terminal
@@ -236,7 +243,7 @@ function Tachikoma.update!(m::TerminalDemoModel, evt::Tachikoma.Event)
             if m.wm.last_area.width > 0
                 _spawn_terminal!(m, m.wm.last_area)
             end
-            return
+            return nothing
         end
 
         # Ctrl+E: spawn new REPL
@@ -244,7 +251,7 @@ function Tachikoma.update!(m::TerminalDemoModel, evt::Tachikoma.Event)
             if m.wm.last_area.width > 0
                 _spawn_repl!(m, m.wm.last_area)
             end
-            return
+            return nothing
         end
 
         # Ctrl+U: all the way down — spawn nested Tachikoma
@@ -252,7 +259,7 @@ function Tachikoma.update!(m::TerminalDemoModel, evt::Tachikoma.Event)
             if m.wm.last_area.width > 0
                 _spawn_recursive!(m, m.wm.last_area)
             end
-            return
+            return nothing
         end
 
         # Ctrl+T: cycle tile → cascade → free
@@ -265,11 +272,11 @@ function Tachikoma.update!(m::TerminalDemoModel, evt::Tachikoma.Event)
                 m.layout_mode = :tile
             end
             _resize_pty_widgets!(m)
-            return
+            return nothing
         end
     end
 
-    Tachikoma.handle_event!(m.wm, evt)
+    return Tachikoma.handle_event!(m.wm, evt)
 end
 
 # ── Rendering ─────────────────────────────────────────────────────────
@@ -280,9 +287,9 @@ function Tachikoma.view(m::TerminalDemoModel, f::Tachikoma.Frame)
 
     # Layout: content | footer
     rows = Tachikoma.split_layout(
-        Tachikoma.Layout(Tachikoma.Vertical, [Tachikoma.Fill(), Tachikoma.Fixed(1)]),
-        f.area)
-    length(rows) < 2 && return
+        Tachikoma.Layout(Tachikoma.Vertical, [Tachikoma.Fill(), Tachikoma.Fixed(1)]), f.area
+    )
+    length(rows) < 2 && return nothing
     content_area = rows[1]
     footer_area = rows[2]
 
@@ -303,19 +310,27 @@ function Tachikoma.view(m::TerminalDemoModel, f::Tachikoma.Frame)
     n = length(m.wm.windows)
     focused = Tachikoma.focused_window(m.wm)
     focus_name = focused !== nothing ? string(focused.title) : "none"
-    layout = m.layout_mode == :tile ? "tile" : m.layout_mode == :cascade ? "cascade" : "free"
+    layout = if m.layout_mode == :tile
+        "tile"
+    elseif m.layout_mode == :cascade
+        "cascade"
+    else
+        "free"
+    end
     depth_str = _tachikoma_depth() > 0 ? " │ depth: $(_tachikoma_depth())" : ""
     down_hint = _tachikoma_depth() + 1 <= _TACHIKOMA_MAX_DEPTH ? " [Ctrl+U] recurse │" : ""
     hint = "$down_hint [Ctrl+N] terminal │ [Ctrl+E] repl │ [Ctrl+T] $layout │ [Ctrl+J/K] focus │ [Esc] quit │ $n window$(n != 1 ? "s" : "")$depth_str │ focus: $focus_name "
-    Tachikoma.render(Tachikoma.StatusBar(
-        left=[Tachikoma.Span(hint, Tachikoma.tstyle(:text_dim))],
-    ), footer_area, buf)
+    return Tachikoma.render(
+        Tachikoma.StatusBar(; left=[Tachikoma.Span(hint, Tachikoma.tstyle(:text_dim))]),
+        footer_area,
+        buf,
+    )
 end
 
 # ── Output routing for REPL widgets ──────────────────────────────────
 
 function _route_output(m::TerminalDemoModel, line::String)
-    isempty(m.repls) && return
+    isempty(m.repls) && return nothing
     fw = Tachikoma.focused_window(m.wm)
     if fw !== nothing && fw.content isa Tachikoma.REPLWidget
         Tachikoma.route_output!(fw.content, line)
@@ -337,9 +352,12 @@ function terminal_demo(; tty_out=nothing)
     while true
         model = TerminalDemoModel()
         result = try
-            Tachikoma.app(model; fps=30, tty_out,
-                on_stdout = line -> _route_output(model, line),
-                on_stderr = line -> _route_output(model, line),
+            Tachikoma.app(
+                model;
+                fps=30,
+                tty_out,
+                on_stdout=line -> _route_output(model, line),
+                on_stderr=line -> _route_output(model, line),
             )
         finally
             for tw in model.terminals

@@ -3,7 +3,7 @@ using Tachikoma
 
 mutable struct GfxTestModel <: Model
     quit::Bool
-    img::Union{PixelImage, Nothing}
+    img::Union{PixelImage,Nothing}
     tick::Int
     need_redraw::Bool
 end
@@ -20,7 +20,7 @@ function Tachikoma.update!(m::GfxTestModel, evt::KeyEvent)
     elseif evt.char == 'n'
         Tachikoma.GRAPHICS_PROTOCOL[] = gfx_none
     end
-    m.tick += 1
+    return m.tick += 1
 end
 
 function _draw_gradient!(img::PixelImage)
@@ -40,17 +40,26 @@ function Tachikoma.view(m::GfxTestModel, f::Frame)
 
     # Status line at top
     proto = graphics_protocol()
-    label = proto == gfx_kitty ? "KITTY" :
-            proto == gfx_sixel ? "SIXEL" : "NONE (braille fallback)"
-    set_string!(buf, area.x + 1, area.y,
-                "Graphics: $label  |  [S]ixel  [K]itty  [N]one  [ESC] quit",
-                tstyle(:accent))
+    label = if proto == gfx_kitty
+        "KITTY"
+    elseif proto == gfx_sixel
+        "SIXEL"
+    else
+        "NONE (braille fallback)"
+    end
+    set_string!(
+        buf,
+        area.x + 1,
+        area.y,
+        "Graphics: $label  |  [S]ixel  [K]itty  [N]one  [ESC] quit",
+        tstyle(:accent),
+    )
 
     # Block rendered separately (matches the pattern used by working demos)
-    blk = Block(title="Pixel Backend Test")
+    blk = Block(; title="Pixel Backend Test")
     img_area = Rect(area.x, area.y + 1, area.width, area.height - 1)
     inner = render(blk, img_area, buf)
-    (inner.width >= 2 && inner.height >= 2) || return
+    (inner.width >= 2 && inner.height >= 2) || return nothing
 
     # Create/recreate PixelImage to match inner area (no block on the image)
     if m.img === nothing || m.img.cells_w != inner.width || m.img.cells_h != inner.height
@@ -58,7 +67,7 @@ function Tachikoma.view(m::GfxTestModel, f::Frame)
         _draw_gradient!(m.img)
     end
 
-    render(m.img, inner, f; tick=m.tick)
+    return render(m.img, inner, f; tick=m.tick)
 end
 
 app(GfxTestModel(false, nothing, 0, true); fps=30)

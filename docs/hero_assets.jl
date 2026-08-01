@@ -23,10 +23,12 @@ function render_logo_frame!(buf::Buffer, area::Rect, frame_idx::Int)
     for row in area.y:bottom(area)
         for col in area.x:right(area)
             in_bounds(buf, col, row) || continue
-            v = 0.5 + 0.25 * sin(τ * t * 0.5 + col * 0.08 + row * 0.15) +
+            v =
+                0.5 +
+                0.25 * sin(τ * t * 0.5 + col * 0.08 + row * 0.15) +
                 0.15 * cos(τ * t + col * 0.05 - row * 0.1)
             c = color_lerp(bg_dark, bg_mid, clamp(v, 0.0, 1.0))
-            set_char!(buf, col, row, ' ', Style(bg=c))
+            set_char!(buf, col, row, ' ', Style(; bg=c))
         end
     end
 
@@ -34,12 +36,13 @@ function render_logo_frame!(buf::Buffer, area::Rect, frame_idx::Int)
     accent_rgb = to_rgb(th.accent)
     for col in area.x:right(area)
         t_top = 0.5 + 0.4 * sin(τ * t + col * 0.1)
-        edge_color = color_lerp(dim_color(accent_rgb, 0.6),
-            brighten(accent_rgb, 0.1), clamp(t_top, 0.0, 1.0))
-        set_char!(buf, col, area.y, '▁', Style(fg=edge_color))
+        edge_color = color_lerp(
+            dim_color(accent_rgb, 0.6), brighten(accent_rgb, 0.1), clamp(t_top, 0.0, 1.0)
+        )
+        set_char!(buf, col, area.y, '▁', Style(; fg=edge_color))
         t_bot = 0.5 + 0.4 * sin(τ * t * 0.8 + col * 0.08 + 2.0)
         sep_color = color_lerp(dim_color(accent_rgb, 0.7), accent_rgb, clamp(t_bot, 0.0, 1.0))
-        set_char!(buf, col, bottom(area), '▔', Style(fg=sep_color))
+        set_char!(buf, col, bottom(area), '▔', Style(; fg=sep_color))
     end
 
     # Centering
@@ -61,10 +64,14 @@ function render_logo_frame!(buf::Buffer, area::Rect, frame_idx::Int)
     c1 = to_rgb(th.primary)
 
     jl_phase = 7.1
-    jl_float = clamp(0.5 +
-                     0.25 * sin(τ * t + jl_phase) +
-                     0.15 * sin(2τ * t + jl_phase * 0.7) +
-                     0.10 * cos(3τ * t + jl_phase * 1.3), 0.0, 1.0)
+    jl_float = clamp(
+        0.5 +
+        0.25 * sin(τ * t + jl_phase) +
+        0.15 * sin(2τ * t + jl_phase * 0.7) +
+        0.10 * cos(3τ * t + jl_phase * 1.3),
+        0.0,
+        1.0,
+    )
 
     for row in 1:length(jl_data)
         for col in 1:length(jl_data[row])
@@ -72,7 +79,7 @@ function render_logo_frame!(buf::Buffer, area::Rect, frame_idx::Int)
             sx, sy = jl_x + col, jl_y + row
             if in_bounds(buf, sx, sy) && sy <= bottom(area) && sx <= right(area)
                 shadow_rgb = dim_color(c1, 0.55 + 0.35 * jl_float)
-                set_char!(buf, sx, sy, '░', Style(fg=shadow_rgb))
+                set_char!(buf, sx, sy, '░', Style(; fg=shadow_rgb))
             end
         end
     end
@@ -83,8 +90,10 @@ function render_logo_frame!(buf::Buffer, area::Rect, frame_idx::Int)
             sy = jl_y + row - 1
             if in_bounds(buf, sx, sy) && sx <= right(area) && sy <= bottom(area)
                 base_color = color_lerp(accent_rgb2, amber, 0.6)
-                c = brighten(base_color, 0.10 + 0.25 * jl_float + 0.05 * sin(τ * t + Float64(col) * 0.3))
-                set_char!(buf, sx, sy, '█', Style(fg=c))
+                c = brighten(
+                    base_color, 0.10 + 0.25 * jl_float + 0.05 * sin(τ * t + Float64(col) * 0.3)
+                )
+                set_char!(buf, sx, sy, '█', Style(; fg=c))
             end
         end
     end
@@ -92,22 +101,25 @@ end
 
 function generate_logo(cache::Dict{String,String}; force::Bool=false)
     tach_file = joinpath(ASSETS_DIR, "hero_logo.tach")
-    src_files = [joinpath(@__DIR__, "logo_preview.jl"),
-        joinpath(@__DIR__, "jl_char_data.jl")]
+    src_files = [joinpath(@__DIR__, "logo_preview.jl"), joinpath(@__DIR__, "jl_char_data.jl")]
     src_hash = bytes2hex(sha256(join(read(f, String) for f in src_files if isfile(f))))
 
     if !force && !should_render(cache, "hero_logo", src_hash, tach_file)
         println("  hero_logo: up to date (skipped)")
-        return
+        return nothing
     end
 
-    println("  hero_logo: rendering $(LOGO_RENDER_FRAMES) frames $(LOGO_RENDER_W)×$(LOGO_RENDER_H)...")
-    record_widget(tach_file, LOGO_RENDER_W, LOGO_RENDER_H, LOGO_RENDER_FRAMES; fps=30) do buf, area, frame_idx
-        render_logo_frame!(buf, area, frame_idx)
+    println(
+        "  hero_logo: rendering $(LOGO_RENDER_FRAMES) frames $(LOGO_RENDER_W)×$(LOGO_RENDER_H)..."
+    )
+    record_widget(
+        tach_file, LOGO_RENDER_W, LOGO_RENDER_H, LOGO_RENDER_FRAMES; fps=30
+    ) do buf, area, frame_idx
+        return render_logo_frame!(buf, area, frame_idx)
     end
     println("    → $(basename(tach_file))")
     export_formats(tach_file)
-    update_cache!(cache, "hero_logo", src_hash, tach_file)
+    return update_cache!(cache, "hero_logo", src_hash, tach_file)
 end
 
 # ─── Sysmon Demo ──────────────────────────────────────────────────────
@@ -142,10 +154,17 @@ function simulate_periodic(frame::Int, fps::Int)
     t = Float64(frame) / fps
     tau = 2pi / period
 
-    cpu_cores = Float64[clamp(
-        0.15 + 0.1i + 0.2sin(tau * t + i * 0.8) +
-        0.1sin(2tau * t + i * 1.3) + 0.05cos(3tau * t + i * 0.5),
-        0.01, 0.99) for i in 1:8]
+    cpu_cores = Float64[
+        clamp(
+            0.15 +
+            0.1i +
+            0.2sin(tau * t + i * 0.8) +
+            0.1sin(2tau * t + i * 1.3) +
+            0.05cos(3tau * t + i * 0.5),
+            0.01,
+            0.99,
+        ) for i in 1:8
+    ]
 
     avg_cpu = sum(cpu_cores) / 8
     mem_used = clamp(6.0 + 1.5sin(tau * t * 0.5) + 0.5sin(2tau * t * 0.3), 2.0, 14.0)
@@ -153,62 +172,86 @@ function simulate_periodic(frame::Int, fps::Int)
     rx = clamp(50.0 + 30sin(tau * t) + 10sin(3tau * t + 1.0), 0.0, 100.0)
     tx = clamp(20.0 + 10sin(tau * t * 0.8 + 0.5) + 5sin(2tau * t + 2.0), 0.0, 60.0)
 
-    (; cpu_cores, avg_cpu, mem_used, mem_total=16.0, swap_used, swap_total=4.0, rx, tx)
+    return (; cpu_cores, avg_cpu, mem_used, mem_total=16.0, swap_used, swap_total=4.0, rx, tx)
 end
 
 function _draw_line_plot!(canvas::Canvas, data::Vector{Float64}, max_val::Float64)
     dw = canvas.width * 2
     dh = canvas.height * 4 - 1
     n = length(data)
-    n < 2 && return
+    n < 2 && return nothing
     start = max(1, n - dw + 1)
-    for i in 1:(min(dw, n - start + 1)-1)
-        v0 = clamp(data[start+i-1] / max_val, 0.0, 1.0)
-        v1 = clamp(data[start+i] / max_val, 0.0, 1.0)
-        Tachikoma.line!(canvas, i - 1, round(Int, (1.0 - v0) * dh),
-            i, round(Int, (1.0 - v1) * dh))
+    for i in 1:(min(dw, n - start + 1) - 1)
+        v0 = clamp(data[start + i - 1] / max_val, 0.0, 1.0)
+        v1 = clamp(data[start + i] / max_val, 0.0, 1.0)
+        Tachikoma.line!(canvas, i - 1, round(Int, (1.0 - v0) * dh), i, round(Int, (1.0 - v1) * dh))
     end
 end
 
 function _render_overview!(buf, area, sim, cpu_hist, mem_hist, tick)
     cols = split_layout(Layout(Horizontal, [Percent(45), Fill()]), area)
-    length(cols) < 2 && return
-    lr = split_layout(Layout(Vertical,
-            [Fixed(1), Fixed(length(sim.cpu_cores) + 2), Fixed(1), Fixed(3), Fixed(1), Fill()]), cols[1])
-    length(lr) < 6 && return
+    length(cols) < 2 && return nothing
+    lr = split_layout(
+        Layout(
+            Vertical,
+            [Fixed(1), Fixed(length(sim.cpu_cores) + 2), Fixed(1), Fixed(3), Fixed(1), Fill()],
+        ),
+        cols[1],
+    )
+    length(lr) < 6 && return nothing
 
-    set_string!(buf, lr[1].x + 1, lr[1].y, "CPU Cores", tstyle(:text, bold=true))
-    bars = [BarEntry("core$(i-1)", v * 100;
-        style=v > 0.8 ? tstyle(:error) : v > 0.5 ? tstyle(:warning) : tstyle(:primary))
-            for (i, v) in enumerate(sim.cpu_cores)]
+    set_string!(buf, lr[1].x + 1, lr[1].y, "CPU Cores", tstyle(:text; bold=true))
+    bars = [
+        BarEntry("core$(i-1)", v * 100; style=if v > 0.8
+            tstyle(:error)
+        elseif v > 0.5
+            tstyle(:warning)
+        else
+            tstyle(:primary)
+        end) for (i, v) in enumerate(sim.cpu_cores)
+    ]
     render(BarChart(bars; max_val=100.0, label_width=7), lr[2], buf)
 
-    set_string!(buf, lr[3].x + 1, lr[3].y, "Memory", tstyle(:text, bold=true))
+    set_string!(buf, lr[3].x + 1, lr[3].y, "Memory", tstyle(:text; bold=true))
     if lr[4].height >= 2
         gy, gx, gw = lr[4].y, lr[4].x + 1, lr[4].width - 2
         set_string!(buf, gx, gy, "RAM", tstyle(:text_dim))
-        render(Gauge(sim.mem_used / sim.mem_total;
+        render(
+            Gauge(
+                sim.mem_used / sim.mem_total;
                 label="$(round(sim.mem_used;digits=1))G / $(sim.mem_total)G",
-                filled_style=tstyle(:secondary), tick=tick), Rect(gx + 4, gy, gw - 4, 1), buf)
+                filled_style=tstyle(:secondary),
+                tick=tick,
+            ),
+            Rect(gx + 4, gy, gw - 4, 1),
+            buf,
+        )
         set_string!(buf, gx, gy + 1, "SWP", tstyle(:text_dim))
-        render(Gauge(sim.swap_used / sim.swap_total;
+        render(
+            Gauge(
+                sim.swap_used / sim.swap_total;
                 label="$(sim.swap_used)G / $(sim.swap_total)G",
-                filled_style=tstyle(:warning), tick=tick), Rect(gx + 4, gy + 1, gw - 4, 1), buf)
+                filled_style=tstyle(:warning),
+                tick=tick,
+            ),
+            Rect(gx + 4, gy + 1, gw - 4, 1),
+            buf,
+        )
     end
     if lr[6].height >= 8
-        set_string!(buf, lr[5].x + 1, lr[5].y, "Calendar", tstyle(:text, bold=true))
+        set_string!(buf, lr[5].x + 1, lr[5].y, "Calendar", tstyle(:text; bold=true))
         render(Calendar(2026, 2; today=19), lr[6], buf)
     end
 
     rr = split_layout(Layout(Vertical, [Fixed(1), Fill(), Fixed(1), Fill()]), cols[2])
-    length(rr) < 4 && return
-    set_string!(buf, rr[1].x + 1, rr[1].y, "CPU History (avg)", tstyle(:text, bold=true))
+    length(rr) < 4 && return nothing
+    set_string!(buf, rr[1].x + 1, rr[1].y, "CPU History (avg)", tstyle(:text; bold=true))
     if rr[2].width >= 4 && rr[2].height >= 2
         c = Canvas(rr[2].width, rr[2].height; style=tstyle(:primary))
         _draw_line_plot!(c, cpu_hist, 1.0)
         render(c, rr[2], buf)
     end
-    set_string!(buf, rr[3].x + 1, rr[3].y, "Memory History", tstyle(:text, bold=true))
+    set_string!(buf, rr[3].x + 1, rr[3].y, "Memory History", tstyle(:text; bold=true))
     if rr[4].width >= 4 && rr[4].height >= 2
         c = Canvas(rr[4].width, rr[4].height; style=tstyle(:secondary))
         _draw_line_plot!(c, mem_hist, 1.0)
@@ -218,28 +261,62 @@ end
 
 function _render_processes!(buf, area, selected)
     cols = split_layout(Layout(Horizontal, [Fill(), Fixed(1)]), area)
-    length(cols) < 2 && return
-    rstyles = [strip(r[2]) == "R" ? tstyle(:success) :
-               strip(r[2]) == "Z" ? tstyle(:error) : tstyle(:text) for r in HERO_PROCS]
-    render(Table(["PROCESS", "S", "CPU%", "MEM(MB)", "FDS"], HERO_PROCS;
-            block=Block(title="processes ($(length(HERO_PROCS)))",
-                border_style=tstyle(:border), title_style=tstyle(:text_dim)),
-            selected=selected, row_styles=rstyles), cols[1], buf)
-    render(Scrollbar(length(HERO_PROCS),
-            min(area.height - 2, length(HERO_PROCS)),
-            max(0, selected - 1)), cols[2], buf)
+    length(cols) < 2 && return nothing
+    rstyles = [
+        if strip(r[2]) == "R"
+            tstyle(:success)
+        elseif strip(r[2]) == "Z"
+            tstyle(:error)
+        else
+            tstyle(:text)
+        end for r in HERO_PROCS
+    ]
+    render(
+        Table(
+            ["PROCESS", "S", "CPU%", "MEM(MB)", "FDS"],
+            HERO_PROCS;
+            block=Block(;
+                title="processes ($(length(HERO_PROCS)))",
+                border_style=tstyle(:border),
+                title_style=tstyle(:text_dim),
+            ),
+            selected=selected,
+            row_styles=rstyles,
+        ),
+        cols[1],
+        buf,
+    )
+    return render(
+        Scrollbar(
+            length(HERO_PROCS), min(area.height - 2, length(HERO_PROCS)), max(0, selected - 1)
+        ),
+        cols[2],
+        buf,
+    )
 end
 
 function _render_network!(buf, area, rx_hist, tx_hist, rx_cur, tx_cur)
     rows = split_layout(Layout(Vertical, [Fixed(1), Fill(), Fixed(1), Fill()]), area)
-    length(rows) < 4 && return
-    set_string!(buf, rows[1].x + 1, rows[1].y, "RX: $(round(rx_cur;digits=1)) MB/s", tstyle(:accent, bold=true))
+    length(rows) < 4 && return nothing
+    set_string!(
+        buf,
+        rows[1].x + 1,
+        rows[1].y,
+        "RX: $(round(rx_cur;digits=1)) MB/s",
+        tstyle(:accent; bold=true),
+    )
     if rows[2].width >= 4 && rows[2].height >= 2
         c = Canvas(rows[2].width, rows[2].height; style=tstyle(:accent))
         _draw_line_plot!(c, rx_hist, 100.0)
         render(c, rows[2], buf)
     end
-    set_string!(buf, rows[3].x + 1, rows[3].y, "TX: $(round(tx_cur;digits=1)) MB/s", tstyle(:primary, bold=true))
+    set_string!(
+        buf,
+        rows[3].x + 1,
+        rows[3].y,
+        "TX: $(round(tx_cur;digits=1)) MB/s",
+        tstyle(:primary; bold=true),
+    )
     if rows[4].width >= 4 && rows[4].height >= 2
         c = Canvas(rows[4].width, rows[4].height; style=tstyle(:primary))
         _draw_line_plot!(c, tx_hist, 60.0)
@@ -253,10 +330,12 @@ function generate_demo(cache::Dict{String,String}; force::Bool=false)
 
     if !force && !should_render(cache, "hero_demo", src_hash, tach_file)
         println("  hero_demo: up to date (skipped)")
-        return
+        return nothing
     end
 
-    println("  hero_demo: rendering $(DEMO_FRAMES) frames $(DEMO_W)×$(DEMO_H) ($(DEMO_DURATION)s)...")
+    println(
+        "  hero_demo: rendering $(DEMO_FRAMES) frames $(DEMO_W)×$(DEMO_H) ($(DEMO_DURATION)s)..."
+    )
 
     cpu_hist = Float64[]
     mem_hist = Float64[]
@@ -281,7 +360,7 @@ function generate_demo(cache::Dict{String,String}; force::Bool=false)
         length(tx_hist) > 200 && popfirst!(tx_hist)
 
         rows = split_layout(Layout(Vertical, [Fixed(1), Fill(), Fixed(1)]), area)
-        length(rows) < 3 && return
+        length(rows) < 3 && return nothing
         render(TabBar(["Overview", "Processes", "Network"]; active=tab[]), rows[1], buf)
 
         if tab[] == 1
@@ -291,16 +370,25 @@ function generate_demo(cache::Dict{String,String}; force::Bool=false)
         end
 
         avg = round(sim.avg_cpu * 100; digits=1)
-        render(StatusBar(
-                left=[Span("  CPU: $(avg)%", tstyle(:primary)),
-                    Span("  MEM: $(round(sim.mem_used;digits=1))/$(sim.mem_total)G", tstyle(:secondary))],
+        return render(
+            StatusBar(;
+                left=[
+                    Span("  CPU: $(avg)%", tstyle(:primary)),
+                    Span(
+                        "  MEM: $(round(sim.mem_used;digits=1))/$(sim.mem_total)G",
+                        tstyle(:secondary),
+                    ),
+                ],
                 right=[Span("[tab/1-3]view [q]quit ", tstyle(:text_dim))],
-            ), rows[3], buf)
+            ),
+            rows[3],
+            buf,
+        )
     end
 
     println("    → $(basename(tach_file))")
     export_formats(tach_file)
-    update_cache!(cache, "hero_demo", src_hash, tach_file)
+    return update_cache!(cache, "hero_demo", src_hash, tach_file)
 end
 
 # ─── Code Reveal Demo ─────────────────────────────────────────────────
@@ -349,8 +437,21 @@ const REVEAL_CODE_LINES = [
     "app(Dashboard(); fps=60)",
 ]
 
-const _REVEAL_KEYWORDS = Set(["using", "function", "end", "if", "for", "return",
-    "true", "false", "struct", "mutable", "const", "isa", "nothing"])
+const _REVEAL_KEYWORDS = Set([
+    "using",
+    "function",
+    "end",
+    "if",
+    "for",
+    "return",
+    "true",
+    "false",
+    "struct",
+    "mutable",
+    "const",
+    "isa",
+    "nothing",
+])
 
 const _SCRAMBLE_CHARS = collect(
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789" *
@@ -358,7 +459,8 @@ const _SCRAMBLE_CHARS = collect(
     "░▒▓█▄▀▐▌╔╗╚╝║═╬╠╣╦╩┃━┏┓┗┛" *
     "λΔΣΩπθαβγδ∞∂∇∫≈≠±×÷√∑∏" *
     "←→↑↓↔⇒⇐⟶⟵" *
-    "⌘⌥⎇⌈⌉⌊⌋⟨⟩∀∃∈∉⊂⊃∪∩")
+    "⌘⌥⎇⌈⌉⌊⌋⟨⟩∀∃∈∉⊂⊃∪∩",
+)
 
 function _classify_reveal_line(line::String)
     styles = Symbol[]
@@ -380,7 +482,7 @@ function _classify_reveal_line(line::String)
             end
             i <= n && (push!(styles, :success); i += 1)
             continue
-        elseif c == ':' && i < n && (isletter(chars[i+1]) || chars[i+1] == '_')
+        elseif c == ':' && i < n && (isletter(chars[i + 1]) || chars[i + 1] == '_')
             push!(styles, :accent)
             i += 1
             while i <= n && (isletter(chars[i]) || isdigit(chars[i]) || chars[i] == '_')
@@ -388,7 +490,7 @@ function _classify_reveal_line(line::String)
                 i += 1
             end
             continue
-        elseif isdigit(c) || (c == '.' && i < n && isdigit(chars[i+1]))
+        elseif isdigit(c) || (c == '.' && i < n && isdigit(chars[i + 1]))
             while i <= n && (isdigit(chars[i]) || chars[i] == '.' || chars[i] == 'e')
                 push!(styles, :warning)
                 i += 1
@@ -399,7 +501,7 @@ function _classify_reveal_line(line::String)
             while i <= n && (isletter(chars[i]) || isdigit(chars[i]) || chars[i] in ('_', '!', '@'))
                 i += 1
             end
-            word = String(chars[ws:i-1])
+            word = String(chars[ws:(i - 1)])
             style = if word in _REVEAL_KEYWORDS || startswith(word, "@")
                 :accent
             elseif !isempty(word) && isuppercase(first(word))
@@ -461,10 +563,16 @@ function _render_code_reveal!(buf, area, fi, char_styles, reveal_frames)
             elseif fi >= rf + 4
                 # Settling — correct char, bold flash
                 s = col <= length(styles) ? styles[col] : :text
-                set_char!(buf, sx, sy, c, tstyle(s, bold=true))
+                set_char!(buf, sx, sy, c, tstyle(s; bold=true))
             elseif fi >= rf
                 # Pop — bright white
-                set_char!(buf, sx, sy, c, Style(fg=ColorRGB(UInt8(255), UInt8(255), UInt8(255)), bold=true))
+                set_char!(
+                    buf,
+                    sx,
+                    sy,
+                    c,
+                    Style(; fg=ColorRGB(UInt8(255), UInt8(255), UInt8(255)), bold=true),
+                )
             else
                 # Scramble — cycling random chars with varied colors
                 phase = fi ÷ 2
@@ -473,7 +581,7 @@ function _render_code_reveal!(buf, area, fi, char_styles, reveal_frames)
                 v = noise(Float64(fi) * 0.03 + Float64(row) * 0.7 + Float64(col) * 0.3)
                 v2 = noise(Float64(fi) * 0.05 + Float64(col) * 0.9 + Float64(row) * 0.4)
                 style = if v > 0.8
-                    tstyle(:accent, bold=true)
+                    tstyle(:accent; bold=true)
                 elseif v > 0.6
                     tstyle(:primary)
                 elseif v2 > 0.7
@@ -481,7 +589,7 @@ function _render_code_reveal!(buf, area, fi, char_styles, reveal_frames)
                 elseif v > 0.3
                     tstyle(:border)
                 else
-                    tstyle(:text_dim, dim=true)
+                    tstyle(:text_dim; dim=true)
                 end
                 set_char!(buf, sx, sy, rc, style)
             end
@@ -495,21 +603,23 @@ function generate_code_reveal(cache::Dict{String,String}; force::Bool=false)
 
     if !force && !should_render(cache, "code_reveal", src_hash, tach_file)
         println("  code_reveal: up to date (skipped)")
-        return
+        return nothing
     end
 
-    println("  code_reveal: rendering $(REVEAL_FRAMES) frames $(REVEAL_W)×$(REVEAL_H) ($(REVEAL_DURATION_S)s)...")
+    println(
+        "  code_reveal: rendering $(REVEAL_FRAMES) frames $(REVEAL_W)×$(REVEAL_H) ($(REVEAL_DURATION_S)s)...",
+    )
 
     char_styles = [_classify_reveal_line(line) for line in REVEAL_CODE_LINES]
     reveal_frames = _compute_reveal_times()
 
     record_widget(tach_file, REVEAL_W, REVEAL_H, REVEAL_FRAMES; fps=REVEAL_FPS) do buf, area, fi
-        _render_code_reveal!(buf, area, fi, char_styles, reveal_frames)
+        return _render_code_reveal!(buf, area, fi, char_styles, reveal_frames)
     end
 
     println("    → $(basename(tach_file))")
     export_formats(tach_file)
-    update_cache!(cache, "code_reveal", src_hash, tach_file)
+    return update_cache!(cache, "code_reveal", src_hash, tach_file)
 end
 
 # ─── Quick Start App (index.md side-by-side, no tachi annotation) ────
@@ -526,13 +636,13 @@ function _generate_quickstart(cache::Dict{String,String}; force::Bool=false)
 
     if !force && !should_render(cache, "quickstart_hello", src_hash, tach_file)
         println("  quickstart_hello: up to date (skipped)")
-        return
+        return nothing
     end
 
     render_fn = get(APP_REGISTRY, "quickstart_hello", nothing)
     if render_fn === nothing
         @warn "No app registered for quickstart_hello"
-        return
+        return nothing
     end
 
     w, h, frames, fps = 60, 25, 300, 30
@@ -540,5 +650,5 @@ function _generate_quickstart(cache::Dict{String,String}; force::Bool=false)
     Base.invokelatest(render_fn, tach_file, w, h, frames, fps)
     println("    → $(basename(tach_file))")
     export_formats(tach_file)
-    update_cache!(cache, "quickstart_hello", src_hash, tach_file)
+    return update_cache!(cache, "quickstart_hello", src_hash, tach_file)
 end

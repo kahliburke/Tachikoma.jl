@@ -17,7 +17,7 @@
     cursor_x::Int = 40
     cursor_y::Int = 30
     speed::Int = 4              # frames between steps when running
-    canvas::Union{Canvas, BlockCanvas, Nothing} = nothing
+    canvas::Union{Canvas,BlockCanvas,Nothing} = nothing
     canvas_area::Rect = Rect(0, 0, 0, 0)
     drawing::Symbol = :none     # :draw, :erase, or :none
     brush::Int = 3              # brush radius in grid cells
@@ -28,13 +28,13 @@ should_quit(m::LifeModel) = m.quit
 function life_randomize!(m::LifeModel; density=0.3)
     m.grid .= rand(size(m.grid)...) .< density
     m.generation = 0
-    m.population = count(m.grid)
+    return m.population = count(m.grid)
 end
 
 function life_clear!(m::LifeModel)
     fill!(m.grid, false)
     m.generation = 0
-    m.population = 0
+    return m.population = 0
 end
 
 function life_step!(m::LifeModel)
@@ -49,16 +49,22 @@ function life_step!(m::LifeModel)
         xp = x == w ? 1 : x + 1
         ym = y == 1 ? h : y - 1
         yp = y == h ? 1 : y + 1
-        n = Int(grid[xm, ym]) + Int(grid[xm, y]) + Int(grid[xm, yp]) +
-            Int(grid[x,  ym])                     + Int(grid[x,  yp]) +
-            Int(grid[xp, ym]) + Int(grid[xp, y]) + Int(grid[xp, yp])
+        n =
+            Int(grid[xm, ym]) +
+            Int(grid[xm, y]) +
+            Int(grid[xm, yp]) +
+            Int(grid[x, ym]) +
+            Int(grid[x, yp]) +
+            Int(grid[xp, ym]) +
+            Int(grid[xp, y]) +
+            Int(grid[xp, yp])
         alive = grid[x, y] ? (n == 2 || n == 3) : (n == 3)
         buf[x, y] = alive
         pop += alive
     end
     m.grid, m.next = buf, grid
     m.generation += 1
-    m.population = pop
+    return m.population = pop
 end
 
 function init!(m::LifeModel, t::Terminal)
@@ -71,7 +77,7 @@ function init!(m::LifeModel, t::Terminal)
     m.cursor_x = gw ÷ 2
     m.cursor_y = gh ÷ 2
     m.canvas = create_canvas(cw, ch; style=tstyle(:primary))
-    life_randomize!(m; density=0.25)
+    return life_randomize!(m; density=0.25)
 end
 
 function update!(m::LifeModel, evt::KeyEvent)
@@ -87,13 +93,13 @@ function update!(m::LifeModel, evt::KeyEvent)
     elseif evt.key == :enter
         life_step!(m)
     end
-    evt.key == :escape && (m.quit = true)
+    return evt.key == :escape && (m.quit = true)
 end
 
 function life_paint!(m::LifeModel, gx::Int, gy::Int, alive::Bool)
     gw, gh = size(m.grid)
     r = m.brush
-    for dx in -r:r, dy in -r:r
+    for dx in (-r):r, dy in (-r):r
         dx * dx + dy * dy > r * r && continue
         nx, ny = gx + dx, gy + dy
         (1 <= nx <= gw && 1 <= ny <= gh) || continue
@@ -109,12 +115,12 @@ function mouse_to_grid(m::LifeModel, mx::Int, my::Int)
     # Terminal cell → dot-space → grid coord (1-based)
     gx = (mx - ca.x) * 2 + 1
     gy = (my - ca.y) * 4 + 1
-    (gx, gy)
+    return (gx, gy)
 end
 
 function update!(m::LifeModel, evt::MouseEvent)
     ca = m.canvas_area
-    ca.width == 0 && return
+    ca.width == 0 && return nothing
     in_canvas = contains(ca, evt.x, evt.y)
 
     if evt.button == mouse_left
@@ -152,7 +158,6 @@ function update!(m::LifeModel, evt::MouseEvent)
     end
 end
 
-
 function view(m::LifeModel, f::Frame)
     m.tick += 1
     buf = f.buffer
@@ -164,14 +169,14 @@ function view(m::LifeModel, f::Frame)
 
     # Layout: canvas area + 2 status rows
     rows = split_layout(Layout(Vertical, [Fill(), Fixed(2)]), f.area)
-    length(rows) < 2 && return
+    length(rows) < 2 && return nothing
     canvas_area = rows[1]
     status_area = rows[2]
     m.canvas_area = canvas_area
 
     cw = canvas_area.width
     ch = canvas_area.height
-    (cw < 2 || ch < 1) && return
+    (cw < 2 || ch < 1) && return nothing
 
     # Reuse canvas, resize if needed
     canvas = m.canvas
@@ -197,21 +202,23 @@ function view(m::LifeModel, f::Frame)
 
     # Status line 1: info
     sy = status_area.y
-    info = "gen $(m.generation) $(DOT) pop $(m.population)/$(gw*gh) $(DOT) " *
-           "brush $(m.brush) $(DOT) " *
-           (m.running ? "RUNNING ($(m.speed))" : "PAUSED")
+    info =
+        "gen $(m.generation) $(DOT) pop $(m.population)/$(gw*gh) $(DOT) " *
+        "brush $(m.brush) $(DOT) " *
+        (m.running ? "RUNNING ($(m.speed))" : "PAUSED")
     set_string!(buf, 1, sy, info, tstyle(:text_dim))
 
     # Status line 2: controls
     sy += 1
     if sy <= bottom(f.area)
-        ctrl = "[Lclick]draw [Rclick]erase [scroll]brush [Mclick]clear " *
-               "[enter/s]step [p]play [r]andom [x]clear [+-]speed [q]uit"
-        set_string!(buf, 1, sy, ctrl, tstyle(:text_dim, dim=true))
+        ctrl =
+            "[Lclick]draw [Rclick]erase [scroll]brush [Mclick]clear " *
+            "[enter/s]step [p]play [r]andom [x]clear [+-]speed [q]uit"
+        set_string!(buf, 1, sy, ctrl, tstyle(:text_dim; dim=true))
     end
 end
 
 function life(; theme_name=nothing)
     theme_name !== nothing && set_theme!(theme_name)
-    app(LifeModel(); fps=60)
+    return app(LifeModel(); fps=60)
 end

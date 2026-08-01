@@ -5,9 +5,15 @@
 # scale and delta encoding), then converts to MP4 with ffmpeg.
 # ═══════════════════════════════════════════════════════════════════════
 
-function render_mp4(output::String, w::Int, h::Int,
-                    cells, ts, kwargs::Dict{Symbol, Any};
-                    fps::Union{Int, Nothing}=nothing)
+function render_mp4(
+    output::String,
+    w::Int,
+    h::Int,
+    cells,
+    ts,
+    kwargs::Dict{Symbol,Any};
+    fps::Union{Int,Nothing}=nothing,
+)
     tmpdir = mktempdir()
     gif_path = joinpath(tmpdir, "frames.gif")
 

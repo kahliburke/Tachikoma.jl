@@ -104,23 +104,23 @@ FocusRing(items::Vector) = FocusRing(Any[items...], isempty(items) ? 0 : 1)
 function next!(ring::FocusRing)
     isempty(ring.items) && return nothing
     ring.active = mod1(ring.active + 1, length(ring.items))
-    current(ring)
+    return current(ring)
 end
 
 function prev!(ring::FocusRing)
     isempty(ring.items) && return nothing
     ring.active = mod1(ring.active - 1, length(ring.items))
-    current(ring)
+    return current(ring)
 end
 
 function current(ring::FocusRing)
     isempty(ring.items) && return nothing
-    ring.items[ring.active]
+    return ring.items[ring.active]
 end
 
 function handle_key!(ring::FocusRing, evt)
     w = current(ring)
-    w === nothing && return
+    w === nothing && return nothing
     if evt.key == :tab
         next!(ring)
     elseif evt.key == :backtab

@@ -36,16 +36,16 @@ end
 
 # Step 1: Generate markdown only (skip VitePress build)
 makedocs(;
-    sitename = "Tachikoma.jl",
-    modules = [Tachikoma, Tachikoma.Paged],
-    remotes = nothing,
-    format = DocumenterVitepress.MarkdownVitepress(;
-        repo = "https://github.com/kahliburke/Tachikoma.jl",
-        devurl = "dev",
-        deploy_url = "kahliburke.github.io/Tachikoma.jl",
-        build_vitepress = false,
+    sitename="Tachikoma.jl",
+    modules=[Tachikoma, Tachikoma.Paged],
+    remotes=nothing,
+    format=DocumenterVitepress.MarkdownVitepress(;
+        repo="https://github.com/kahliburke/Tachikoma.jl",
+        devurl="dev",
+        deploy_url="kahliburke.github.io/Tachikoma.jl",
+        build_vitepress=false,
     ),
-    pages = [
+    pages=[
         "Home" => "index.md",
         "Installation" => "installation.md",
         "Getting Started" => "getting-started.md",
@@ -79,7 +79,7 @@ makedocs(;
         "Comparison" => "comparison.md",
         "API Reference" => "api.md",
     ],
-    warnonly = [:missing_docs, :docs_block, :cross_references],
+    warnonly=[:missing_docs, :docs_block, :cross_references],
 )
 
 # Step 2: Fix &amp; in markdown headings before VitePress builds.
@@ -102,10 +102,10 @@ end
 let config_path = joinpath(@__DIR__, "build", ".documenter", ".vitepress", "config.mts")
     deploy_decision = Documenter.deploy_folder(
         Documenter.auto_detect_deploy_system();
-        repo = "github.com/kahliburke/Tachikoma.jl",
-        devbranch = "main",
-        devurl = "dev",
-        push_preview = true,
+        repo="github.com/kahliburke/Tachikoma.jl",
+        devbranch="main",
+        devurl="dev",
+        push_preview=true,
     )
     folder = deploy_decision.subfolder
     base = "/Tachikoma.jl/$(folder)$(isempty(folder) ? "" : "/")"
@@ -118,8 +118,8 @@ end
 DocumenterVitepress.build_docs(joinpath(@__DIR__, "build"))
 
 deploydocs(;
-    repo = "github.com/kahliburke/Tachikoma.jl",
-    target = "build/.documenter/.vitepress/dist",
-    devbranch = "main",
-    push_preview = true,
+    repo="github.com/kahliburke/Tachikoma.jl",
+    target="build/.documenter/.vitepress/dist",
+    devbranch="main",
+    push_preview=true,
 )

@@ -3,17 +3,16 @@ using CommonMark
 # ── Helpers ──────────────────────────────────────────────────────────
 
 function _spans_text(lines)
-    join((join(s.content for s in line) for line in lines), "\n")
+    return join((join(s.content for s in line) for line in lines), "\n")
 end
 
 function _is_blank_line_test(spans)
-    isempty(spans) || all(s -> isempty(strip(s.content)), spans)
+    return isempty(spans) || all(s -> isempty(strip(s.content)), spans)
 end
 
 # ── Tests ────────────────────────────────────────────────────────────
 
 @testset "Markdown extension" begin
-
     @testset "markdown_extension_loaded after using CommonMark" begin
         @test T.markdown_extension_loaded()
     end
@@ -210,7 +209,6 @@ end
 # ── MarkdownPane widget tests ──────────────────────────────────────
 
 @testset "MarkdownPane widget" begin
-
     @testset "Construction" begin
         mp = T.MarkdownPane("# Hello\n\nWorld")
         @test mp.source == "# Hello\n\nWorld"
@@ -229,8 +227,7 @@ end
     end
 
     @testset "Render with TestBackend" begin
-        mp = T.MarkdownPane("# Title\n\nSome text here";
-            block=T.Block(title="MD"))
+        mp = T.MarkdownPane("# Title\n\nSome text here"; block=T.Block(title="MD"))
         tb = T.TestBackend(60, 15)
         T.render_widget!(tb, mp)
         found = T.find_text(tb, "Title")
@@ -250,9 +247,9 @@ end
     end
 
     @testset "Responsive reflow changes last_width" begin
-        mp = T.MarkdownPane("Some long text that should reflow";
-            width=80,
-            block=T.Block(title="MD"))
+        mp = T.MarkdownPane(
+            "Some long text that should reflow"; width=80, block=T.Block(title="MD")
+        )
         # Render into a narrow area — should trigger reflow
         tb = T.TestBackend(30, 10)
         T.render_widget!(tb, mp)

@@ -36,11 +36,11 @@ function snake_init!(m::SnakeModel, w::Int, h::Int)
     m.game_over = false
     m.paused = false
     m.speed = 6
-    spawn_food!(m)
+    return spawn_food!(m)
 end
 
 function init!(m::SnakeModel, t::Terminal)
-    snake_init!(m, t.size.width, t.size.height)
+    return snake_init!(m, t.size.width, t.size.height)
 end
 
 function spawn_food!(m::SnakeModel)
@@ -49,7 +49,7 @@ function spawn_food!(m::SnakeModel)
         fy = rand(1:m.height)
         if (fx, fy) ∉ m.snake
             m.food = (fx, fy)
-            return
+            return nothing
         end
     end
 end
@@ -73,7 +73,7 @@ function update!(m::SnakeModel, evt::KeyEvent)
     elseif evt.key == :right && dx != -1
         m.next_dir = (1, 0)
     end
-    evt.key == :escape && (m.quit = true)
+    return evt.key == :escape && (m.quit = true)
 end
 
 function snake_step!(m::SnakeModel)
@@ -87,7 +87,7 @@ function snake_step!(m::SnakeModel)
     if (nx, ny) in m.snake
         m.game_over = true
         m.high_score = max(m.high_score, m.score)
-        return
+        return nothing
     end
 
     pushfirst!(m.snake, (nx, ny))
@@ -112,15 +112,13 @@ function view(m::SnakeModel, f::Frame)
     end
 
     # Layout: border around game area + status
-    block = Block(
-        title="snake",
-        border_style=tstyle(:border),
-        title_style=tstyle(:title, bold=true),
+    block = Block(;
+        title="snake", border_style=tstyle(:border), title_style=tstyle(:title; bold=true)
     )
     content = render(block, f.area, buf)
 
     rows = split_layout(Layout(Vertical, [Fill(), Fixed(1)]), content)
-    length(rows) < 2 && return
+    length(rows) < 2 && return nothing
     game_area = rows[1]
     status_row = rows[2]
 
@@ -135,7 +133,7 @@ function view(m::SnakeModel, f::Frame)
     if in_bounds(buf, food_x, food_y)
         # Pulsing food
         food_ch = mod(m.tick, 20) < 10 ? '◆' : '◇'
-        set_char!(buf, food_x, food_y, food_ch, tstyle(:warning, bold=true))
+        set_char!(buf, food_x, food_y, food_ch, tstyle(:warning; bold=true))
     end
 
     # Draw snake
@@ -154,9 +152,13 @@ function view(m::SnakeModel, f::Frame)
             else
                 '▾'
             end
-            set_char!(buf, px, py, ch,
-                      m.game_over ? tstyle(:error, bold=true) :
-                                    tstyle(:accent, bold=true))
+            set_char!(
+                buf,
+                px,
+                py,
+                ch,
+                m.game_over ? tstyle(:error; bold=true) : tstyle(:accent; bold=true),
+            )
         else
             # Body: gradient from bright to dim
             frac = i / length(m.snake)
@@ -171,7 +173,7 @@ function view(m::SnakeModel, f::Frame)
         mx = ox + max(0, (m.width - length(msg)) ÷ 2)
         my = oy + m.height ÷ 2
         if in_bounds(buf, mx, my)
-            set_string!(buf, mx, my, msg, tstyle(:error, bold=true))
+            set_string!(buf, mx, my, msg, tstyle(:error; bold=true))
             restart_msg = "press [r] to restart"
             rx = ox + max(0, (m.width - length(restart_msg)) ÷ 2)
             in_bounds(buf, rx, my + 1) &&
@@ -184,8 +186,7 @@ function view(m::SnakeModel, f::Frame)
         msg = "PAUSED"
         mx = ox + max(0, (m.width - length(msg)) ÷ 2)
         my = oy + m.height ÷ 2
-        in_bounds(buf, mx, my) &&
-            set_string!(buf, mx, my, msg, tstyle(:warning, bold=true))
+        in_bounds(buf, mx, my) && set_string!(buf, mx, my, msg, tstyle(:warning; bold=true))
     end
 
     # Status bar
@@ -193,17 +194,21 @@ function view(m::SnakeModel, f::Frame)
     hi_str = "Hi: $(m.high_score)"
     speed_str = "Speed: $(7 - m.speed)"
     controls = "[arrows]move [p]pause [r]restart [q]quit"
-    render(StatusBar(
-        left=[
-            Span("  $(score_str) ", tstyle(:primary, bold=true)),
-            Span("$(DOT) $(hi_str) ", tstyle(:text_dim)),
-            Span("$(DOT) $(speed_str)", tstyle(:text_dim)),
-        ],
-        right=[Span(controls * " ", tstyle(:text_dim))],
-    ), status_row, buf)
+    return render(
+        StatusBar(;
+            left=[
+                Span("  $(score_str) ", tstyle(:primary; bold=true)),
+                Span("$(DOT) $(hi_str) ", tstyle(:text_dim)),
+                Span("$(DOT) $(speed_str)", tstyle(:text_dim)),
+            ],
+            right=[Span(controls * " ", tstyle(:text_dim))],
+        ),
+        status_row,
+        buf,
+    )
 end
 
 function snake(; theme_name=nothing)
     theme_name !== nothing && set_theme!(theme_name)
-    app(SnakeModel(); fps=60)
+    return app(SnakeModel(); fps=60)
 end

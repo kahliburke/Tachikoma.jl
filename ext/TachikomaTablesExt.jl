@@ -16,7 +16,7 @@ function _datatable_from_table(source; kwargs...)
         al = et <: Number ? Tachikoma.col_right : Tachikoma.col_left
         push!(datacols, Tachikoma.DataColumn(string(name), vals; align=al))
     end
-    Tachikoma.DataTable(datacols; kwargs...)
+    return Tachikoma.DataTable(datacols; kwargs...)
 end
 
 function _paged_provider_from_table(source)
@@ -32,16 +32,16 @@ function _paged_provider_from_table(source)
         push!(paged_cols, PagedColumn(string(name); col_type=et <: Number ? :numeric : :text))
         push!(data, vals)
     end
-    InMemoryPagedProvider(paged_cols, data)
+    return InMemoryPagedProvider(paged_cols, data)
 end
 
 function Tachikoma.DataTable(source; kwargs...)
-    _datatable_from_table(source; kwargs...)
+    return _datatable_from_table(source; kwargs...)
 end
 
 function Tachikoma.Paged.PagedDataTable(source; kwargs...)
     provider = _paged_provider_from_table(source)
-    PagedDataTable(provider; kwargs...)
+    return PagedDataTable(provider; kwargs...)
 end
 
 function __init__()

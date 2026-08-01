@@ -4,31 +4,44 @@
 abstract type Constraint end
 
 """Fixed-size constraint in cells."""
-struct Fixed   <: Constraint; size::Int; end
+struct Fixed <: Constraint
+    size::Int
+end
 
 """Minimum-size constraint — takes at least `size` cells, expands if space remains."""
-struct Min     <: Constraint; size::Int; end
+struct Min <: Constraint
+    size::Int
+end
 
 """Maximum-size constraint — expands up to `size` cells."""
-struct Max     <: Constraint; size::Int; end
+struct Max <: Constraint
+    size::Int
+end
 
 """Percentage of total space."""
-struct Percent <: Constraint; pct::Int;  end
+struct Percent <: Constraint
+    pct::Int
+end
 
 """Fills remaining space. `weight` controls relative proportion when multiple Fills exist."""
-struct Fill    <: Constraint; weight::Int; end
+struct Fill <: Constraint
+    weight::Int
+end
 
 Fill() = Fill(1)
 
 """Ratio of total space — `num/den` of the effective total."""
-struct Ratio   <: Constraint; num::Int; den::Int; end
+struct Ratio <: Constraint
+    num::Int
+    den::Int
+end
 
-Base.show(io::IO, c::Fixed)   = print(io, "Fixed(", c.size, ")")
-Base.show(io::IO, c::Min)     = print(io, "Min(", c.size, ")")
-Base.show(io::IO, c::Max)     = print(io, "Max(", c.size, ")")
+Base.show(io::IO, c::Fixed) = print(io, "Fixed(", c.size, ")")
+Base.show(io::IO, c::Min) = print(io, "Min(", c.size, ")")
+Base.show(io::IO, c::Max) = print(io, "Max(", c.size, ")")
 Base.show(io::IO, c::Percent) = print(io, "Percent(", c.pct, ")")
-Base.show(io::IO, c::Fill)    = print(io, "Fill(", c.weight, ")")
-Base.show(io::IO, c::Ratio)   = print(io, "Ratio(", c.num, ", ", c.den, ")")
+Base.show(io::IO, c::Fill) = print(io, "Fill(", c.weight, ")")
+Base.show(io::IO, c::Ratio) = print(io, "Ratio(", c.num, ", ", c.den, ")")
 
 struct Layout
     direction::Direction
@@ -37,14 +50,14 @@ struct Layout
     spacing::Int
 end
 
-function Layout(dir::Direction, cs::Vector{Constraint};
-                align::LayoutAlign=layout_start, spacing::Int=0)
-    Layout(dir, cs, align, spacing)
+function Layout(
+    dir::Direction, cs::Vector{Constraint}; align::LayoutAlign=layout_start, spacing::Int=0
+)
+    return Layout(dir, cs, align, spacing)
 end
 
-function Layout(dir::Direction, cs::Vector;
-                align::LayoutAlign=layout_start, spacing::Int=0)
-    Layout(dir, Constraint[c for c in cs], align, spacing)
+function Layout(dir::Direction, cs::Vector; align::LayoutAlign=layout_start, spacing::Int=0)
+    return Layout(dir, Constraint[c for c in cs], align, spacing)
 end
 
 """
@@ -91,15 +104,12 @@ function split_layout(layout::Layout, rect::Rect)
     flex_idx = findall(is_flex)
     if !isempty(flex_idx) && remaining > 0
         total_w = sum(
-            layout.constraints[i] isa Fill ?
-                layout.constraints[i].weight : 1
-            for i in flex_idx
+            layout.constraints[i] isa Fill ? layout.constraints[i].weight : 1 for i in flex_idx
         )
         for (j, i) in enumerate(flex_idx)
             c = layout.constraints[i]
             w = c isa Fill ? c.weight : 1
-            share = j == length(flex_idx) ? remaining :
-                    div(remaining * w, total_w)
+            share = j == length(flex_idx) ? remaining : div(remaining * w, total_w)
             c isa Max && (share = min(share, c.size))
             sizes[i] += share
             remaining -= share
@@ -156,7 +166,7 @@ function split_layout(layout::Layout, rect::Rect)
             end
         end
     end
-    rects
+    return rects
 end
 
 # Backward compat alias
@@ -209,7 +219,7 @@ function split_with_spacers(layout::Layout, rect::Rect)
         spacers[n + 1] = Rect(rect.x, ty, rect.width, h)
     end
 
-    (rects, spacers)
+    return (rects, spacers)
 end
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -241,35 +251,33 @@ mutable struct ResizableLayout
     hover_border::Int          # 0 = none, >0 = hovered border index
 end
 
-function ResizableLayout(dir::Direction, constraints::Vector{<:Constraint};
-                         min_pane_size::Int=3)
+function ResizableLayout(dir::Direction, constraints::Vector{<:Constraint}; min_pane_size::Int=3)
     cs = Constraint[c for c in constraints]
-    ResizableLayout(dir, dir, copy(cs), cs, Rect[], Rect(), DragState(),
-                    min_pane_size, 0)
+    return ResizableLayout(dir, dir, copy(cs), cs, Rect[], Rect(), DragState(), min_pane_size, 0)
 end
 
 function ResizableLayout(dir::Direction, constraints::Vector; min_pane_size::Int=3)
-    ResizableLayout(dir, Constraint[c for c in constraints]; min_pane_size)
+    return ResizableLayout(dir, Constraint[c for c in constraints]; min_pane_size)
 end
 
 function split_layout(rl::ResizableLayout, rect::Rect)
     layout = Layout(rl.direction, rl.constraints)
     rl.rects = split_layout(layout, rect)
     rl.last_area = rect
-    rl.rects
+    return rl.rects
 end
 
 function reset_layout!(rl::ResizableLayout)
     rl.constraints = copy(rl.original_constraints)
     rl.drag = DragState()
     rl.hover_border = 0
-    nothing
+    return nothing
 end
 
 # ── Internal helpers ──────────────────────────────────────────────────
 
 function _current_sizes(rl::ResizableLayout)
-    [rl.direction == Horizontal ? r.width : r.height for r in rl.rects]
+    return [rl.direction == Horizontal ? r.width : r.height for r in rl.rects]
 end
 
 function _find_border(rl::ResizableLayout, pos::Int)
@@ -285,11 +293,10 @@ function _find_border(rl::ResizableLayout, pos::Int)
     return 0
 end
 
-function _apply_delta!(rl::ResizableLayout, border_idx::Int, delta::Int,
-                       sizes::Vector{Int})
-    delta == 0 && return
+function _apply_delta!(rl::ResizableLayout, border_idx::Int, delta::Int, sizes::Vector{Int})
+    delta == 0 && return nothing
     n = length(rl.constraints)
-    (border_idx < 1 || border_idx >= n) && return
+    (border_idx < 1 || border_idx >= n) && return nothing
 
     left_c = rl.constraints[border_idx]
     right_c = rl.constraints[border_idx + 1]
@@ -309,8 +316,8 @@ function _apply_delta!(rl::ResizableLayout, border_idx::Int, delta::Int,
         new_right = rl.min_pane_size
     end
 
-    new_left < rl.min_pane_size && return
-    new_right < rl.min_pane_size && return
+    new_left < rl.min_pane_size && return nothing
+    new_right < rl.min_pane_size && return nothing
 
     if left_c isa Fixed && right_c isa Fixed
         rl.constraints[border_idx] = Fixed(new_left)
@@ -325,7 +332,7 @@ function _apply_delta!(rl::ResizableLayout, border_idx::Int, delta::Int,
     elseif left_c isa Percent && right_c isa Percent
         total_pct = left_c.pct + right_c.pct
         total_px = sizes[border_idx] + sizes[border_idx + 1]
-        total_px > 0 || return
+        total_px > 0 || return nothing
         new_left_pct = clamp(round(Int, new_left / total_px * total_pct), 1, total_pct - 1)
         rl.constraints[border_idx] = Percent(new_left_pct)
         rl.constraints[border_idx + 1] = Percent(total_pct - new_left_pct)
@@ -339,7 +346,7 @@ function _apply_delta!(rl::ResizableLayout, border_idx::Int, delta::Int,
         rl.constraints[border_idx] = Fixed(new_left)
         rl.constraints[border_idx + 1] = Fixed(new_right)
     end
-    nothing
+    return nothing
 end
 
 function _find_pane(rl::ResizableLayout, x::Int, y::Int)
@@ -350,21 +357,21 @@ function _find_pane(rl::ResizableLayout, x::Int, y::Int)
 end
 
 function _swap_panes!(rl::ResizableLayout, a::Int, b::Int)
-    (a < 1 || b < 1 || a > length(rl.constraints) || b > length(rl.constraints)) && return
-    a == b && return
+    (a < 1 || b < 1 || a > length(rl.constraints) || b > length(rl.constraints)) && return nothing
+    a == b && return nothing
     rl.constraints[a], rl.constraints[b] = rl.constraints[b], rl.constraints[a]
-    nothing
+    return nothing
 end
 
 function _rotate_direction!(rl::ResizableLayout)
     rl.direction = rl.direction == Horizontal ? Vertical : Horizontal
-    nothing
+    return nothing
 end
 
 function _reset_layout!(rl::ResizableLayout)
     rl.direction = rl.original_direction
     rl.constraints = copy(rl.original_constraints)
-    nothing
+    return nothing
 end
 
 # Mouse-dependent methods (handle_resize!, render_resize_handles!) are in
@@ -375,13 +382,13 @@ end
 # ═══════════════════════════════════════════════════════════════════════
 
 function _serialize_constraint(c::Constraint)
-    c isa Fixed   && return "F$(c.size)"
-    c isa Fill    && return "L$(c.weight)"
+    c isa Fixed && return "F$(c.size)"
+    c isa Fill && return "L$(c.weight)"
     c isa Percent && return "P$(c.pct)"
-    c isa Min     && return "N$(c.size)"
-    c isa Max     && return "X$(c.size)"
-    c isa Ratio   && return "R$(c.num)/$(c.den)"
-    error("Unknown constraint type: $(typeof(c))")
+    c isa Min && return "N$(c.size)"
+    c isa Max && return "X$(c.size)"
+    c isa Ratio && return "R$(c.num)/$(c.den)"
+    return error("Unknown constraint type: $(typeof(c))")
 end
 
 function _deserialize_constraint(s::AbstractString)
@@ -397,21 +404,21 @@ function _deserialize_constraint(s::AbstractString)
     tag == 'P' && return Percent(val)
     tag == 'N' && return Min(val)
     tag == 'X' && return Max(val)
-    error("Unknown constraint tag: $tag")
+    return error("Unknown constraint tag: $tag")
 end
 
 function _serialize_constraints(cs::Vector{Constraint})
-    join((_serialize_constraint(c) for c in cs), ",")
+    return join((_serialize_constraint(c) for c in cs), ",")
 end
 
 function _deserialize_constraints(s::AbstractString)
     isempty(s) && return Constraint[]
-    Constraint[_deserialize_constraint(p) for p in Base.split(s, ",")]
+    return Constraint[_deserialize_constraint(p) for p in Base.split(s, ",")]
 end
 
 function _layout_fingerprint(rl::ResizableLayout)
     dir_char = rl.original_direction == Horizontal ? "H" : "V"
-    string(dir_char, "|", _serialize_constraints(rl.original_constraints))
+    return string(dir_char, "|", _serialize_constraints(rl.original_constraints))
 end
 
 function _save_layout_pref!(model_type::String, field_name::String, rl::ResizableLayout)
@@ -421,9 +428,10 @@ function _save_layout_pref!(model_type::String, field_name::String, rl::Resizabl
     dir_str = rl.direction == Horizontal ? "Horizontal" : "Vertical"
     cs_str = _serialize_constraints(rl.constraints)
     orig_str = _layout_fingerprint(rl)
-    Preferences.set_preferences!(@__MODULE__,
-        key_dir => dir_str, key_cs => cs_str, key_orig => orig_str; force=true)
-    nothing
+    Preferences.set_preferences!(
+        @__MODULE__, key_dir => dir_str, key_cs => cs_str, key_orig => orig_str; force=true
+    )
+    return nothing
 end
 
 function _load_layout_pref!(model_type::String, field_name::String, rl::ResizableLayout)
@@ -455,7 +463,7 @@ function _save_layout_prefs!(model)
         ftype === ResizableLayout || continue
         _save_layout_pref!(model_type, string(fname), getfield(model, fname))
     end
-    nothing
+    return nothing
 end
 
 function _load_layout_prefs!(model)
@@ -465,5 +473,5 @@ function _load_layout_prefs!(model)
         ftype === ResizableLayout || continue
         _load_layout_pref!(model_type, string(fname), getfield(model, fname))
     end
-    nothing
+    return nothing
 end

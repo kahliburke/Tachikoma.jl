@@ -17,26 +17,79 @@ import Tachikoma.Paged: column_defs, fetch_page, supports_search, supports_filte
 # ── Exoplanet data generation ────────────────────────────────────────
 
 const EXO_CONSTELLATIONS = (
-    "Cygnus", "Lyra", "Aquarius", "Pegasus", "Virgo", "Sagittarius",
-    "Centaurus", "Pisces", "Draco", "Scorpius", "Orion", "Cassiopeia",
-    "Leo", "Gemini", "Andromeda", "Eridanus", "Puppis", "Vela",
+    "Cygnus",
+    "Lyra",
+    "Aquarius",
+    "Pegasus",
+    "Virgo",
+    "Sagittarius",
+    "Centaurus",
+    "Pisces",
+    "Draco",
+    "Scorpius",
+    "Orion",
+    "Cassiopeia",
+    "Leo",
+    "Gemini",
+    "Andromeda",
+    "Eridanus",
+    "Puppis",
+    "Vela",
 )
 
 const EXO_DISCOVERY_METHODS = (
-    "Transit", "Radial Velocity", "Direct Imaging", "Microlensing",
-    "Transit Timing", "Astrometry", "Pulsar Timing",
+    "Transit",
+    "Radial Velocity",
+    "Direct Imaging",
+    "Microlensing",
+    "Transit Timing",
+    "Astrometry",
+    "Pulsar Timing",
 )
 
 const EXO_SPECTRAL_TYPES = (
-    "G2V", "K0V", "K5V", "M0V", "M2V", "M4V", "M5V",
-    "F5V", "F8V", "G0V", "G5V", "G8V", "K1III", "K2V",
-    "A0V", "B8V", "G9V", "M1V", "M3V",
+    "G2V",
+    "K0V",
+    "K5V",
+    "M0V",
+    "M2V",
+    "M4V",
+    "M5V",
+    "F5V",
+    "F8V",
+    "G0V",
+    "G5V",
+    "G8V",
+    "K1III",
+    "K2V",
+    "A0V",
+    "B8V",
+    "G9V",
+    "M1V",
+    "M3V",
 )
 
 const EXO_NAME_PREFIXES = (
-    "Kepler-", "TRAPPIST-", "TOI-", "HAT-P-", "WASP-", "GJ ", "HD ",
-    "K2-", "CoRoT-", "XO-", "TrES-", "Qatar-", "KELT-", "EPIC ",
-    "KOI-", "Proxima ", "LHS ", "Ross ", "Wolf ", "55 Cnc ",
+    "Kepler-",
+    "TRAPPIST-",
+    "TOI-",
+    "HAT-P-",
+    "WASP-",
+    "GJ ",
+    "HD ",
+    "K2-",
+    "CoRoT-",
+    "XO-",
+    "TrES-",
+    "Qatar-",
+    "KELT-",
+    "EPIC ",
+    "KOI-",
+    "Proxima ",
+    "LHS ",
+    "Ross ",
+    "Wolf ",
+    "55 Cnc ",
 )
 
 """Generate an exoplanet name from index."""
@@ -44,22 +97,22 @@ function _exo_name(i::Int)
     prefix = EXO_NAME_PREFIXES[mod1(i * 7 + 3, length(EXO_NAME_PREFIXES))]
     suffix = mod1(i * 31 + 17, 9999)
     letter = ('b' + mod(i * 13, 6))
-    string(prefix, suffix, letter)
+    return string(prefix, suffix, letter)
 end
 
 _exo_constellation(i) = EXO_CONSTELLATIONS[mod1(i * 11 + 5, length(EXO_CONSTELLATIONS))]
-_exo_method(i)        = EXO_DISCOVERY_METHODS[mod1(i * 17 + 3, length(EXO_DISCOVERY_METHODS))]
-_exo_year(i)          = 1995 + mod(i * 7 + 13, 30)  # 1995-2024
-_exo_distance(i)      = round(4.2 + abs(sin(Float64(i) * 0.0073)) * 27996.0; digits=1)
-_exo_mass(i)          = round(0.01 + abs(cos(Float64(i) * 0.019)) * 13000.0; digits=2)
-_exo_radius(i)        = round(0.3 + abs(sin(Float64(i) * 0.031)) * 24.7; digits=2)
-_exo_temp(i)          = 50 + round(Int, abs(cos(Float64(i) * 0.013)) * 6950)
-_exo_period(i)        = round(0.1 + abs(sin(Float64(i) * 0.0053)) * 99999.9; digits=1)
-_exo_spectral(i)      = EXO_SPECTRAL_TYPES[mod1(i * 23 + 7, length(EXO_SPECTRAL_TYPES))]
+_exo_method(i) = EXO_DISCOVERY_METHODS[mod1(i * 17 + 3, length(EXO_DISCOVERY_METHODS))]
+_exo_year(i) = 1995 + mod(i * 7 + 13, 30)  # 1995-2024
+_exo_distance(i) = round(4.2 + abs(sin(Float64(i) * 0.0073)) * 27996.0; digits=1)
+_exo_mass(i) = round(0.01 + abs(cos(Float64(i) * 0.019)) * 13000.0; digits=2)
+_exo_radius(i) = round(0.3 + abs(sin(Float64(i) * 0.031)) * 24.7; digits=2)
+_exo_temp(i) = 50 + round(Int, abs(cos(Float64(i) * 0.013)) * 6950)
+_exo_period(i) = round(0.1 + abs(sin(Float64(i) * 0.0053)) * 99999.9; digits=1)
+_exo_spectral(i) = EXO_SPECTRAL_TYPES[mod1(i * 23 + 7, length(EXO_SPECTRAL_TYPES))]
 
 """Generate a single exoplanet row by index."""
 function _exo_row(i::Int)
-    Any[
+    return Any[
         i,                      # ID
         _exo_name(i),           # Name
         _exo_constellation(i),  # Constellation
@@ -97,26 +150,24 @@ mutable struct SyntheticServerProvider <: PagedDataProvider
     failure_rate::Float64   # probability of a fetch throwing an error (0.0–1.0)
 end
 
-function SyntheticServerProvider(total::Int;
-    latency_mean::Float64=0.0,
-    latency_std::Float64=0.0,
-    failure_rate::Float64=0.0,
+function SyntheticServerProvider(
+    total::Int; latency_mean::Float64=0.0, latency_std::Float64=0.0, failure_rate::Float64=0.0
 )
-    SyntheticServerProvider(total, latency_mean, latency_std, failure_rate)
+    return SyntheticServerProvider(total, latency_mean, latency_std, failure_rate)
 end
 
 const _SYNTH_COLUMNS = [
-    PagedColumn("ID";              align=col_right, sortable=true, filterable=false, col_type=:numeric),
-    PagedColumn("Name";            sortable=true, col_type=:text),
-    PagedColumn("Constellation";   sortable=true, col_type=:text),
-    PagedColumn("Method";          sortable=true, col_type=:text),
-    PagedColumn("Year";            align=col_right, sortable=true, col_type=:numeric),
-    PagedColumn("Distance (ly)";   align=col_right, format=v -> string(v), col_type=:numeric),
-    PagedColumn("Mass (M⊕)";      align=col_right, format=v -> string(v), col_type=:numeric),
-    PagedColumn("Radius (R⊕)";    align=col_right, format=v -> string(v), col_type=:numeric),
-    PagedColumn("Temp (K)";        align=col_right, format=v -> string(v), col_type=:numeric),
-    PagedColumn("Period (days)";   align=col_right, format=v -> string(v), col_type=:numeric),
-    PagedColumn("Spectral";        sortable=true, col_type=:text),
+    PagedColumn("ID"; align=col_right, sortable=true, filterable=false, col_type=:numeric),
+    PagedColumn("Name"; sortable=true, col_type=:text),
+    PagedColumn("Constellation"; sortable=true, col_type=:text),
+    PagedColumn("Method"; sortable=true, col_type=:text),
+    PagedColumn("Year"; align=col_right, sortable=true, col_type=:numeric),
+    PagedColumn("Distance (ly)"; align=col_right, format=v -> string(v), col_type=:numeric),
+    PagedColumn("Mass (M⊕)"; align=col_right, format=v -> string(v), col_type=:numeric),
+    PagedColumn("Radius (R⊕)"; align=col_right, format=v -> string(v), col_type=:numeric),
+    PagedColumn("Temp (K)"; align=col_right, format=v -> string(v), col_type=:numeric),
+    PagedColumn("Period (days)"; align=col_right, format=v -> string(v), col_type=:numeric),
+    PagedColumn("Spectral"; sortable=true, col_type=:text),
 ]
 
 column_defs(::SyntheticServerProvider) = _SYNTH_COLUMNS
@@ -137,7 +188,7 @@ function fetch_page(p::SyntheticServerProvider, req::PageRequest)
 
     has_search = !isempty(req.search)
     has_filter = !isempty(req.filters) && any(cf -> !isempty(cf.value), values(req.filters))
-    has_sort   = req.sort_col > 0 && req.sort_dir != sort_none
+    has_sort = req.sort_col > 0 && req.sort_dir != sort_none
 
     if !has_search && !has_filter && !has_sort
         # Fast path: direct index arithmetic, generate only the page
@@ -154,7 +205,7 @@ function fetch_page(p::SyntheticServerProvider, req::PageRequest)
     sizehint!(matching, min(p.total, 100_000))
 
     # Pre-resolve filter checks
-    filter_checks = Tuple{Int, ColumnFilter, Symbol}[]
+    filter_checks = Tuple{Int,ColumnFilter,Symbol}[]
     if has_filter
         for (ci, cf) in req.filters
             isempty(cf.value) && continue
@@ -204,7 +255,7 @@ function fetch_page(p::SyntheticServerProvider, req::PageRequest)
     page_indices = start <= total ? matching[start:stop] : Int[]
     rows = [_exo_row(i) for i in page_indices]
 
-    PageResult(rows, total)
+    return PageResult(rows, total)
 end
 
 # ── SQLite exoplanet database ────────────────────────────────────────
@@ -228,26 +279,32 @@ function _create_exoplanet_db()
     end
 
     db = SQLite.DB(db_path)
-    DBInterface.execute(db, """
-        CREATE TABLE exoplanets (
-            id INTEGER PRIMARY KEY,
-            name TEXT,
-            constellation TEXT,
-            discovery_method TEXT,
-            discovery_year INTEGER,
-            distance_ly REAL,
-            mass REAL,
-            radius REAL,
-            temperature INTEGER,
-            orbital_period REAL,
-            spectral_type TEXT
-        )
-    """)
+    DBInterface.execute(
+        db,
+        """
+    CREATE TABLE exoplanets (
+        id INTEGER PRIMARY KEY,
+        name TEXT,
+        constellation TEXT,
+        discovery_method TEXT,
+        discovery_year INTEGER,
+        distance_ly REAL,
+        mass REAL,
+        radius REAL,
+        temperature INTEGER,
+        orbital_period REAL,
+        spectral_type TEXT
+    )
+""",
+    )
 
     DBInterface.execute(db, "BEGIN TRANSACTION")
-    stmt = DBInterface.prepare(db, """
-        INSERT INTO exoplanets VALUES (?,?,?,?,?,?,?,?,?,?,?)
-    """)
+    stmt = DBInterface.prepare(
+        db,
+        """
+    INSERT INTO exoplanets VALUES (?,?,?,?,?,?,?,?,?,?,?)
+""",
+    )
     for i in 1:_SQLITE_DB_ROWS
         row = _exo_row(i)
         DBInterface.execute(stmt, row)
@@ -255,26 +312,25 @@ function _create_exoplanet_db()
     DBInterface.execute(db, "COMMIT")
     DBInterface.close!(stmt)
 
-    db
+    return db
 end
-
 
 # ── Simulation settings ──────────────────────────────────────────────
 
 const LATENCY_PRESETS = [
-    (name="No latency",     mean=0.0,  std=0.0),
-    (name="Fast (50ms)",    mean=0.05, std=0.02),
-    (name="Medium (200ms)", mean=0.2,  std=0.08),
-    (name="Slow (800ms)",   mean=0.8,  std=0.3),
-    (name="Awful (2s)",     mean=2.0,  std=0.8),
+    (name="No latency", mean=0.0, std=0.0),
+    (name="Fast (50ms)", mean=0.05, std=0.02),
+    (name="Medium (200ms)", mean=0.2, std=0.08),
+    (name="Slow (800ms)", mean=0.8, std=0.3),
+    (name="Awful (2s)", mean=2.0, std=0.8),
 ]
 
 const FAILURE_PRESETS = [
-    (name="Off",    rate=0.0),
-    (name="10%",    rate=0.1),
-    (name="30%",    rate=0.3),
-    (name="50%",    rate=0.5),
-    (name="90%",    rate=0.9),
+    (name="Off", rate=0.0),
+    (name="10%", rate=0.1),
+    (name="30%", rate=0.3),
+    (name="50%", rate=0.5),
+    (name="90%", rate=0.9),
 ]
 
 # Settings modal state
@@ -305,9 +361,7 @@ mutable struct PagedDataTableModel <: Model
     settings::SettingsModal
 end
 
-function PagedDataTableModel(;
-    provider::SyntheticServerProvider=SyntheticServerProvider(1_000_000),
-)
+function PagedDataTableModel(; provider::SyntheticServerProvider=SyntheticServerProvider(1_000_000))
     tq = TaskQueue()
     pdt = PagedDataTable(provider; page_size=50)
 
@@ -324,7 +378,7 @@ function PagedDataTableModel(;
     m = PagedDataTableModel(false, 0, tq, provider, sqlite_prov, :synthetic, pdt, SettingsModal())
     # Wire async: widget calls this callback instead of blocking pdt_fetch!
     pdt.on_fetch = () -> pdt_fetch_async!(pdt, tq; task_id=:pdt_fetch)
-    m
+    return m
 end
 
 should_quit(m::PagedDataTableModel) = m.quit
@@ -378,7 +432,13 @@ function _handle_settings_key!(m::PagedDataTableModel, evt::KeyEvent)::Bool
         return true
     end
 
-    delta = evt.key == :up ? -1 : evt.key == :down ? 1 : 0
+    delta = if evt.key == :up
+        -1
+    elseif evt.key == :down
+        1
+    else
+        0
+    end
     if delta != 0
         if s.section == 1
             old_idx = s.source_idx
@@ -397,18 +457,30 @@ function _handle_settings_key!(m::PagedDataTableModel, evt::KeyEvent)::Bool
         return true
     end
 
-    true  # consume all keys while modal is open
+    return true  # consume all keys while modal is open
 end
 
 # ── Settings modal rendering ──────────────────────────────────────────
 
 """Render a single preset section (header + radio list)."""
-function _render_preset_section!(buf::Buffer, cx::Int, cy::Int, max_cx::Int, max_y::Int,
-                                 header::String, is_active::Bool, items, selected_idx::Int,
-                                 label_fn::Function;
-                                 section_style, selected_style, unselected_style,
-                                 dim_style, active_marker_style,
-                                 suffix_fn=nothing)
+function _render_preset_section!(
+    buf::Buffer,
+    cx::Int,
+    cy::Int,
+    max_cx::Int,
+    max_y::Int,
+    header::String,
+    is_active::Bool,
+    items,
+    selected_idx::Int,
+    label_fn::Function;
+    section_style,
+    selected_style,
+    unselected_style,
+    dim_style,
+    active_marker_style,
+    suffix_fn=nothing,
+)
     hdr_text = is_active ? "▸ $header" : "  $header"
     hdr_style = is_active ? section_style : dim_style
     set_string!(buf, cx, cy, hdr_text, hdr_style; max_x=max_cx)
@@ -439,7 +511,7 @@ function _render_preset_section!(buf::Buffer, cx::Int, cy::Int, max_cx::Int, max
         end
         cy += 1
     end
-    cy
+    return cy
 end
 
 function _render_settings!(m::PagedDataTableModel, area::Rect, buf::Buffer)
@@ -452,20 +524,22 @@ function _render_settings!(m::PagedDataTableModel, area::Rect, buf::Buffer)
     # Height depends on source: synthetic shows all 4 sections, SQLite shows source + page size
     base_h = 4 + nsources + 1 + length(PAGE_SIZE_PRESETS)
     if is_synth
-        modal_h = min(base_h + 1 + length(LATENCY_PRESETS) + 1 + length(FAILURE_PRESETS) + 2, area.height - 2)
+        modal_h = min(
+            base_h + 1 + length(LATENCY_PRESETS) + 1 + length(FAILURE_PRESETS) + 2, area.height - 2
+        )
     else
         modal_h = min(base_h + 2, area.height - 2)
     end
-    modal_h < 8 && return
+    modal_h < 8 && return nothing
 
     modal_rect = center(area, modal_w, modal_h)
     mx, my = modal_rect.x, modal_rect.y
 
     border_style = tstyle(:accent)
-    title_style = tstyle(:title, bold=true)
+    title_style = tstyle(:title; bold=true)
     bg_style = tstyle(:text)
-    section_style = tstyle(:primary, bold=true)
-    selected_style = tstyle(:accent, bold=true)
+    section_style = tstyle(:primary; bold=true)
+    selected_style = tstyle(:accent; bold=true)
     unselected_style = tstyle(:text)
     dim_style = tstyle(:text_dim)
     active_marker_style = tstyle(:accent)
@@ -479,16 +553,15 @@ function _render_settings!(m::PagedDataTableModel, area::Rect, buf::Buffer)
 
     # Border with shimmer
     if m.tick > 0 && animations_enabled()
-        border_shimmer!(buf, modal_rect, border_style.fg, m.tick;
-                        box=BOX_HEAVY, intensity=0.12)
+        border_shimmer!(buf, modal_rect, border_style.fg, m.tick; box=BOX_HEAVY, intensity=0.12)
     else
-        block = Block(border_style=border_style, box=BOX_HEAVY)
+        block = Block(; border_style=border_style, box=BOX_HEAVY)
         render(block, modal_rect, buf)
     end
 
     # Clear interior
-    for ry in my+1:my+modal_h-2
-        for rx in mx+1:mx+modal_w-2
+    for ry in (my + 1):(my + modal_h - 2)
+        for rx in (mx + 1):(mx + modal_w - 2)
             set_char!(buf, rx, ry, ' ', bg_style)
         end
     end
@@ -502,45 +575,84 @@ function _render_settings!(m::PagedDataTableModel, area::Rect, buf::Buffer)
     max_y = my + modal_h - 3
     cy = my + 1
 
-    styles = (;section_style, selected_style, unselected_style, dim_style, active_marker_style)
+    styles = (; section_style, selected_style, unselected_style, dim_style, active_marker_style)
 
     # ── Data Source section ──
-    cy = _render_preset_section!(buf, cx, cy, max_cx, max_y,
-            "Data Source", s.section == 1, SOURCE_PRESETS[1:nsources], s.source_idx,
-            p -> p; styles...)
+    cy = _render_preset_section!(
+        buf,
+        cx,
+        cy,
+        max_cx,
+        max_y,
+        "Data Source",
+        s.section == 1,
+        SOURCE_PRESETS[1:nsources],
+        s.source_idx,
+        p -> p;
+        styles...,
+    )
 
     cy += 1  # gap
 
     # ── Page Size section ──
-    cy = _render_preset_section!(buf, cx, cy, max_cx, max_y,
-            "Page Size", s.section == 2, PAGE_SIZE_PRESETS, s.page_size_idx,
-            sz -> "$sz rows/page"; styles...)
+    cy = _render_preset_section!(
+        buf,
+        cx,
+        cy,
+        max_cx,
+        max_y,
+        "Page Size",
+        s.section == 2,
+        PAGE_SIZE_PRESETS,
+        s.page_size_idx,
+        sz -> "$sz rows/page";
+        styles...,
+    )
 
     # Only show latency/failure for synthetic source
     if is_synth
         cy += 1  # gap
 
         # ── Latency section ──
-        cy = _render_preset_section!(buf, cx, cy, max_cx, max_y,
-                "Network Latency", s.section == 3, LATENCY_PRESETS, s.latency_idx,
-                p -> p.name;
-                suffix_fn = p -> p.mean > 0 ? " (σ=$(round(Int, p.std * 1000))ms)" : nothing,
-                styles...)
+        cy = _render_preset_section!(
+            buf,
+            cx,
+            cy,
+            max_cx,
+            max_y,
+            "Network Latency",
+            s.section == 3,
+            LATENCY_PRESETS,
+            s.latency_idx,
+            p -> p.name;
+            suffix_fn=p -> p.mean > 0 ? " (σ=$(round(Int, p.std * 1000))ms)" : nothing,
+            styles...,
+        )
 
         cy += 1  # gap
 
         # ── Failure rate section ──
         if cy <= max_y
-            cy = _render_preset_section!(buf, cx, cy, max_cx, max_y,
-                    "Failure Rate", s.section == 4, FAILURE_PRESETS, s.failure_idx,
-                    p -> p.name; styles...)
+            cy = _render_preset_section!(
+                buf,
+                cx,
+                cy,
+                max_cx,
+                max_y,
+                "Failure Rate",
+                s.section == 4,
+                FAILURE_PRESETS,
+                s.failure_idx,
+                p -> p.name;
+                styles...,
+            )
         end
     end
 
     # Help row
     help_y = my + modal_h - 1
     help = " [↑↓]select [Tab]section [Esc/s]close "
-    set_string!(buf, mx + (modal_w - length(help)) ÷ 2, help_y, help, dim_style)
+    return set_string!(buf, mx + (modal_w - length(help)) ÷ 2, help_y, help, dim_style)
 end
 
 # ── Event dispatch ────────────────────────────────────────────────────
@@ -549,7 +661,7 @@ function update!(m::PagedDataTableModel, evt::KeyEvent)
     # Settings modal intercepts everything when open
     if m.settings.visible
         _handle_settings_key!(m, evt)
-        return
+        return nothing
     end
 
     pdt = m.pdt
@@ -557,19 +669,19 @@ function update!(m::PagedDataTableModel, evt::KeyEvent)
     # When detail/search/filter/goto are active, delegate to widget
     if pdt.show_detail || pdt.search_visible || pdt.filter_modal.visible || pdt.goto_visible
         handle_key!(pdt, evt)
-        return
+        return nothing
     end
 
     @match (evt.key, evt.char) begin
         (:char, 'q') || (:escape, _) => (m.quit = true)
-        (:char, 's')                 => (m.settings.visible = true)
-        _                            => handle_key!(pdt, evt)
+        (:char, 's') => (m.settings.visible = true)
+        _ => handle_key!(pdt, evt)
     end
 end
 
 function update!(m::PagedDataTableModel, evt::MouseEvent)
-    m.settings.visible && return  # ignore mouse while settings open
-    handle_mouse!(m.pdt, evt)
+    m.settings.visible && return nothing  # ignore mouse while settings open
+    return handle_mouse!(m.pdt, evt)
 end
 
 function update!(m::PagedDataTableModel, evt::TaskEvent)
@@ -589,16 +701,17 @@ function view(m::PagedDataTableModel, f::Frame)
     buf = f.buffer
 
     rows = split_layout(Layout(Vertical, [Fixed(1), Fill(), Fixed(1)]), f.area)
-    length(rows) < 3 && return
+    length(rows) < 3 && return nothing
     header_area = rows[1]
-    table_area  = rows[2]
+    table_area = rows[2]
     footer_area = rows[3]
 
     # ── Header ──
-    source_label = m.active_source == :synthetic ? "Synthetic (1M rows)" : "SQLite ($(_SQLITE_DB_ROWS) rows)"
+    source_label =
+        m.active_source == :synthetic ? "Synthetic (1M rows)" : "SQLite ($(_SQLITE_DB_ROWS) rows)"
     title = "Exoplanet Catalog — $source_label"
     hx = header_area.x + max(0, (header_area.width - length(title)) ÷ 2)
-    set_string!(buf, hx, header_area.y, title, tstyle(:title, bold=true))
+    set_string!(buf, hx, header_area.y, title, tstyle(:title; bold=true))
 
     # ── Table ──
     sort_info = if pdt.sort_col > 0 && pdt.sort_dir != sort_none
@@ -613,9 +726,11 @@ function view(m::PagedDataTableModel, f::Frame)
     search_info = isempty(pdt.search_query) ? "" : " search:\"$(pdt.search_query)\" "
 
     source_tag = m.active_source == :sqlite ? " [SQLite] " : ""
-    pdt.block = Block(title="Exoplanets$(sort_info)$(filter_info)$(search_info)$(source_tag)",
-                      border_style=tstyle(:border),
-                      title_style=tstyle(:title))
+    pdt.block = Block(;
+        title="Exoplanets$(sort_info)$(filter_info)$(search_info)$(source_tag)",
+        border_style=tstyle(:border),
+        title_style=tstyle(:title),
+    )
     render(pdt, table_area, buf)
 
     # ── Footer ──
@@ -623,15 +738,14 @@ function view(m::PagedDataTableModel, f::Frame)
     preset = LATENCY_PRESETS[s.latency_idx]
     fpreset = FAILURE_PRESETS[s.failure_idx]
     loading_text = pdt.loading ? " ⟳ fetching…" : ""
-    loading_style = tstyle(:accent, bold=true)
+    loading_style = tstyle(:accent; bold=true)
 
     source_indicator = m.active_source == :synthetic ? "SRC:Synthetic" : "SRC:SQLite"
-    source_style = m.active_source == :sqlite ? tstyle(:accent, bold=true) : tstyle(:text_dim)
+    source_style = m.active_source == :sqlite ? tstyle(:accent; bold=true) : tstyle(:text_dim)
 
-    left_spans = Span[
-        Span("  [↑↓]nav [PgUp/PgDn]page [g]goto [/]search [f]filter [s]settings ",
-                tstyle(:text_dim)),
-    ]
+    left_spans = Span[Span(
+        "  [↑↓]nav [PgUp/PgDn]page [g]goto [/]search [f]filter [s]settings ", tstyle(:text_dim)
+    ),]
 
     # Only show latency/failure info for synthetic source
     if m.active_source == :synthetic
@@ -646,14 +760,18 @@ function view(m::PagedDataTableModel, f::Frame)
 
     push!(left_spans, Span(loading_text, loading_style))
 
-    render(StatusBar(
-        left=left_spans,
-        right=[
-            Span(source_indicator, source_style),
-            Span("  ", tstyle(:text_dim)),
-            Span("[s]settings [q/Esc]quit ", tstyle(:text_dim)),
-        ],
-    ), footer_area, buf)
+    render(
+        StatusBar(;
+            left=left_spans,
+            right=[
+                Span(source_indicator, source_style),
+                Span("  ", tstyle(:text_dim)),
+                Span("[s]settings [q/Esc]quit ", tstyle(:text_dim)),
+            ],
+        ),
+        footer_area,
+        buf,
+    )
 
     # ── Settings modal overlay ──
     if m.settings.visible
@@ -663,5 +781,5 @@ end
 
 function paged_datatable_demo(; theme_name=nothing)
     theme_name !== nothing && set_theme!(theme_name)
-    app(PagedDataTableModel(); fps=30)
+    return app(PagedDataTableModel(); fps=30)
 end

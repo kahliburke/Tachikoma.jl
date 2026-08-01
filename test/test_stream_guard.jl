@@ -22,7 +22,7 @@
         end
         T.set_stream_guard!(guard)
         @test T._STREAM_GUARD[] === guard
-        @test T._run_guarded(() -> (inner_ran[] = true; 7)) == 7
+        @test T._run_guarded(() -> (inner_ran[]=true; 7)) == 7
         @test calls[] == 1
         @test inner_ran[]
 

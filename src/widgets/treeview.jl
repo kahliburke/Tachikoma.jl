@@ -10,18 +10,16 @@ mutable struct TreeNode
     content::Any
 end
 
-function TreeNode(label::String;
-    children=TreeNode[],
-    expanded=true,
-    style=tstyle(:text),
-    content=nothing
+function TreeNode(
+    label::String; children=TreeNode[], expanded=true, style=tstyle(:text), content=nothing
 )
-    TreeNode(label, children, expanded, style, content)
+    return TreeNode(label, children, expanded, style, content)
 end
 
-function TreeNode(label::String, children::Vector{TreeNode};
-    expanded=true, style=tstyle(:text), content=nothing)
-    TreeNode(label, children, expanded, style, content)
+function TreeNode(
+    label::String, children::Vector{TreeNode}; expanded=true, style=tstyle(:text), content=nothing
+)
+    return TreeNode(label, children, expanded, style, content)
 end
 
 # Flatten tree into renderable rows (defined before TreeView for cache field)
@@ -41,12 +39,12 @@ mutable struct TreeView
     selected::Int                  # flattened row index (1-based, 0=none)
     offset::Int                    # scroll offset (0-based)
     focused::Bool
-    block::Union{Block, Nothing}
+    block::Union{Block,Nothing}
     indent::Int
     connector_style::Style
     selected_style::Style
     show_root::Bool
-    tick::Union{Int, Nothing}
+    tick::Union{Int,Nothing}
     last_area::Rect                # cached content area for mouse hit testing
     _flat_cache::Vector{FlatRow}   # cached flattened rows
     _flat_dirty::Bool              # true when cache needs rebuild
@@ -58,20 +56,33 @@ end
 Hierarchical tree with keyboard navigation. Up/Down to move, Left to collapse/go to parent,
 Right to expand/enter child, Enter/Space to toggle.
 """
-function TreeView(root::TreeNode;
+function TreeView(
+    root::TreeNode;
     selected=0,
     offset=0,
     focused=false,
     block=nothing,
     indent=2,
-    connector_style=tstyle(:border, dim=true),
-    selected_style=tstyle(:accent, bold=true),
+    connector_style=tstyle(:border; dim=true),
+    selected_style=tstyle(:accent; bold=true),
     show_root=true,
     tick=nothing,
 )
-    TreeView(root, selected, offset, focused, block, indent,
-             connector_style, selected_style, show_root, tick, Rect(),
-             FlatRow[], true)
+    return TreeView(
+        root,
+        selected,
+        offset,
+        focused,
+        block,
+        indent,
+        connector_style,
+        selected_style,
+        show_root,
+        tick,
+        Rect(),
+        FlatRow[],
+        true,
+    )
 end
 
 function flatten_tree(node::TreeNode, show_root::Bool)
@@ -83,18 +94,27 @@ function flatten_tree(node::TreeNode, show_root::Bool)
             flatten_node!(rows, child, 0, i == length(node.children), Bool[])
         end
     end
-    rows
+    return rows
 end
 
 function flatten_node!(rows, node, depth, is_last, parent_lasts)
-    push!(rows, FlatRow(
-        node.label, depth, is_last, copy(parent_lasts),
-        !isempty(node.children), node.expanded, node.style, node))
+    push!(
+        rows,
+        FlatRow(
+            node.label,
+            depth,
+            is_last,
+            copy(parent_lasts),
+            !isempty(node.children),
+            node.expanded,
+            node.style,
+            node,
+        ),
+    )
     if node.expanded
         new_lasts = vcat(parent_lasts, is_last)
         for (i, child) in enumerate(node.children)
-            flatten_node!(rows, child, depth + 1,
-                          i == length(node.children), new_lasts)
+            flatten_node!(rows, child, depth + 1, i == length(node.children), new_lasts)
         end
     end
 end
@@ -104,16 +124,16 @@ function _get_flat(tv::TreeView)
         tv._flat_cache = flatten_tree(tv.root, tv.show_root)
         tv._flat_dirty = false
     end
-    tv._flat_cache
+    return tv._flat_cache
 end
 
-_invalidate_flat!(tv::TreeView) = (tv._flat_dirty = true; nothing)
+_invalidate_flat!(tv::TreeView) = (tv._flat_dirty=true; nothing)
 
 value(tv::TreeView) = tv.selected
 
 focusable(::TreeView) = true
 
-function selected_node(tv::TreeView)::Union{Nothing, TreeNode}
+function selected_node(tv::TreeView)::Union{Nothing,TreeNode}
     # pick off the selected node using the selection index
     flat = _get_flat(tv)
     return tv.selected == 0 || tv.selected > length(flat) ? nothing : flat[tv.selected].node
@@ -173,7 +193,7 @@ function handle_key!(tv::TreeView, evt::KeyEvent)::Bool
     else
         return false
     end
-    true
+    return true
 end
 
 function render(tv::TreeView, rect::Rect, buf::Buffer)
@@ -182,7 +202,7 @@ function render(tv::TreeView, rect::Rect, buf::Buffer)
     else
         rect
     end
-    (content.width < 1 || content.height < 1) && return
+    (content.width < 1 || content.height < 1) && return nothing
     tv.last_area = content
 
     flat = _get_flat(tv)
@@ -246,18 +266,16 @@ function render(tv::TreeView, rect::Rect, buf::Buffer)
 
     # Scroll indicators
     if tv.offset > 0
-        set_char!(buf, right(content), content.y, '▲',
-                  tstyle(:text_dim))
+        set_char!(buf, right(content), content.y, '▲', tstyle(:text_dim))
     end
     if tv.offset + visible_h < n
-        set_char!(buf, right(content), bottom(content), '▼',
-                  tstyle(:text_dim))
+        set_char!(buf, right(content), bottom(content), '▼', tstyle(:text_dim))
     end
 end
 
 # Count visible (flattened) rows
 function tree_visible_count(tv::TreeView)
-    length(_get_flat(tv))
+    return length(_get_flat(tv))
 end
 
 # ── Mouse handling ───────────────────────────────────────────────────
@@ -291,5 +309,5 @@ function handle_mouse!(tv::TreeView, evt::MouseEvent)
         return true
     end
 
-    false
+    return false
 end

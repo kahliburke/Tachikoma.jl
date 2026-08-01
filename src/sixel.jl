@@ -8,21 +8,17 @@
 
 const BLACK = ColorRGBA(0x00, 0x00, 0x00, 0xff)
 const TRANSPARENT = ColorRGBA(0x00, 0x00, 0x00, 0x00)
-const _SIXEL_IO = IOBuffer(sizehint=256_000)
+const _SIXEL_IO = IOBuffer(; sizehint=256_000)
 
 # ── Color quantization & fast palette lookup ─────────────────────────
 
 # Quantize color by masking low bits. `shift` controls coarseness:
 # shift=2 → 64 levels/channel (high quality), shift=4 → 16 levels (more banding).
 # Adaptive quantization increases shift until unique colors ≤ 255.
-@inline _quantize(c::ColorRGB, shift::Int) = ColorRGB(
-    (c.r >> shift) << shift,
-    (c.g >> shift) << shift,
-    (c.b >> shift) << shift)
-@inline _quantize(c::ColorRGBA, shift::Int) = ColorRGB(
-    (c.r >> shift) << shift,
-    (c.g >> shift) << shift,
-    (c.b >> shift) << shift)
+@inline _quantize(c::ColorRGB, shift::Int) =
+    ColorRGB((c.r >> shift) << shift, (c.g >> shift) << shift, (c.b >> shift) << shift)
+@inline _quantize(c::ColorRGBA, shift::Int) =
+    ColorRGB((c.r >> shift) << shift, (c.g >> shift) << shift, (c.b >> shift) << shift)
 
 # Color key for LUT lookup. Packs quantized channels into a single
 # integer index (1-based). Max key depends on shift:
@@ -35,10 +31,8 @@ end
 @inline _color_key(c::ColorRGBA, shift::Int) = _color_key(ColorRGB(c.r, c.g, c.b), shift)
 
 # Compile-time constant shift specializations for the common case
-@inline _quantize_2(c::ColorRGB) = ColorRGB(
-    (c.r >> 0x02) << 0x02,
-    (c.g >> 0x02) << 0x02,
-    (c.b >> 0x02) << 0x02)
+@inline _quantize_2(c::ColorRGB) =
+    ColorRGB((c.r >> 0x02) << 0x02, (c.g >> 0x02) << 0x02, (c.b >> 0x02) << 0x02)
 @inline _color_key_2(c::ColorRGB) =
     (Int(c.r >> 0x02) << 12) | (Int(c.g >> 0x02) << 6) | Int(c.b >> 0x02) + 1
 
@@ -54,8 +48,7 @@ end
 In-place bit-rot effects on pixel buffer. All effects are scaled by
 the master `params.decay` intensity. Skips black (background) pixels.
 """
-function apply_decay!(pixels::Matrix{ColorRGBA}, params::DecayParams, tick::Int;
-                      )
+function apply_decay!(pixels::Matrix{ColorRGBA}, params::DecayParams, tick::Int;)
     params.decay <= 0.0 && return pixels
     h, w = size(pixels)
     master = params.decay
@@ -108,7 +101,7 @@ function apply_decay!(pixels::Matrix{ColorRGBA}, params::DecayParams, tick::Int;
 
         pixels[cy, cx] = px
     end
-    pixels
+    return pixels
 end
 
 # ── Decay with subsampling ────────────────────────────────────────────
@@ -120,8 +113,9 @@ Subsampled decay: compute effects every `step` pixels and fill blocks.
 Gives step² speedup for decay-heavy frames at the cost of block artifacts
 (acceptable since decay is itself a distortion effect).
 """
-function apply_decay_subsampled!(pixels::Matrix{ColorRGBA}, params::DecayParams,
-                                 tick::Int, step::Int; )
+function apply_decay_subsampled!(
+    pixels::Matrix{ColorRGBA}, params::DecayParams, tick::Int, step::Int;
+)
     params.decay <= 0.0 && return pixels
     step <= 1 && return apply_decay!(pixels, params, tick)
     h, w = size(pixels)
@@ -178,7 +172,7 @@ function apply_decay_subsampled!(pixels::Matrix{ColorRGBA}, params::DecayParams,
             end
         end
     end
-    pixels
+    return pixels
 end
 
 # ── Inline decimal writer (replaces string() allocations) ────────────
@@ -199,8 +193,9 @@ end
         rem = n - d3 * 1000
         d2 = rem ÷ 100
         rem = rem - d2 * 100
-        write(io, UInt8(0x30 + d3), UInt8(0x30 + d2),
-              UInt8(0x30 + rem ÷ 10), UInt8(0x30 + rem % 10))
+        write(
+            io, UInt8(0x30 + d3), UInt8(0x30 + d2), UInt8(0x30 + rem ÷ 10), UInt8(0x30 + rem % 10)
+        )
     end
     nothing
 end
@@ -266,8 +261,9 @@ end
 # unique_keys[1:count] and also marked in lut (cleaned up by caller).
 const _UNIQUE_KEYS = Ref(Vector{Int}(undef, 0))
 
-function _collect_unique_colors!(src::Matrix{ColorRGBA}, lut::Vector{UInt16},
-                                  dirty::Vector{Int}, shift::Int=2)
+function _collect_unique_colors!(
+    src::Matrix{ColorRGBA}, lut::Vector{UInt16}, dirty::Vector{Int}, shift::Int=2
+)
     unique_keys = _UNIQUE_KEYS[]
     if length(unique_keys) < 262144
         unique_keys = Vector{Int}(undef, 262144)
@@ -291,7 +287,8 @@ function _collect_unique_colors!(src::Matrix{ColorRGBA}, lut::Vector{UInt16},
             qg = (g >> shift) << shift
             qb = (b >> shift) << shift
             bits = 8 - shift
-            key = (Int(qr >> shift) << (2 * bits)) | (Int(qg >> shift) << bits) | Int(qb >> shift) + 1
+            key =
+                (Int(qr >> shift) << (2 * bits)) | (Int(qg >> shift) << bits) | Int(qb >> shift) + 1
             @inbounds if lut[key] == 0
                 lut[key] = UInt16(1)
                 nd += 1
@@ -305,7 +302,7 @@ function _collect_unique_colors!(src::Matrix{ColorRGBA}, lut::Vector{UInt16},
     @inbounds for j in 1:nd
         lut[dirty[j]] = zero(UInt16)
     end
-    n
+    return n
 end
 
 # Select up to 255 representative colors from a list of unique keys.
@@ -330,13 +327,12 @@ function _select_palette(unique_keys::Vector{Int}, n_unique::Int, shift::Int=2)
         idx = round(Int, (i - 1) * (n_unique - 1) / 254) + 1
         palette[i] = _key_to_color(unique_keys[idx], shift)
     end
-    palette
+    return palette
 end
 
 # ── Main encoder ──────────────────────────────────────────────────────
 
-function encode_sixel(pixels::Matrix{ColorRGBA};
-                      decay::DecayParams=DecayParams(), tick::Int=0)
+function encode_sixel(pixels::Matrix{ColorRGBA}; decay::DecayParams=DecayParams(), tick::Int=0)
     h, w = size(pixels)
     (h == 0 || w == 0) && return UInt8[]
 
@@ -553,7 +549,9 @@ function encode_sixel(pixels::Matrix{ColorRGBA};
                         _write_decimal(io, run)
                         write(io, UInt8('?'))
                     else
-                        for _ in 1:run; write(io, UInt8('?')); end
+                        for _ in 1:run
+                            write(io, UInt8('?'))
+                        end
                     end
                 else
                     if run >= 4
@@ -561,7 +559,9 @@ function encode_sixel(pixels::Matrix{ColorRGBA};
                         _write_decimal(io, run)
                         write(io, ch)
                     elseif run > 1
-                        for _ in 1:run; write(io, ch); end
+                        for _ in 1:run
+                            write(io, ch)
+                        end
                     else
                         write(io, ch)
                     end
@@ -596,6 +596,5 @@ function encode_sixel(pixels::Matrix{ColorRGBA};
         fill!(lut, zero(UInt16))
     end
 
-    take!(io)
+    return take!(io)
 end
-

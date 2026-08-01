@@ -19,43 +19,43 @@
 const _STD_INPUT_HANDLE = reinterpret(UInt32, Int32(-10))
 
 # console input mode bits
-const _ENABLE_PROCESSED_INPUT        = 0x0001
-const _ENABLE_LINE_INPUT             = 0x0002
-const _ENABLE_ECHO_INPUT             = 0x0004
-const _ENABLE_WINDOW_INPUT           = 0x0008
-const _ENABLE_MOUSE_INPUT            = 0x0010
-const _ENABLE_QUICK_EDIT_MODE        = 0x0040
-const _ENABLE_EXTENDED_FLAGS         = 0x0080
+const _ENABLE_PROCESSED_INPUT = 0x0001
+const _ENABLE_LINE_INPUT = 0x0002
+const _ENABLE_ECHO_INPUT = 0x0004
+const _ENABLE_WINDOW_INPUT = 0x0008
+const _ENABLE_MOUSE_INPUT = 0x0010
+const _ENABLE_QUICK_EDIT_MODE = 0x0040
+const _ENABLE_EXTENDED_FLAGS = 0x0080
 
 # INPUT_RECORD event types
-const _KEY_EVENT                = 0x0001
-const _MOUSE_EVENT              = 0x0002
+const _KEY_EVENT = 0x0001
+const _MOUSE_EVENT = 0x0002
 const _WINDOW_BUFFER_SIZE_EVENT = 0x0004
 
 # dwControlKeyState
-const _RIGHT_ALT_PRESSED  = 0x0001
-const _LEFT_ALT_PRESSED   = 0x0002
+const _RIGHT_ALT_PRESSED = 0x0001
+const _LEFT_ALT_PRESSED = 0x0002
 const _RIGHT_CTRL_PRESSED = 0x0004
-const _LEFT_CTRL_PRESSED  = 0x0008
-const _SHIFT_PRESSED      = 0x0010
+const _LEFT_CTRL_PRESSED = 0x0008
+const _SHIFT_PRESSED = 0x0010
 
 # dwButtonState (mouse)
-const _LEFT_BTN   = 0x0001
-const _RIGHT_BTN  = 0x0002
+const _LEFT_BTN = 0x0001
+const _RIGHT_BTN = 0x0002
 const _MIDDLE_BTN = 0x0004
 
 # dwEventFlags (mouse)
-const _MOUSE_MOVED   = 0x0001
-const _DOUBLE_CLICK  = 0x0002
+const _MOUSE_MOVED = 0x0001
+const _DOUBLE_CLICK = 0x0002
 const _MOUSE_WHEELED = 0x0004
 const _MOUSE_HWHEELED = 0x0008
 
 # ── State ──────────────────────────────────────────────────────────────
 const _WIN_INPUT_ENABLED = Ref(false)              # this backend is driving input
-const _WIN_STDIN_HANDLE  = Ref{Ptr{Cvoid}}(Ptr{Cvoid}(0))
-const _WIN_SAVED_MODE     = Ref{UInt32}(0)
-const _WIN_MODE_SAVED     = Ref(false)
-const _WIN_MOUSE_BTN      = Ref{UInt32}(0)         # previous button state, for press/release diff
+const _WIN_STDIN_HANDLE = Ref{Ptr{Cvoid}}(Ptr{Cvoid}(0))
+const _WIN_SAVED_MODE = Ref{UInt32}(0)
+const _WIN_MODE_SAVED = Ref(false)
+const _WIN_MOUSE_BTN = Ref{UInt32}(0)         # previous button state, for press/release diff
 
 """Whether to use the ReadConsoleInputW backend — the default on Windows (it's the
 only path that delivers mouse; libuv's raw reader drops mouse records). Opt out with
@@ -76,9 +76,10 @@ function _win_stdin()
 end
 
 # Little-endian field reads out of a 20-byte INPUT_RECORD.
-@inline _u16(b, i) = UInt16(b[i]) | (UInt16(b[i+1]) << 8)
+@inline _u16(b, i) = UInt16(b[i]) | (UInt16(b[i + 1]) << 8)
 @inline _i16(b, i) = reinterpret(Int16, _u16(b, i))
-@inline _u32(b, i) = UInt32(b[i]) | (UInt32(b[i+1]) << 8) | (UInt32(b[i+2]) << 16) | (UInt32(b[i+3]) << 24)
+@inline _u32(b, i) =
+    UInt32(b[i]) | (UInt32(b[i + 1]) << 8) | (UInt32(b[i + 2]) << 16) | (UInt32(b[i + 3]) << 24)
 
 """Put the console into raw + mouse mode (no line/echo/quick-edit), saving the old
 mode for restore. Idempotent."""
@@ -86,10 +87,16 @@ function _win_enter_input!()
     h = _win_stdin()
     h == Ptr{Cvoid}(-1) && return false
     mref = Ref{UInt32}(0)
-    ccall((:GetConsoleMode, "kernel32"), Cint, (Ptr{Cvoid}, Ptr{UInt32}), h, mref) == 0 && return false
-    _WIN_SAVED_MODE[] = mref[]; _WIN_MODE_SAVED[] = true
-    newmode = (mref[] | _ENABLE_MOUSE_INPUT | _ENABLE_EXTENDED_FLAGS | _ENABLE_WINDOW_INPUT) &
-              ~UInt32(_ENABLE_QUICK_EDIT_MODE | _ENABLE_LINE_INPUT | _ENABLE_ECHO_INPUT | _ENABLE_PROCESSED_INPUT)
+    ccall((:GetConsoleMode, "kernel32"), Cint, (Ptr{Cvoid}, Ptr{UInt32}), h, mref) == 0 &&
+        return false
+    _WIN_SAVED_MODE[] = mref[]
+    _WIN_MODE_SAVED[] = true
+    newmode =
+        (mref[] | _ENABLE_MOUSE_INPUT | _ENABLE_EXTENDED_FLAGS | _ENABLE_WINDOW_INPUT) &
+        ~UInt32(
+            _ENABLE_QUICK_EDIT_MODE | _ENABLE_LINE_INPUT | _ENABLE_ECHO_INPUT |
+            _ENABLE_PROCESSED_INPUT,
+        )
     ccall((:SetConsoleMode, "kernel32"), Cint, (Ptr{Cvoid}, UInt32), h, newmode)
     _WIN_MOUSE_BTN[] = 0
     _WIN_INPUT_ENABLED[] = true
@@ -101,10 +108,11 @@ function _win_leave_input!()
     _WIN_INPUT_ENABLED[] = false
     if _WIN_MODE_SAVED[]
         h = _win_stdin()
-        h == Ptr{Cvoid}(-1) || ccall((:SetConsoleMode, "kernel32"), Cint, (Ptr{Cvoid}, UInt32), h, _WIN_SAVED_MODE[])
+        h == Ptr{Cvoid}(-1) ||
+            ccall((:SetConsoleMode, "kernel32"), Cint, (Ptr{Cvoid}, UInt32), h, _WIN_SAVED_MODE[])
         _WIN_MODE_SAVED[] = false
     end
-    nothing
+    return nothing
 end
 
 """Number of pending console input records (GetNumberOfConsoleInputEvents)."""
@@ -112,14 +120,22 @@ function _win_events_pending()
     h = _win_stdin()
     h == Ptr{Cvoid}(-1) && return 0
     nref = Ref{UInt32}(0)
-    ccall((:GetNumberOfConsoleInputEvents, "kernel32"), Cint, (Ptr{Cvoid}, Ptr{UInt32}), h, nref) == 0 && return 0
+    ccall((:GetNumberOfConsoleInputEvents, "kernel32"), Cint, (Ptr{Cvoid}, Ptr{UInt32}), h, nref) ==
+    0 && return 0
     return Int(nref[])
 end
 
 # Decode a single mouse button bit → MouseButton.
-_win_btn(bits) = (bits & _LEFT_BTN)  != 0 ? mouse_left :
-                 (bits & _RIGHT_BTN) != 0 ? mouse_right :
-                 (bits & _MIDDLE_BTN)!= 0 ? mouse_middle : mouse_none
+_win_btn(bits) =
+    if (bits & _LEFT_BTN) != 0
+        mouse_left
+    elseif (bits & _RIGHT_BTN) != 0
+        mouse_right
+    elseif (bits & _MIDDLE_BTN) != 0
+        mouse_middle
+    else
+        mouse_none
+    end
 
 function _win_translate_mouse(buf)
     x = Int(_i16(buf, 5)) + 1          # console is 0-based; MouseEvent is 1-based
@@ -128,8 +144,8 @@ function _win_translate_mouse(buf)
     cks = _u32(buf, 13)
     flags = _u32(buf, 17)
     shift = (cks & _SHIFT_PRESSED) != 0
-    alt   = (cks & (_LEFT_ALT_PRESSED | _RIGHT_ALT_PRESSED)) != 0
-    ctrl  = (cks & (_LEFT_CTRL_PRESSED | _RIGHT_CTRL_PRESSED)) != 0
+    alt = (cks & (_LEFT_ALT_PRESSED | _RIGHT_ALT_PRESSED)) != 0
+    ctrl = (cks & (_LEFT_CTRL_PRESSED | _RIGHT_CTRL_PRESSED)) != 0
 
     if (flags & _MOUSE_WHEELED) != 0
         delta = reinterpret(Int16, UInt16((bstate >> 16) & 0xffff))
@@ -146,8 +162,9 @@ function _win_translate_mouse(buf)
         return MouseEvent(x, y, mouse_none, mouse_move, shift, alt, ctrl)
     else
         # Button state change: diff against the previous state → press or release.
-        prev = _WIN_MOUSE_BTN[]; _WIN_MOUSE_BTN[] = bstate
-        pressed  = bstate & ~prev
+        prev = _WIN_MOUSE_BTN[]
+        _WIN_MOUSE_BTN[] = bstate
+        pressed = bstate & ~prev
         released = prev & ~bstate
         if pressed != 0
             return MouseEvent(x, y, _win_btn(pressed), mouse_press, shift, alt, ctrl)
@@ -160,12 +177,31 @@ end
 
 # Virtual-key code → Tachikoma key symbol for non-character keys.
 const _WIN_VK = Dict{UInt16,Symbol}(
-    0x0D => :enter, 0x08 => :backspace, 0x1B => :escape,
-    0x25 => :left, 0x26 => :up, 0x27 => :right, 0x28 => :down,
-    0x24 => :home, 0x23 => :end, 0x21 => :page_up, 0x22 => :page_down,
-    0x2D => :insert, 0x2E => :delete,
-    0x70 => :f1, 0x71 => :f2, 0x72 => :f3, 0x73 => :f4, 0x74 => :f5, 0x75 => :f6,
-    0x76 => :f7, 0x77 => :f8, 0x78 => :f9, 0x79 => :f10, 0x7A => :f11, 0x7B => :f12,
+    0x0D => :enter,
+    0x08 => :backspace,
+    0x1B => :escape,
+    0x25 => :left,
+    0x26 => :up,
+    0x27 => :right,
+    0x28 => :down,
+    0x24 => :home,
+    0x23 => :end,
+    0x21 => :page_up,
+    0x22 => :page_down,
+    0x2D => :insert,
+    0x2E => :delete,
+    0x70 => :f1,
+    0x71 => :f2,
+    0x72 => :f3,
+    0x73 => :f4,
+    0x74 => :f5,
+    0x75 => :f6,
+    0x76 => :f7,
+    0x77 => :f8,
+    0x78 => :f9,
+    0x79 => :f10,
+    0x7A => :f11,
+    0x7B => :f12,
 )
 
 function _win_translate_key(buf)
@@ -174,7 +210,7 @@ function _win_translate_key(buf)
     ch = _u16(buf, 15)
     cks = _u32(buf, 17)
     shift = (cks & _SHIFT_PRESSED) != 0
-    ctrl  = (cks & (_LEFT_CTRL_PRESSED | _RIGHT_CTRL_PRESSED)) != 0
+    ctrl = (cks & (_LEFT_CTRL_PRESSED | _RIGHT_CTRL_PRESSED)) != 0
 
     # Tab (Shift+Tab → backtab) before the generic VK map so shift is honoured.
     if vk == 0x09
@@ -204,8 +240,15 @@ function _win_read_record()
     h == Ptr{Cvoid}(-1) && return nothing
     buf = _WIN_RECBUF
     nref = Ref{UInt32}(0)
-    ok = ccall((:ReadConsoleInputW, "kernel32"), Cint,
-               (Ptr{Cvoid}, Ptr{UInt8}, UInt32, Ptr{UInt32}), h, buf, UInt32(1), nref)
+    ok = ccall(
+        (:ReadConsoleInputW, "kernel32"),
+        Cint,
+        (Ptr{Cvoid}, Ptr{UInt8}, UInt32, Ptr{UInt32}),
+        h,
+        buf,
+        UInt32(1),
+        nref,
+    )
     (ok == 0 || nref[] == 0) && return nothing
     et = _u16(buf, 1)
     if et == _MOUSE_EVENT

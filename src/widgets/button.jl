@@ -35,7 +35,7 @@ Full box-bordered button (3 rows):
 ```
 """
 struct BorderedButton <: ButtonDecoration
-    box::NamedTuple{(:tl, :tr, :bl, :br, :h, :v), NTuple{6, Char}}
+    box::NamedTuple{(:tl, :tr, :bl, :br, :h, :v),NTuple{6,Char}}
 end
 BorderedButton(; box=BOX_ROUNDED) = BorderedButton(box)
 
@@ -70,9 +70,9 @@ end
 function ButtonStyle(;
     decoration::ButtonDecoration=BracketButton(),
     normal::Style=tstyle(:text),
-    focused::Style=tstyle(:accent, bold=true),
+    focused::Style=tstyle(:accent; bold=true),
 )
-    ButtonStyle(decoration, normal, focused)
+    return ButtonStyle(decoration, normal, focused)
 end
 
 """How many rows this decoration needs."""
@@ -84,7 +84,7 @@ button_height(::BorderedButton) = 3
 mutable struct Button{D<:ButtonDecoration}
     label::String
     focused::Bool
-    tick::Union{Int, Nothing}
+    tick::Union{Int,Nothing}
     button_style::ButtonStyle{D}
     last_area::Rect
     flash_remaining::Int
@@ -99,23 +99,15 @@ Clickable button with optional pulse animation.
 Enter/Space or mouse click to activate.
 The caller handles the action (Elm architecture pattern).
 """
-function Button(label::String;
+function Button(
+    label::String;
     focused::Bool=false,
-    tick::Union{Int, Nothing}=nothing,
+    tick::Union{Int,Nothing}=nothing,
     button_style::ButtonStyle=ButtonStyle(),
     flash_frames::Int=8,
     flash_style::Function=_default_button_flash_style,
 )
-    Button(
-        label,
-        focused,
-        tick,
-        button_style,
-        Rect(),
-        0,
-        flash_frames,
-        flash_style
-    )
+    return Button(label, focused, tick, button_style, Rect(), 0, flash_frames, flash_style)
 end
 
 focusable(::Button) = true
@@ -124,7 +116,7 @@ function intrinsic_size(btn::Button)
     dec = btn.button_style.decoration
     h = button_height(dec)
     w = dec isa BorderedButton ? length(btn.label) + 4 : length(btn.label) + 4
-    (w, h)
+    return (w, h)
 end
 
 function handle_key!(btn::Button, evt::KeyEvent)::Bool
@@ -133,7 +125,7 @@ function handle_key!(btn::Button, evt::KeyEvent)::Bool
         btn.flash_remaining = btn.flash_frames
         return true
     end
-    false
+    return false
 end
 
 function handle_mouse!(btn::Button, evt::MouseEvent)::Bool
@@ -145,13 +137,13 @@ function handle_mouse!(btn::Button, evt::MouseEvent)::Bool
             return true
         end
     end
-    false
+    return false
 end
 
 # ── Render dispatch ───────────────────────────────────────────────────
 
 function render(btn::Button, rect::Rect, buf::Buffer)
-    (rect.width < 1 || rect.height < 1) && return
+    (rect.width < 1 || rect.height < 1) && return nothing
     bs = btn.button_style
     s = btn.focused ? bs.focused : bs.normal
 
@@ -163,10 +155,10 @@ function render(btn::Button, rect::Rect, buf::Buffer)
         base_fg = to_rgb(s.fg)
         p = pulse(btn.tick; period=60, lo=0.0, hi=0.25)
         anim_fg = brighten(base_fg, p)
-        s = Style(fg=anim_fg, bold=s.bold)
+        s = Style(; fg=anim_fg, bold=s.bold)
     end
 
-    _render_button!(btn, bs.decoration, rect, buf, s)
+    return _render_button!(btn, bs.decoration, rect, buf, s)
 end
 
 # ── BracketButton rendering (default) ────────────────────────────────
@@ -176,7 +168,7 @@ function _render_button!(btn::Button, ::BracketButton, rect::Rect, buf::Buffer, 
     dlen = length(display)
     pos = center(rect, dlen, 1)
     btn.last_area = Rect(pos.x, pos.y, min(dlen, rect.width), 1)
-    set_string!(buf, pos.x, pos.y, display, s; max_x=right(rect))
+    return set_string!(buf, pos.x, pos.y, display, s; max_x=right(rect))
 end
 
 # ── PlainButton rendering ────────────────────────────────────────────
@@ -186,7 +178,7 @@ function _render_button!(btn::Button, ::PlainButton, rect::Rect, buf::Buffer, s:
     llen = length(label)
     pos = center(rect, llen, 1)
     btn.last_area = Rect(pos.x, pos.y, min(llen, rect.width), 1)
-    set_string!(buf, pos.x, pos.y, label, s; max_x=right(rect))
+    return set_string!(buf, pos.x, pos.y, label, s; max_x=right(rect))
 end
 
 # ── BorderedButton rendering (3 rows) ────────────────────────────────
@@ -220,24 +212,24 @@ function _render_button!(btn::Button, dec::BorderedButton, rect::Rect, buf::Buff
 
     # Fill background based on state
     if btn.flash_remaining > 0 && s.bg isa ColorRGB
-        bg_s = Style(bg=s.bg)
+        bg_s = Style(; bg=s.bg)
         for row in y0:y1
             for col in x0:x1
                 in_bounds(buf, col, row) && set_char!(buf, col, row, ' ', bg_s)
             end
         end
-        border_s = Style(fg=s.bg)
+        border_s = Style(; fg=s.bg)
     elseif btn.focused
         accent_fg = to_rgb(tstyle(:accent).fg)
         theme_bg = to_rgb(theme().bg)
-        bg_s = Style(bg=accent_fg)
+        bg_s = Style(; bg=accent_fg)
         for col in (x0 + 1):(x1 - 1)
             in_bounds(buf, col, y0 + 1) && set_char!(buf, col, y0 + 1, ' ', bg_s)
         end
-        s = Style(fg=theme_bg, bg=accent_fg, bold=true)
-        border_s = Style(fg=accent_fg, bold=true)
+        s = Style(; fg=theme_bg, bg=accent_fg, bold=true)
+        border_s = Style(; fg=accent_fg, bold=true)
     elseif sample_bg !== nothing
-        bg_s = Style(bg=sample_bg)
+        bg_s = Style(; bg=sample_bg)
         for row in y0:y1
             for col in x0:x1
                 in_bounds(buf, col, row) && set_char!(buf, col, row, ' ', bg_s)
@@ -263,7 +255,7 @@ function _render_button!(btn::Button, dec::BorderedButton, rect::Rect, buf::Buff
     for col in (x0 + 1):(x1 - 1)
         in_bounds(buf, col, y1) && set_char!(buf, col, y1, bx.h, border_s)
     end
-    in_bounds(buf, x1, y1) && set_char!(buf, x1, y1, bx.br, border_s)
+    return in_bounds(buf, x1, y1) && set_char!(buf, x1, y1, bx.br, border_s)
 end
 
 function _default_button_flash_style(btn::Button)
@@ -274,5 +266,5 @@ function _default_button_flash_style(btn::Button)
         round(UInt8, 0xc0 * intensity),
         round(UInt8, 0x40 * intensity),
     )
-    Style(fg=flash_fg, bg=flash_bg, bold=true)
+    return Style(; fg=flash_fg, bg=flash_bg, bold=true)
 end

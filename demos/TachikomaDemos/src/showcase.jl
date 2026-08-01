@@ -29,7 +29,7 @@ function rainbow_color(t::Float64)
     frac = idx - i
     c1 = RAINBOW_COLORS[clamp(i + 1, 1, n)]
     c2 = RAINBOW_COLORS[clamp(i + 2, 1, n)]
-    color_lerp(c1, c2, frac)
+    return color_lerp(c1, c2, frac)
 end
 
 @kwdef mutable struct ShowcaseModel <: Model
@@ -43,7 +43,7 @@ end
         Spring(0.9; value=0.3, stiffness=100.0),
     ]
     spark_data::Vector{Float64} = zeros(Float64, 60)
-    particles::Vector{NTuple{4, Float64}} = NTuple{4, Float64}[]  # (x, y, vx, life)
+    particles::Vector{NTuple{4,Float64}} = NTuple{4,Float64}[]  # (x, y, vx, life)
 end
 
 should_quit(m::ShowcaseModel) = m.quit
@@ -53,7 +53,7 @@ function update!(m::ShowcaseModel, evt::KeyEvent)
         evt.char == 'q' && (m.quit = true)
         evt.char == 'p' && (m.paused = !m.paused)
     end
-    evt.key == :escape && (m.quit = true)
+    return evt.key == :escape && (m.quit = true)
 end
 
 # ── Rainbow arc renderer ─────────────────────────────────────────────
@@ -61,7 +61,7 @@ end
 function _render_rainbow_arc!(buf::Buffer, area::Rect, tick::Int)
     cw = area.width
     ch = area.height
-    (cw < 10 || ch < 4) && return
+    (cw < 10 || ch < 4) && return nothing
 
     dot_w = cw * 2
     dot_h = ch * 4
@@ -107,8 +107,9 @@ function _render_rainbow_arc!(buf::Buffer, area::Rect, tick::Int)
 
             # Add angular shimmer
             angle_t = (θ - angle_start) / (angle_end - angle_start)
-            shimmer_v = shimmer(tick, round(Int, angle_t * 40.0 + band_t * 10.0);
-                                speed=0.06, scale=0.08)
+            shimmer_v = shimmer(
+                tick, round(Int, angle_t * 40.0 + band_t * 10.0); speed=0.06, scale=0.08
+            )
 
             rainbow_t = mod(band_t + phase + shimmer_v * 0.05, 1.0)
 
@@ -138,7 +139,7 @@ function _render_rainbow_arc!(buf::Buffer, area::Rect, tick::Int)
                 round(UInt8, clamp(Float64(fg.g) * br, 0, 255)),
                 round(UInt8, clamp(Float64(fg.b) * br, 0, 255)),
             )
-            set_char!(buf, bx, by, ch_char, Style(fg=fg))
+            set_char!(buf, bx, by, ch_char, Style(; fg=fg))
         end
     end
 end
@@ -165,10 +166,10 @@ end
 
 function _update_particles!(m::ShowcaseModel)
     filter!(m.particles) do (x, y, vx, life)
-        life > 0.05
+        return life > 0.05
     end
-    m.particles = map(m.particles) do (x, y, vx, life)
-        (x + vx, y - 0.08, vx, life * 0.93)
+    return m.particles = map(m.particles) do (x, y, vx, life)
+        return (x + vx, y - 0.08, vx, life * 0.93)
     end
 end
 
@@ -186,7 +187,7 @@ function _render_particles!(buf::Buffer, area::Rect, particles, tick::Int)
             round(UInt8, clamp(Float64(fg.b) * life, 0, 255)),
         )
         ch = sparkle_chars[mod1(round(Int, life * 20), length(sparkle_chars))]
-        set_char!(buf, ix, iy, ch, Style(fg=fg))
+        set_char!(buf, ix, iy, ch, Style(; fg=fg))
     end
 end
 
@@ -204,7 +205,7 @@ function view(m::ShowcaseModel, f::Frame)
 
     # ── Layout ──
     rows = split_layout(Layout(Vertical, [Fixed(7), Fill(), Fixed(1)]), f.area)
-    length(rows) < 3 && return
+    length(rows) < 3 && return nothing
     header_area = rows[1]
     content_area = rows[2]
     footer_area = rows[3]
@@ -213,10 +214,9 @@ function view(m::ShowcaseModel, f::Frame)
     title_str = "RAINBOW"
     tw = intrinsic_size(BigText(title_str))[1]
     tx = header_area.x + max(0, (header_area.width - tw) ÷ 2)
-    title_rect = Rect(tx, header_area.y,
-                      min(tw, header_area.width), Tachikoma.BIGTEXT_GLYPH_H)
+    title_rect = Rect(tx, header_area.y, min(tw, header_area.width), Tachikoma.BIGTEXT_GLYPH_H)
 
-    title_style_fn = function(x, y)
+    title_style_fn = function (x, y)
         # Rainbow hue sweep + time animation
         hue_t = mod(Float64(x) / max(1.0, Float64(tw)) + Float64(tick) * 0.012, 1.0)
         fg = rainbow_color(hue_t)
@@ -229,10 +229,13 @@ function view(m::ShowcaseModel, f::Frame)
             round(UInt8, clamp(Float64(fg.g) * brightness, 0, 255)),
             round(UInt8, clamp(Float64(fg.b) * brightness, 0, 255)),
         )
-        Style(fg=fg, bold=true)
+        return Style(; fg=fg, bold=true)
     end
-    render(BigText(title_str; style=tstyle(:primary, bold=true),
-                   style_fn=title_style_fn), title_rect, buf)
+    render(
+        BigText(title_str; style=tstyle(:primary; bold=true), style_fn=title_style_fn),
+        title_rect,
+        buf,
+    )
 
     # Subtitle
     sub_y = header_area.y + Tachikoma.BIGTEXT_GLYPH_H
@@ -242,19 +245,24 @@ function view(m::ShowcaseModel, f::Frame)
         br = breathe(tick; period=100)
         sub_fg = rainbow_color(mod(Float64(tick) * 0.005, 1.0))
         sub_fg = dim_color(sub_fg, 1.0 - (0.5 + br * 0.5))
-        set_string!(buf, sx, sub_y, subtitle, Style(fg=sub_fg))
+        set_string!(buf, sx, sub_y, subtitle, Style(; fg=sub_fg))
     end
 
     # ── Content: rainbow arc | info panel ──
     cols = split_layout(Layout(Horizontal, [Fill(), Fixed(32)]), content_area)
-    length(cols) < 2 && return
+    length(cols) < 2 && return nothing
     arc_outer = cols[1]
     info_outer = cols[2]
 
     # Arc panel with shimmer border
-    border_shimmer!(buf, arc_outer,
-                    rainbow_color(mod(Float64(tick) * 0.01, 1.0)), tick;
-                    box=BOX_ROUNDED, intensity=0.2)
+    border_shimmer!(
+        buf,
+        arc_outer,
+        rainbow_color(mod(Float64(tick) * 0.01, 1.0)),
+        tick;
+        box=BOX_ROUNDED,
+        intensity=0.2,
+    )
     arc_inner = inner(arc_outer)
 
     _render_rainbow_arc!(buf, arc_inner, tick)
@@ -263,10 +271,12 @@ function view(m::ShowcaseModel, f::Frame)
     _render_particles!(buf, arc_inner, m.particles, tick)
 
     # ── Info panel ──
-    info_block = Block(title="Showcase",
-                       border_style=tstyle(:border),
-                       title_style=tstyle(:title, bold=true),
-                       box=BOX_HEAVY)
+    info_block = Block(;
+        title="Showcase",
+        border_style=tstyle(:border),
+        title_style=tstyle(:title; bold=true),
+        box=BOX_HEAVY,
+    )
     info_inner = render(info_block, info_outer, buf)
 
     iy = info_inner.y
@@ -292,7 +302,7 @@ function view(m::ShowcaseModel, f::Frame)
         gy = iy + (gi - 1) * 2
         gy > bottom(info_inner) - 1 && break
 
-        set_string!(buf, ix, gy, label, Style(fg=gc, bold=true))
+        set_string!(buf, ix, gy, label, Style(; fg=gc, bold=true))
 
         bar_x = ix + 4
         bar_w = iw - 5
@@ -301,23 +311,24 @@ function view(m::ShowcaseModel, f::Frame)
             ch_char = bx < filled ? '█' : '░'
             t_bar = Float64(bx) / max(1.0, Float64(bar_w))
             fg = bx < filled ? rainbow_color(mod(t_bar + Float64(tick) * 0.01, 1.0)) : Color256(238)
-            set_char!(buf, bar_x + bx, gy, ch_char, Style(fg=fg))
+            set_char!(buf, bar_x + bx, gy, ch_char, Style(; fg=fg))
         end
         pct = string(round(Int, v * 100))
-        set_string!(buf, bar_x + bar_w - length(pct), gy + 1,
-                    "$(pct)%", Style(fg=gc, dim=true))
+        set_string!(buf, bar_x + bar_w - length(pct), gy + 1, "$(pct)%", Style(; fg=gc, dim=true))
     end
 
     # ── Sparkline ──
     spark_y = iy + 7
     if spark_y + 3 <= bottom(info_inner)
-        set_string!(buf, ix, spark_y, "Activity", tstyle(:text, bold=true))
+        set_string!(buf, ix, spark_y, "Activity", tstyle(:text; bold=true))
 
         # Update data with animated sine + noise
         if !m.paused
-            new_val = 0.5 + 0.3 * sin(Float64(tick) * 0.07) +
-                      0.2 * sin(Float64(tick) * 0.13 + 1.0) +
-                      0.1 * (2.0 * noise(Float64(tick) * 0.05) - 1.0)
+            new_val =
+                0.5 +
+                0.3 * sin(Float64(tick) * 0.07) +
+                0.2 * sin(Float64(tick) * 0.13 + 1.0) +
+                0.1 * (2.0 * noise(Float64(tick) * 0.05) - 1.0)
             push!(m.spark_data, clamp(new_val, 0.0, 1.0))
             length(m.spark_data) > iw && popfirst!(m.spark_data)
         end
@@ -333,14 +344,14 @@ function view(m::ShowcaseModel, f::Frame)
             ch_char = nn > 0 ? BARS_V[min(nn, 8)] : ' '
             hue = mod(Float64(si) / max(1.0, Float64(nd)) + Float64(tick) * 0.008, 1.0)
             fg = rainbow_color(hue)
-            set_char!(buf, sx_pos, spark_y + 3, ch_char, Style(fg=fg, bold=true))
+            set_char!(buf, sx_pos, spark_y + 3, ch_char, Style(; fg=fg, bold=true))
         end
     end
 
     # ── Signal bars with rainbow ──
     sig_y = iy + 12
     if sig_y + 1 <= bottom(info_inner)
-        set_string!(buf, ix, sig_y, "Signal", tstyle(:text, bold=true))
+        set_string!(buf, ix, sig_y, "Signal", tstyle(:text; bold=true))
         sig_y += 1
         n_bars = min(iw, 24)
         for bi in 1:n_bars
@@ -351,21 +362,21 @@ function view(m::ShowcaseModel, f::Frame)
             ch_char = nn > 0 ? BARS_V[min(nn, 8)] : ' '
             hue = mod(Float64(bi) / Float64(n_bars) + Float64(tick) * 0.01, 1.0)
             fg = rainbow_color(hue)
-            set_char!(buf, ix + bi - 1, sig_y, ch_char, Style(fg=fg, bold=true))
+            set_char!(buf, ix + bi - 1, sig_y, ch_char, Style(; fg=fg, bold=true))
         end
     end
 
     # ── Color palette ──
     pal_y = sig_y + 2
     if pal_y + 1 <= bottom(info_inner)
-        set_string!(buf, ix, pal_y, "Palette", tstyle(:text, bold=true))
+        set_string!(buf, ix, pal_y, "Palette", tstyle(:text; bold=true))
         pal_y += 1
         n_pal = min(iw, 28)
         for pi in 1:n_pal
             hue = mod(Float64(pi - 1) / Float64(n_pal) + Float64(tick) * 0.005, 1.0)
             fg = rainbow_color(hue)
             ch_char = BLOCKS[1]  # █
-            set_char!(buf, ix + pi - 1, pal_y, ch_char, Style(fg=fg))
+            set_char!(buf, ix + pi - 1, pal_y, ch_char, Style(; fg=fg))
         end
     end
 
@@ -374,25 +385,31 @@ function view(m::ShowcaseModel, f::Frame)
     if spin_y <= bottom(info_inner)
         si = mod1(tick ÷ 3, length(SPINNER_BRAILLE))
         hue = mod(Float64(tick) * 0.015, 1.0)
-        set_char!(buf, ix, spin_y, SPINNER_BRAILLE[si],
-                  Style(fg=rainbow_color(hue)))
-        set_string!(buf, ix + 2, spin_y,
-                    "$(theme().name) theme", tstyle(:text_dim))
+        set_char!(buf, ix, spin_y, SPINNER_BRAILLE[si], Style(; fg=rainbow_color(hue)))
+        set_string!(buf, ix + 2, spin_y, "$(theme().name) theme", tstyle(:text_dim))
     end
 
     # ── Footer ──
     si = mod1(tick ÷ 3, length(SPINNER_DOTS))
-    set_char!(buf, footer_area.x, footer_area.y,
-              SPINNER_DOTS[si], Style(fg=rainbow_color(mod(Float64(tick) * 0.02, 1.0))))
+    set_char!(
+        buf,
+        footer_area.x,
+        footer_area.y,
+        SPINNER_DOTS[si],
+        Style(; fg=rainbow_color(mod(Float64(tick) * 0.02, 1.0))),
+    )
 
-    render(StatusBar(
-        left=[Span("  [p]pause [Ctrl+T]theme [Ctrl+?]help ",
-                    tstyle(:text_dim))],
-        right=[Span("[q/Esc]quit ", tstyle(:text_dim))],
-    ), footer_area, buf)
+    return render(
+        StatusBar(;
+            left=[Span("  [p]pause [Ctrl+T]theme [Ctrl+?]help ", tstyle(:text_dim))],
+            right=[Span("[q/Esc]quit ", tstyle(:text_dim))],
+        ),
+        footer_area,
+        buf,
+    )
 end
 
 function showcase(; theme_name=nothing)
     theme_name !== nothing && set_theme!(theme_name)
-    app(ShowcaseModel(); fps=30)
+    return app(ShowcaseModel(); fps=30)
 end

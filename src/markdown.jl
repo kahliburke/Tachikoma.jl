@@ -14,7 +14,7 @@ Requires the CommonMark.jl extension — call `enable_markdown()` first.
 function markdown_to_spans end
 
 # Ref hook — set by TachikomaMarkdownExt.__init__()
-const _markdown_to_spans_fn = Ref{Union{Function, Nothing}}(nothing)
+const _markdown_to_spans_fn = Ref{Union{Function,Nothing}}(nothing)
 
 const _COMMONMARK_UUID = Base.UUID("a80b9123-70ca-4bc0-993e-6e3bcb318db6")
 
@@ -24,7 +24,7 @@ const _COMMONMARK_UUID = Base.UUID("a80b9123-70ca-4bc0-993e-6e3bcb318db6")
 Return `true` if the CommonMark.jl extension has been loaded.
 """
 function markdown_extension_loaded()
-    _markdown_to_spans_fn[] !== nothing
+    return _markdown_to_spans_fn[] !== nothing
 end
 
 """
@@ -37,10 +37,12 @@ activates. Errors with an install hint if the package is missing.
 function enable_markdown()
     markdown_extension_loaded() && return nothing
     if !_pkg_available("CommonMark", _COMMONMARK_UUID)
-        error("Markdown rendering requires CommonMark.jl.\n  Install with: using Pkg; Pkg.add(\"CommonMark\")")
+        error(
+            "Markdown rendering requires CommonMark.jl.\n  Install with: using Pkg; Pkg.add(\"CommonMark\")",
+        )
     end
     Base.require(Main, :CommonMark)
     markdown_extension_loaded() ||
         @warn "TachikomaMarkdownExt did not activate — possible version incompatibility."
-    nothing
+    return nothing
 end

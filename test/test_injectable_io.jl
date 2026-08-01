@@ -9,11 +9,11 @@
 @testset "injectable io" begin
     @testset "with_terminal renders into an injected sink" begin
         sink = IOBuffer()
-        got = T.with_terminal(; io = sink, tty_size = (rows = 10, cols = 40)) do t
+        got = T.with_terminal(; io=sink, tty_size=(rows=10, cols=40)) do t
             @test t.io === sink
             @test t.size == Rect(1, 1, 40, 10)
             T.draw!(t) do f
-                render(Block(title = "hi"), f.area, f.buffer)
+                render(Block(title="hi"), f.area, f.buffer)
             end
             :ran
         end
@@ -28,14 +28,14 @@
     @testset "an injected sink demands a size" begin
         # Guessing would put every frame at the wrong dimensions, and the
         # sink cannot be probed. Fail loudly at the call, not visually later.
-        @test_throws ArgumentError T.with_terminal(identity; io = IOBuffer())
+        @test_throws ArgumentError T.with_terminal(identity; io=IOBuffer())
     end
 
     @testset "the caller's sink is the caller's to close" begin
         # A websocket outlives any one app; closing it here would take the
         # connection down with the app.
         sink = IOBuffer()
-        T.with_terminal(; io = sink, tty_size = (rows = 5, cols = 20)) do t
+        T.with_terminal(; io=sink, tty_size=(rows=5, cols=20)) do t
             nothing
         end
         @test isopen(sink)
@@ -50,7 +50,7 @@
         # frame was silently resized to the wrong dimensions while t.size
         # still read correctly.
         sink = IOBuffer()
-        T.with_terminal(; io = sink, tty_size = (rows = 7, cols = 33)) do t
+        T.with_terminal(; io=sink, tty_size=(rows=7, cols=33)) do t
             @test t.size == Rect(1, 1, 33, 7)
             T.draw!(t) do f
                 @test f.area.width == 33
@@ -70,7 +70,7 @@
         T.should_quit(m::_Hello) = m.frames >= 3
         function T.view(m::_Hello, f::T.Frame)
             m.frames += 1
-            render(Block(title = "hi from a sink"), f.area, f.buffer)
+            render(Block(title="hi from a sink"), f.area, f.buffer)
         end
 
         sink = IOBuffer()
@@ -79,8 +79,7 @@
         # throw EINVAL headless, and `input` is the public way a socket-driven
         # caller feeds keystrokes. An empty buffer is enough here -- the model
         # self-quits.
-        app(model; io = sink, tty_size = (rows = 8, cols = 40), fps = 120,
-            input = IOBuffer())
+        app(model; io=sink, tty_size=(rows=8, cols=40), fps=120, input=IOBuffer())
         out = String(take!(copy(sink)))
         @test model.frames >= 3
         @test occursin("hi from a sink", out)
@@ -93,27 +92,29 @@
         # and Base.TTY(RawFD(dup(0))) throws EINVAL when fd 0 is not a tty --
         # the headless case. With `io` set, the dup is skipped, so this runs
         # with NOTHING pre-set.
-        @kwdef mutable struct _Q <: T.Model; n::Int = 0; end
+        @kwdef mutable struct _Q <: T.Model
+            n::Int = 0
+        end
         T.should_quit(m::_Q) = m.n >= 2
-        T.view(m::_Q, f::T.Frame) = (m.n += 1; render(Block(title = "q"), f.area, f.buffer))
+        T.view(m::_Q, f::T.Frame) = (m.n += 1; render(Block(title="q"), f.area, f.buffer))
         @assert T.INPUT_IO[] === nothing
         sink = IOBuffer()
-        @test app(_Q(); io = sink, tty_size = (rows = 5, cols = 20)) === nothing
+        @test app(_Q(); io=sink, tty_size=(rows=5, cols=20)) === nothing
     end
 
     @testset "set_size! is how an injected sink changes size" begin
         # No tty to probe and no SIGWINCH to catch: the caller who owns the
         # sink is the only one who knows, so it has to say.
         sink = IOBuffer()
-        T.with_terminal(; io = sink, tty_size = (rows = 7, cols = 33)) do t
-            @test T.set_size!(t, (rows = 12, cols = 50)) == true
+        T.with_terminal(; io=sink, tty_size=(rows=7, cols=33)) do t
+            @test T.set_size!(t, (rows=12, cols=50)) == true
             @test t.size == Rect(1, 1, 50, 12)
             T.draw!(t) do f
                 @test f.area.width == 50
                 @test f.area.height == 12
             end
             # Unchanged size is not a resize.
-            @test T.set_size!(t, (rows = 12, cols = 50)) == false
+            @test T.set_size!(t, (rows=12, cols=50)) == false
         end
     end
 
@@ -124,16 +125,22 @@
         # receiver. set_size! now arms a one-shot clear that check_resize!
         # reports once.
         sink = IOBuffer()
-        T.with_terminal(; io = sink, tty_size = (rows = 20, cols = 60)) do t
-            T.draw!(t) do f; render(Block(title = "big"), f.area, f.buffer); end
+        T.with_terminal(; io=sink, tty_size=(rows=20, cols=60)) do t
+            T.draw!(t) do f
+                render(Block(title="big"), f.area, f.buffer)
+            end
             take!(sink)                              # drain the first frame
-            @test T.set_size!(t, (rows = 8, cols = 30)) == true
+            @test T.set_size!(t, (rows=8, cols=30)) == true
             @test t.pending_clear == true            # armed
-            T.draw!(t) do f; render(Block(title = "small"), f.area, f.buffer); end
+            T.draw!(t) do f
+                render(Block(title="small"), f.area, f.buffer)
+            end
             @test t.pending_clear == false           # consumed
             @test occursin("\e[2J", String(take!(sink)))   # CLEAR_SCREEN emitted
             # ...and it does NOT clear again on the next, unchanged frame.
-            T.draw!(t) do f; render(Block(title = "small"), f.area, f.buffer); end
+            T.draw!(t) do f
+                render(Block(title="small"), f.area, f.buffer)
+            end
             @test !occursin("\e[2J", String(take!(sink)))
         end
     end
@@ -144,17 +151,24 @@
         # that source was empty, took no keys at all with nothing to explain
         # why. The kwarg names the source, so the kwarg wins; the host's
         # source is put back on exit.
-        @kwdef mutable struct _In <: T.Model; n::Int = 0; end
+        @kwdef mutable struct _In <: T.Model
+            n::Int = 0
+        end
         T.should_quit(m::_In) = m.n >= 2
-        T.view(m::_In, f::T.Frame) = (m.n += 1; render(Block(title = "in"), f.area, f.buffer))
+        T.view(m::_In, f::T.Frame) = (m.n += 1; render(Block(title="in"), f.area, f.buffer))
 
         host_source = IOBuffer()
         mine = IOBuffer()
         T.INPUT_IO[] = host_source
         try
             seen = Ref{Any}(:unset)
-            app(_In(); io = IOBuffer(), tty_size = (rows = 5, cols = 20),
-                input = mine, on_terminal = _ -> (seen[] = T.INPUT_IO[]))
+            app(
+                _In();
+                io=IOBuffer(),
+                tty_size=(rows=5, cols=20),
+                input=mine,
+                on_terminal=_ -> (seen[] = T.INPUT_IO[]),
+            )
             @test seen[] === mine              # the kwarg won while running
             @test T.INPUT_IO[] === host_source # ...and the host got its own back
         finally
@@ -165,11 +179,13 @@
     @testset "the default path still clears INPUT_IO on exit" begin
         # Unchanged behaviour for the ordinary case: nothing installed going in,
         # nothing left installed coming out.
-        @kwdef mutable struct _Def <: T.Model; n::Int = 0; end
+        @kwdef mutable struct _Def <: T.Model
+            n::Int = 0
+        end
         T.should_quit(m::_Def) = m.n >= 2
-        T.view(m::_Def, f::T.Frame) = (m.n += 1; render(Block(title = "d"), f.area, f.buffer))
+        T.view(m::_Def, f::T.Frame) = (m.n += 1; render(Block(title="d"), f.area, f.buffer))
         @test T.INPUT_IO[] === nothing
-        app(_Def(); io = IOBuffer(), tty_size = (rows = 5, cols = 20), input = IOBuffer())
+        app(_Def(); io=IOBuffer(), tty_size=(rows=5, cols=20), input=IOBuffer())
         @test T.INPUT_IO[] === nothing
     end
 
@@ -185,16 +201,16 @@
         # no-op when stdin isn't a TTY, which is exactly the case under CI, so a
         # behavioural test here would pass no matter what the branch did.
         sink = IOBuffer()
-        T.with_terminal(; io = sink, tty_size = (rows = 6, cols = 20)) do t
+        T.with_terminal(; io=sink, tty_size=(rows=6, cols=20)) do t
             @test T._is_remote_terminal(t) == true
             @test t.remote_tty_path === nothing   # ...and so is NOT detected by that
         end
         # A terminal this process does own still restores raw mode as before.
-        @test T._is_remote_terminal(T.Terminal(io = IOBuffer(),
-                                               size = (rows = 6, cols = 20))) == false
+        @test T._is_remote_terminal(T.Terminal(io=IOBuffer(), size=(rows=6, cols=20))) == false
         # A tty_out terminal is remote too, and additionally has input to stop.
-        @test T._is_remote_terminal(T.Terminal(io = IOBuffer(), size = (rows = 6, cols = 20),
-                                               remote_tty_path = "/dev/ttys999")) == true
+        @test T._is_remote_terminal(
+            T.Terminal(io=IOBuffer(), size=(rows=6, cols=20), remote_tty_path="/dev/ttys999")
+        ) == true
     end
 
     @testset "an injected sink does not redirect the process's streams" begin
@@ -207,7 +223,7 @@
         sink = IOBuffer()
         before_out, before_err = stdout, stderr
         seen_out, seen_err = Ref{Any}(nothing), Ref{Any}(nothing)
-        T.with_terminal(; io = sink, tty_size = (rows = 6, cols = 20)) do t
+        T.with_terminal(; io=sink, tty_size=(rows=6, cols=20)) do t
             seen_out[] = stdout
             seen_err[] = stderr
         end
@@ -223,8 +239,7 @@
         sink = IOBuffer()
         lines = String[]
         before = stdout
-        T.with_terminal(; io = sink, tty_size = (rows = 6, cols = 20),
-                        on_stdout = l -> push!(lines, l)) do t
+        T.with_terminal(; io=sink, tty_size=(rows=6, cols=20), on_stdout=l -> push!(lines, l)) do t
             @test stdout !== before          # redirected, because it was requested
             println("captured please")
             flush(stdout)

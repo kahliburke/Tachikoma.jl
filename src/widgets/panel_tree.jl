@@ -21,14 +21,34 @@
 # ═══════════════════════════════════════════════════════════════════════
 
 # ── Content dispatch (widget OR Model) ────────────────────────────────
-_pt_render!(c, rect::Rect, buf::Buffer) = c isa Model ?
-    view(c, Frame(buf, rect, GraphicsRegion[], PixelSnapshot[])) : render(c, rect, buf)
-_pt_key!(c, e::KeyEvent)   = c isa Model ? (update!(c, e); true) :
-    (applicable(handle_key!, c, e)   ? handle_key!(c, e)   : false)
-_pt_mouse!(c, e::MouseEvent) = c isa Model ? (update!(c, e); true) :
-    (applicable(handle_mouse!, c, e) ? handle_mouse!(c, e) : false)
-_pt_drain!(c) = (c isa Model || (applicable(drain!, c) && (try; drain!(c); catch; end)); nothing)
-_pt_alive(c)  = c isa Model ? !should_quit(c) : true
+function _pt_render!(c, rect::Rect, buf::Buffer)
+    return if c isa Model
+        view(c, Frame(buf, rect, GraphicsRegion[], PixelSnapshot[]))
+    else
+        render(c, rect, buf)
+    end
+end
+function _pt_key!(c, e::KeyEvent)
+    return if c isa Model
+        (update!(c, e); true)
+    else
+        (applicable(handle_key!, c, e) ? handle_key!(c, e) : false)
+    end
+end
+function _pt_mouse!(c, e::MouseEvent)
+    return if c isa Model
+        (update!(c, e); true)
+    else
+        (applicable(handle_mouse!, c, e) ? handle_mouse!(c, e) : false)
+    end
+end
+_pt_drain!(c) = (c isa Model || (applicable(drain!, c) && (
+    try
+        drain!(c)
+    catch
+    end
+)); nothing)
+_pt_alive(c) = c isa Model ? !should_quit(c) : true
 
 # ── Tree ──────────────────────────────────────────────────────────────
 abstract type PaneNode end
@@ -38,7 +58,7 @@ mutable struct PaneLeaf <: PaneNode
     title::String
     rect::Rect            # last rendered rect (hit-testing / drop zones)
 end
-PaneLeaf(content; title::AbstractString = "") = PaneLeaf(content, String(title), Rect())
+PaneLeaf(content; title::AbstractString="") = PaneLeaf(content, String(title), Rect())
 
 mutable struct PaneSplit <: PaneNode
     horizontal::Bool                  # true = children side-by-side (columns)
@@ -71,11 +91,22 @@ mutable struct PanelTree
     drop_zone::Symbol
     last_area::Rect
 end
-function PanelTree(content; title::AbstractString = "", chrome::Symbol = :bars,
-                   alive::Union{Function,Nothing} = nothing)
-    leaf = PaneLeaf(content; title = title)
-    PanelTree(leaf, leaf, chrome, alive === nothing ? _pt_alive : alive,
-              nothing, nothing, nothing, nothing, :none, Rect())
+function PanelTree(
+    content; title::AbstractString="", chrome::Symbol=:bars, alive::Union{Function,Nothing}=nothing
+)
+    leaf = PaneLeaf(content; title=title)
+    return PanelTree(
+        leaf,
+        leaf,
+        chrome,
+        alive === nothing ? _pt_alive : alive,
+        nothing,
+        nothing,
+        nothing,
+        nothing,
+        :none,
+        Rect(),
+    )
 end
 
 focusable(::PanelTree) = true
@@ -84,7 +115,9 @@ focusable(::PanelTree) = true
 _panes(n::PaneLeaf) = PaneLeaf[n]
 function _panes(n::PaneSplit)
     out = PaneLeaf[]
-    for c in n.children; append!(out, _panes(c)); end
+    for c in n.children
+        append!(out, _panes(c))
+    end
     return out
 end
 """All leaf panes, left-to-right / top-to-bottom."""
@@ -97,9 +130,12 @@ focused_content(pt::PanelTree) = pt.focus.content
 
 function _pt_parent(node::PaneNode, target::PaneNode)
     node isa PaneSplit || return nothing
-    for c in node.children; c === target && return node; end
     for c in node.children
-        p = _pt_parent(c, target); p === nothing || return p
+        c === target && return node
+    end
+    for c in node.children
+        p = _pt_parent(c, target)
+        p === nothing || return p
     end
     return nothing
 end
@@ -108,13 +144,16 @@ function _pt_at(node::PaneNode, x::Int, y::Int)
         return contains(node.rect, x, y) ? node : nothing
     end
     for c in node.children
-        l = _pt_at(c, x, y); l === nothing || return l
+        l = _pt_at(c, x, y)
+        l === nothing || return l
     end
     return nothing
 end
 
 # ── Structural edits ──────────────────────────────────────────────────
-function _pt_split_leaf!(pt::PanelTree, target::PaneLeaf, newleaf::PaneLeaf, horizontal::Bool, after::Bool)
+function _pt_split_leaf!(
+    pt::PanelTree, target::PaneLeaf, newleaf::PaneLeaf, horizontal::Bool, after::Bool
+)
     kids = PaneNode[after ? target : newleaf, after ? newleaf : target]
     ns = PaneSplit(horizontal, kids)
     parent = _pt_parent(pt.root, target)
@@ -145,8 +184,11 @@ function _pt_remove!(pt::PanelTree, node::PaneNode)
     i = findfirst(c -> c === node, parent.children)
     i === nothing && return nothing
     deleteat!(parent.children, i)
-    length(parent.children) == 1 ? _pt_collapse!(pt, parent) :
-                                   (parent.rl = _pt_rl(parent.horizontal, length(parent.children)))
+    if length(parent.children) == 1
+        _pt_collapse!(pt, parent)
+    else
+        (parent.rl = _pt_rl(parent.horizontal, length(parent.children)))
+    end
     return nothing
 end
 
@@ -156,18 +198,25 @@ end
 Split a pane (the focused one by default), inserting `content` beside it along `horizontal`
 (`after` = the new pane goes second). Returns the new `PaneLeaf` and focuses it.
 """
-function split_pane!(pt::PanelTree, content; horizontal::Bool = true, title::AbstractString = "",
-                     after::Bool = true, at::PaneLeaf = pt.focus)
-    leaf = PaneLeaf(content; title = title)
+function split_pane!(
+    pt::PanelTree,
+    content;
+    horizontal::Bool=true,
+    title::AbstractString="",
+    after::Bool=true,
+    at::PaneLeaf=pt.focus,
+)
+    leaf = PaneLeaf(content; title=title)
     _pt_split_leaf!(pt, at, leaf, horizontal, after)
     pt.focus = leaf
     return leaf
 end
 
 """Close a pane (the focused one by default). Never closes the last pane; returns true if it closed one."""
-function close_pane!(pt::PanelTree, leaf::PaneLeaf = pt.focus)
+function close_pane!(pt::PanelTree, leaf::PaneLeaf=pt.focus)
     pane_count(pt) <= 1 && return false
-    ps = _panes(pt.root); i = findfirst(l -> l === leaf, ps)
+    ps = _panes(pt.root)
+    i = findfirst(l -> l === leaf, ps)
     _pt_remove!(pt, leaf)
     np = _panes(pt.root)
     pt.focus = np[clamp(i === nothing ? 1 : i, 1, length(np))]
@@ -175,13 +224,15 @@ function close_pane!(pt::PanelTree, leaf::PaneLeaf = pt.focus)
 end
 
 function focus_next!(pt::PanelTree)
-    ps = _panes(pt.root); i = findfirst(l -> l === pt.focus, ps)
+    ps = _panes(pt.root)
+    i = findfirst(l -> l === pt.focus, ps)
     i === nothing && (i = 1)
     pt.focus = ps[mod1(i + 1, length(ps))]
     return nothing
 end
 function focus_prev!(pt::PanelTree)
-    ps = _panes(pt.root); i = findfirst(l -> l === pt.focus, ps)
+    ps = _panes(pt.root)
+    i = findfirst(l -> l === pt.focus, ps)
     i === nothing && (i = 1)
     pt.focus = ps[mod1(i - 1, length(ps))]
     return nothing
@@ -193,7 +244,9 @@ function prune!(pt::PanelTree)
     dead = filter(l -> !pt.alive(l.content), ps)
     isempty(dead) && return true
     length(dead) == length(ps) && return false        # caller decides what an all-dead tree means
-    for l in dead; _pt_remove!(pt, l); end
+    for l in dead
+        _pt_remove!(pt, l)
+    end
     np = _panes(pt.root)
     any(l -> l === pt.focus, np) || (pt.focus = np[1])
     return true
@@ -220,7 +273,10 @@ function _pt_zone(r::Rect, x::Int, y::Int)
     (r.width < 1 || r.height < 1) && return :center
     fx = clamp((x - r.x) / max(1, r.width - 1), 0.0, 1.0)
     fy = clamp((y - r.y) / max(1, r.height - 1), 0.0, 1.0)
-    left = fx; rightv = 1 - fx; top = fy; bottom = 1 - fy
+    left = fx
+    rightv = 1 - fx
+    top = fy
+    bottom = 1 - fy
     mn = min(left, rightv, top, bottom)
     mn > 0.30 && return :center
     mn == left && return :left
@@ -231,9 +287,13 @@ end
 
 # ── Render ────────────────────────────────────────────────────────────
 _pt_content_rect(h::Bool, r::Rect, last::Bool) =
-    last ? r :
-    h ? Rect(r.x, r.y, max(1, r.width - 1), r.height) :
+    if last
+        r
+    elseif h
+        Rect(r.x, r.y, max(1, r.width - 1), r.height)
+    else
         Rect(r.x, r.y, r.width, max(1, r.height - 1))
+    end
 
 function _pt_dividers!(node::PaneSplit, buf::Buffer, rects)
     sty = tstyle(:border)
@@ -241,10 +301,14 @@ function _pt_dividers!(node::PaneSplit, buf::Buffer, rects)
         r = rects[i]
         if node.horizontal
             x = r.x + r.width - 1
-            for y in r.y:(r.y + r.height - 1); set_char!(buf, x, y, '│', sty); end
+            for y in r.y:(r.y + r.height - 1)
+                set_char!(buf, x, y, '│', sty)
+            end
         else
             y = r.y + r.height - 1
-            for x in r.x:(r.x + r.width - 1); set_char!(buf, x, y, '─', sty); end
+            for x in r.x:(r.x + r.width - 1)
+                set_char!(buf, x, y, '─', sty)
+            end
         end
     end
     return nothing
@@ -254,11 +318,18 @@ end
 _pt_handle_rect(l::PaneLeaf) = Rect(l.rect.x, l.rect.y, l.rect.width, 1)
 function _pt_header!(pt::PanelTree, l::PaneLeaf, buf::Buffer)
     r = l.rect
-    sty = l === pt.grab  ? tstyle(:primary, bold = true) :
-          l === pt.focus ? tstyle(:accent, bold = true) : tstyle(:border)
+    sty = if l === pt.grab
+        tstyle(:primary; bold=true)
+    elseif l === pt.focus
+        tstyle(:accent; bold=true)
+    else
+        tstyle(:border)
+    end
     title = isempty(l.title) ? "⠿" : "⠿ " * l.title
     nx = set_string!(buf, r.x, r.y, first(" " * title * " ", r.width), sty)
-    for x in nx:(r.x + r.width - 1); set_char!(buf, x, r.y, '─', sty); end
+    for x in nx:(r.x + r.width - 1)
+        set_char!(buf, x, r.y, '─', sty)
+    end
     return nothing
 end
 
@@ -267,8 +338,11 @@ end
 function _pt_focus_ring!(pt::PanelTree, buf::Buffer, area::Rect)
     r = pt.focus.rect
     (r.width < 1 || r.height < 1) && return nothing
-    sty = tstyle(:accent, bold = true)
-    x0 = r.x - 1; x1 = r.x + r.width; y0 = r.y - 1; y1 = r.y + r.height
+    sty = tstyle(:accent; bold=true)
+    x0 = r.x - 1
+    x1 = r.x + r.width
+    y0 = r.y - 1
+    y1 = r.y + r.height
     for y in max(r.y, area.y):min(r.y + r.height - 1, bottom(area))
         x0 >= area.x && set_char!(buf, x0, y, '│', sty)
         x1 <= right(area) && set_char!(buf, x1, y, '│', sty)
@@ -284,7 +358,10 @@ function _pt_render_node!(pt::PanelTree, node::PaneLeaf, rect::Rect, buf::Buffer
     node.rect = rect
     _pt_drain!(node.content)
     content = bars ? Rect(rect.x, rect.y + 1, rect.width, max(1, rect.height - 1)) : rect
-    try; _pt_render!(node.content, content, buf); catch; end
+    try
+        _pt_render!(node.content, content, buf)
+    catch
+    end
     bars && _pt_header!(pt, node, buf)
     return nothing
 end
@@ -299,7 +376,10 @@ function _pt_render_node!(pt::PanelTree, node::PaneSplit, rect::Rect, buf::Buffe
         _pt_render_node!(pt, c, _pt_content_rect(node.horizontal, rects[i], i == n), buf, bars)
     end
     _pt_dividers!(node, buf, rects)
-    try; render_resize_handles!(buf, node.rl); catch; end
+    try
+        render_resize_handles!(buf, node.rl)
+    catch
+    end
     return nothing
 end
 
@@ -310,7 +390,7 @@ Lay the panes out in `area` and draw them (chrome + dividers + any drag preview)
 """
 function render(pt::PanelTree, area::Rect, buf::Buffer)
     pt.last_area = area
-    prune!(pt) || return
+    prune!(pt) || return nothing
     multi = pane_count(pt) > 1
     bars = multi && pt.chrome === :bars
     _pt_render_node!(pt, pt.root, area, buf, bars)
@@ -318,7 +398,7 @@ function render(pt::PanelTree, area::Rect, buf::Buffer)
         _pt_focus_ring!(pt, buf, area)
     end
     if pt.grab !== nothing
-        _pt_outline!(buf, pt.grab.rect, tstyle(:primary, bold = true))
+        _pt_outline!(buf, pt.grab.rect, tstyle(:primary; bold=true))
         _pt_drop_overlay!(pt, buf)
     end
     return nothing
@@ -326,30 +406,53 @@ end
 
 function _pt_outline!(buf::Buffer, r::Rect, sty::Style)
     (r.width < 2 || r.height < 2) && return nothing
-    x2 = r.x + r.width - 1; y2 = r.y + r.height - 1
-    for x in r.x:x2; set_char!(buf, x, r.y, '─', sty); set_char!(buf, x, y2, '─', sty); end
-    for y in r.y:y2; set_char!(buf, r.x, y, '│', sty); set_char!(buf, x2, y, '│', sty); end
-    set_char!(buf, r.x, r.y, '┌', sty); set_char!(buf, x2, r.y, '┐', sty)
-    set_char!(buf, r.x, y2, '└', sty); set_char!(buf, x2, y2, '┘', sty)
+    x2 = r.x + r.width - 1
+    y2 = r.y + r.height - 1
+    for x in r.x:x2
+        set_char!(buf, x, r.y, '─', sty)
+        set_char!(buf, x, y2, '─', sty)
+    end
+    for y in r.y:y2
+        set_char!(buf, r.x, y, '│', sty)
+        set_char!(buf, x2, y, '│', sty)
+    end
+    set_char!(buf, r.x, r.y, '┌', sty)
+    set_char!(buf, x2, r.y, '┐', sty)
+    set_char!(buf, r.x, y2, '└', sty)
+    set_char!(buf, x2, y2, '┘', sty)
     return nothing
 end
 
 function _pt_drop_overlay!(pt::PanelTree, buf::Buffer)
     t = pt.drop_target
     (t === nothing || pt.drop_zone === :none) && return nothing
-    r = t.rect; z = pt.drop_zone
-    hw = max(1, r.width ÷ 2); hh = max(1, r.height ÷ 2)
-    sub = z === :left   ? Rect(r.x, r.y, hw, r.height) :
-          z === :right  ? Rect(r.x + r.width - hw, r.y, hw, r.height) :
-          z === :top    ? Rect(r.x, r.y, r.width, hh) :
-          z === :bottom ? Rect(r.x, r.y + r.height - hh, r.width, hh) : r
+    r = t.rect
+    z = pt.drop_zone
+    hw = max(1, r.width ÷ 2)
+    hh = max(1, r.height ÷ 2)
+    sub = if z === :left
+        Rect(r.x, r.y, hw, r.height)
+    elseif z === :right
+        Rect(r.x + r.width - hw, r.y, hw, r.height)
+    elseif z === :top
+        Rect(r.x, r.y, r.width, hh)
+    elseif z === :bottom
+        Rect(r.x, r.y + r.height - hh, r.width, hh)
+    else
+        r
+    end
     for y in sub.y:(sub.y + sub.height - 1), x in sub.x:(sub.x + sub.width - 1)
         set_char!(buf, x, y, '░', tstyle(:accent))
     end
-    _pt_outline!(buf, sub, tstyle(:accent, bold = true))
+    _pt_outline!(buf, sub, tstyle(:accent; bold=true))
     label = z === :center ? " swap " : " split "
-    set_string!(buf, sub.x + max(0, (sub.width - length(label)) ÷ 2), sub.y + sub.height ÷ 2,
-                label, tstyle(:primary, bold = true))
+    set_string!(
+        buf,
+        sub.x + max(0, (sub.width - length(label)) ÷ 2),
+        sub.y + sub.height ÷ 2,
+        label,
+        tstyle(:primary; bold=true),
+    )
     return nothing
 end
 
@@ -371,7 +474,8 @@ function handle_mouse!(pt::PanelTree, e::MouseEvent)::Bool
     if multi && e.action == mouse_press && e.button == mouse_left && pt.chrome === :bars
         leaf = _pt_at(pt.root, e.x, e.y)
         if leaf !== nothing && contains(_pt_handle_rect(leaf), e.x, e.y)
-            pt.focus = leaf; _pt_begin_grab!(pt, leaf, e)
+            pt.focus = leaf
+            _pt_begin_grab!(pt, leaf, e)
             return true
         end
     end
@@ -379,7 +483,8 @@ function handle_mouse!(pt::PanelTree, e::MouseEvent)::Bool
     if e.action == mouse_press && e.button == mouse_left
         leaf = _pt_at(pt.root, e.x, e.y)
         if leaf !== nothing
-            pt.focus = leaf; pt.grab_from = leaf
+            pt.focus = leaf
+            pt.grab_from = leaf
             _pt_mouse!(leaf.content, e)
         end
         return true
@@ -397,15 +502,18 @@ end
 function _pt_border_at(node::PaneNode, e::MouseEvent)
     node isa PaneSplit || return nothing
     for c in node.children
-        d = _pt_border_at(c, e); d === nothing || return d
+        d = _pt_border_at(c, e)
+        d === nothing || return d
     end
     rl = node.rl
     isempty(rl.rects) && return nothing
     pos = rl.direction == Horizontal ? e.x : e.y
-    within = rl.direction == Horizontal ?
-             (e.y >= rl.last_area.y && e.y <= bottom(rl.last_area)) :
-             (e.x >= rl.last_area.x && e.x <= right(rl.last_area))
-    (within && _find_border(rl, pos) > 0) ? node : nothing
+    within = if rl.direction == Horizontal
+        (e.y >= rl.last_area.y && e.y <= bottom(rl.last_area))
+    else
+        (e.x >= rl.last_area.x && e.x <= right(rl.last_area))
+    end
+    return (within && _find_border(rl, pos) > 0) ? node : nothing
 end
 
 function _pt_dispatch_resize!(pt::PanelTree, e::MouseEvent)
@@ -431,38 +539,57 @@ end
 function _pt_each_split(f, node::PaneNode)
     if node isa PaneSplit
         f(node)
-        for c in node.children; _pt_each_split(f, c); end
+        for c in node.children
+            _pt_each_split(f, c)
+        end
     end
     return nothing
 end
 
 function _pt_begin_grab!(pt::PanelTree, leaf::PaneLeaf, e::MouseEvent)
-    pt.grab = leaf; pt.grab_from = nothing
-    try; _pt_mouse!(leaf.content, MouseEvent(e.x, e.y, mouse_left, mouse_release, false, false, false)); catch; end
+    pt.grab = leaf
+    pt.grab_from = nothing
+    try
+        _pt_mouse!(
+            leaf.content, MouseEvent(e.x, e.y, mouse_left, mouse_release, false, false, false)
+        )
+    catch
+    end
     return nothing
 end
 
 function _pt_update_drop!(pt::PanelTree, x::Int, y::Int)
     leaf = _pt_at(pt.root, x, y)
     if leaf === nothing || leaf === pt.grab
-        pt.drop_target = nothing; pt.drop_zone = :none
+        pt.drop_target = nothing
+        pt.drop_zone = :none
     else
-        pt.drop_target = leaf; pt.drop_zone = _pt_zone(leaf.rect, x, y)
+        pt.drop_target = leaf
+        pt.drop_zone = _pt_zone(leaf.rect, x, y)
     end
     return nothing
 end
 
 function _pt_finish_grab!(pt::PanelTree, x::Int, y::Int)
     _pt_update_drop!(pt, x, y)
-    src = pt.grab; tgt = pt.drop_target; zone = pt.drop_zone
-    (src !== nothing && tgt !== nothing && tgt !== src && zone !== :none) && _pt_dock!(pt, src, tgt, zone)
-    pt.grab = nothing; pt.grab_from = nothing; pt.drop_target = nothing; pt.drop_zone = :none
+    src = pt.grab
+    tgt = pt.drop_target
+    zone = pt.drop_zone
+    (src !== nothing && tgt !== nothing && tgt !== src && zone !== :none) &&
+        _pt_dock!(pt, src, tgt, zone)
+    pt.grab = nothing
+    pt.grab_from = nothing
+    pt.drop_target = nothing
+    pt.drop_zone = :none
     return nothing
 end
 
 """Cancel an in-progress pane move (e.g. on Esc)."""
-cancel_move!(pt::PanelTree) =
-    (pt.grab = nothing; pt.grab_from = nothing; pt.drop_target = nothing; pt.drop_zone = :none; nothing)
+function cancel_move!(pt::PanelTree)
+    return (
+        pt.grab=nothing; pt.grab_from=nothing; pt.drop_target=nothing; pt.drop_zone=:none; nothing
+    )
+end
 
 """True while a pane is being dragged."""
 is_moving(pt::PanelTree) = pt.grab !== nothing

@@ -66,7 +66,7 @@ function build_docs_assets(step::String)
     else
         return "Invalid step: '$step'. Valid: $(join(valid, ", "))"
     end
-    _run_julia_docs("generate_assets.jl", args)
+    return _run_julia_docs("generate_assets.jl", args)
 end
 
 # ── Tool: build_docs_make ───────────────────────────────────────────────────
@@ -76,7 +76,7 @@ end
 This runs make.jl which processes docstrings, copies assets, and produces
 the VitePress-ready markdown in build/.documenter/."""
 function build_docs_make()
-    _run_julia_docs("make.jl")
+    return _run_julia_docs("make.jl")
 end
 
 # ── Tool: docs_dev_server ───────────────────────────────────────────────────
@@ -122,4 +122,4 @@ const DOC_TOOLS = BridgeTool[
     BridgeTool("docs_dev_server", docs_dev_server),
 ]
 
-serve(tools=DOC_TOOLS)
+serve(; tools=DOC_TOOLS)

@@ -9,7 +9,7 @@ struct Calendar
     month::Int
     today::Int                     # day to highlight (0 = none)
     marked::Set{Int}               # additional highlighted days
-    block::Union{Block, Nothing}
+    block::Union{Block,Nothing}
     header_style::Style
     day_style::Style
     today_style::Style
@@ -17,25 +17,35 @@ struct Calendar
     dim_style::Style
 end
 
-function Calendar(year::Int, month::Int;
+function Calendar(
+    year::Int,
+    month::Int;
     today=0,
     marked=Set{Int}(),
     block=nothing,
-    header_style=tstyle(:title, bold=true),
+    header_style=tstyle(:title; bold=true),
     day_style=tstyle(:text),
-    today_style=tstyle(:accent, bold=true),
+    today_style=tstyle(:accent; bold=true),
     marked_style=tstyle(:warning),
-    dim_style=tstyle(:text_dim, dim=true),
+    dim_style=tstyle(:text_dim; dim=true),
 )
-    Calendar(year, month, today, Set{Int}(marked), block,
-             header_style, day_style, today_style,
-             marked_style, dim_style)
+    return Calendar(
+        year,
+        month,
+        today,
+        Set{Int}(marked),
+        block,
+        header_style,
+        day_style,
+        today_style,
+        marked_style,
+        dim_style,
+    )
 end
 
 function Calendar(; kwargs...)
     d = Dates.today()
-    Calendar(Dates.year(d), Dates.month(d);
-             today=Dates.day(d), kwargs...)
+    return Calendar(Dates.year(d), Dates.month(d); today=Dates.day(d), kwargs...)
 end
 
 intrinsic_size(::Calendar) = (22, 9)
@@ -46,7 +56,7 @@ function render(cal::Calendar, rect::Rect, buf::Buffer)
     else
         rect
     end
-    (content.width < 22 || content.height < 2) && return
+    (content.width < 22 || content.height < 2) && return nothing
 
     y = content.y
     x0 = content.x
@@ -58,7 +68,7 @@ function render(cal::Calendar, rect::Rect, buf::Buffer)
     y += 1
 
     # Day-of-week header
-    y > bottom(content) && return
+    y > bottom(content) && return nothing
     dow = ("Mo", "Tu", "We", "Th", "Fr", "Sa", "Su")
     for (i, d) in enumerate(dow)
         set_string!(buf, x0 + (i - 1) * 3, y, d, cal.dim_style)

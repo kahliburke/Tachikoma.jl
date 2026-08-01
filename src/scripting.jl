@@ -56,7 +56,7 @@ function EventScript(items...)
             push!(entries, item)
         end
     end
-    EventScript(entries)
+    return EventScript(entries)
 end
 
 """
@@ -72,7 +72,7 @@ function (es::EventScript)(fps)
         evt isa Wait && continue
         push!(result, (round(Int, cursor * fps), evt))
     end
-    result
+    return result
 end
 
 """
@@ -102,8 +102,8 @@ The first event fires `gap` seconds after the preceding entry in the EventScript
         seq(key(:down), key(:up); gap=0.5),  # t=2.5, t=3
     )
 """
-function seq(evts...; gap::Real = 1.0)
-    Tuple{Float64,Any}[(Float64(gap), evt) for evt in evts]
+function seq(evts...; gap::Real=1.0)
+    return Tuple{Float64,Any}[(Float64(gap), evt) for evt in evts]
 end
 
 """
@@ -113,8 +113,8 @@ Repeat `event` `n` times, each `gap` seconds after the previous.
 
     EventScript(rep(key('r'), 4))   # fire 'r' at t=1, 2, 3, 4
 """
-function rep(evt, n::Int; gap::Real = 1.0)
-    Tuple{Float64,Any}[(Float64(gap), evt) for _ in 1:n]
+function rep(evt, n::Int; gap::Real=1.0)
+    return Tuple{Float64,Any}[(Float64(gap), evt) for _ in 1:n]
 end
 
 """
@@ -124,6 +124,6 @@ Expand `text` into a sequence of `KeyEvent`s, `pace` seconds apart.
 
     EventScript((1.0, key(:tab)), chars("Alice"; pace=0.1))
 """
-function chars(text::AbstractString; pace::Real = 0.08)
-    Tuple{Float64,Any}[(Float64(pace), KeyEvent(c)) for c in text]
+function chars(text::AbstractString; pace::Real=0.08)
+    return Tuple{Float64,Any}[(Float64(pace), KeyEvent(c)) for c in text]
 end

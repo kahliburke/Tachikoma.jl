@@ -26,7 +26,7 @@ function update!(m::PhyloDemoModel, evt::KeyEvent)
             end
         end
     end
-    evt.key == :escape && (m.quit = true)
+    return evt.key == :escape && (m.quit = true)
 end
 
 function view(m::PhyloDemoModel, f::Frame)
@@ -36,7 +36,7 @@ function view(m::PhyloDemoModel, f::Frame)
     buf = f.buffer
 
     rows = split_layout(Layout(Vertical, [Fixed(1), Fill(), Fixed(1)]), f.area)
-    length(rows) < 3 && return
+    length(rows) < 3 && return nothing
     header = rows[1]
     canvas_area = rows[2]
     footer = rows[3]
@@ -45,17 +45,21 @@ function view(m::PhyloDemoModel, f::Frame)
     si = mod1(m.tick ÷ 3, length(SPINNER_BRAILLE))
     set_char!(buf, header.x, header.y, SPINNER_BRAILLE[si], tstyle(:accent))
     info = "$(preset.name) $(DOT) branches=$(length(m.tree.branches)) $(DOT) depth=$(preset.max_depth)"
-    set_string!(buf, header.x + 2, header.y, info, tstyle(:primary, bold=true))
+    set_string!(buf, header.x + 2, header.y, info, tstyle(:primary; bold=true))
 
     render_phylo_tree!(buf, canvas_area, m.tick, m.tree, preset)
 
-    render(StatusBar(
-        left=[Span("  [1-4]preset [p]pause ", tstyle(:text_dim))],
-        right=[Span("[q/Esc]quit ", tstyle(:text_dim))],
-    ), footer, buf)
+    return render(
+        StatusBar(;
+            left=[Span("  [1-4]preset [p]pause ", tstyle(:text_dim))],
+            right=[Span("[q/Esc]quit ", tstyle(:text_dim))],
+        ),
+        footer,
+        buf,
+    )
 end
 
 function phylo_demo(; theme_name=nothing)
     theme_name !== nothing && set_theme!(theme_name)
-    app(PhyloDemoModel(); fps=30)
+    return app(PhyloDemoModel(); fps=30)
 end

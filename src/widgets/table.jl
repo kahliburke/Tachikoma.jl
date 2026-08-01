@@ -6,7 +6,7 @@ struct Table
     header::Vector{String}
     rows::Vector{Vector{String}}
     widths::Vector{Int}            # column widths
-    block::Union{Block, Nothing}
+    block::Union{Block,Nothing}
     header_style::Style
     row_style::Style
     alt_row_style::Style           # alternating row color
@@ -16,15 +16,17 @@ struct Table
     row_styles::Vector{Style}      # per-row overrides (empty = use defaults)
 end
 
-function Table(header::Vector{String}, rows::Vector{Vector{String}};
+function Table(
+    header::Vector{String},
+    rows::Vector{Vector{String}};
     widths=Int[],
     block=nothing,
-    header_style=tstyle(:title, bold=true),
+    header_style=tstyle(:title; bold=true),
     row_style=tstyle(:text),
     alt_row_style=tstyle(:text_dim),
-    separator='│',
+    separator=('│'),
     selected=0,
-    selected_style=tstyle(:accent, bold=true),
+    selected_style=tstyle(:accent; bold=true),
     row_styles=Style[],
 )
     # Auto-compute column widths if not specified
@@ -40,8 +42,19 @@ function Table(header::Vector{String}, rows::Vector{Vector{String}};
     else
         widths
     end
-    Table(header, rows, w, block, header_style, row_style,
-          alt_row_style, separator, selected, selected_style, row_styles)
+    return Table(
+        header,
+        rows,
+        w,
+        block,
+        header_style,
+        row_style,
+        alt_row_style,
+        separator,
+        selected,
+        selected_style,
+        row_styles,
+    )
 end
 
 function render(tbl::Table, rect::Rect, buf::Buffer)
@@ -50,7 +63,7 @@ function render(tbl::Table, rect::Rect, buf::Buffer)
     else
         rect
     end
-    (content.width < 1 || content.height < 1) && return
+    (content.width < 1 || content.height < 1) && return nothing
 
     y = content.y
     ncols = length(tbl.header)
@@ -62,16 +75,16 @@ function render(tbl::Table, rect::Rect, buf::Buffer)
 
     # Render header
     if y <= bottom(content)
-        render_table_row!(buf, data_x, y, tbl.header,
-                          tbl.widths, tbl.header_style,
-                          tbl.separator, content)
+        render_table_row!(
+            buf, data_x, y, tbl.header, tbl.widths, tbl.header_style, tbl.separator, content
+        )
         y += 1
     end
 
     # Header separator line
     if y <= bottom(content)
         for col in content.x:right(content)
-            set_char!(buf, col, y, '─', tstyle(:border, dim=true))
+            set_char!(buf, col, y, '─', tstyle(:border; dim=true))
         end
         y += 1
     end
@@ -93,17 +106,21 @@ function render(tbl::Table, rect::Rect, buf::Buffer)
         if tbl.selected == i
             set_char!(buf, content.x, y, MARKER, tbl.selected_style)
         end
-        render_table_row!(buf, data_x, y, row,
-                          tbl.widths, style,
-                          tbl.separator, content)
+        render_table_row!(buf, data_x, y, row, tbl.widths, style, tbl.separator, content)
         y += 1
     end
 end
 
-function render_table_row!(buf::Buffer, x0::Int, y::Int,
-                           cells::Vector{String},
-                           widths::Vector{Int}, style::Style,
-                           sep::Char, content::Rect)
+function render_table_row!(
+    buf::Buffer,
+    x0::Int,
+    y::Int,
+    cells::Vector{String},
+    widths::Vector{Int},
+    style::Style,
+    sep::Char,
+    content::Rect,
+)
     cx = x0
     for (j, cell) in enumerate(cells)
         j > length(widths) && break
@@ -114,7 +131,7 @@ function render_table_row!(buf::Buffer, x0::Int, y::Int,
         cx += w
         # Column separator
         if j < length(cells) && cx <= right(content)
-            set_char!(buf, cx, y, sep, tstyle(:border, dim=true))
+            set_char!(buf, cx, y, sep, tstyle(:border; dim=true))
             cx += 1
         end
     end

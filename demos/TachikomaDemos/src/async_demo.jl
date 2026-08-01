@@ -23,7 +23,7 @@
     tasks_completed::Int = 0
     tasks_failed::Int = 0
     # Timer
-    timer_token::Union{CancelToken, Nothing} = nothing
+    timer_token::Union{CancelToken,Nothing} = nothing
     timer_ticks::Int = 0
     timer_running::Bool = false
     # Results log
@@ -82,7 +82,7 @@ function _handle_async_task_event!(m::AsyncDemoModel, evt::TaskEvent)
         m.timer_ticks += 1
         push!(m.log, "TICK #$(m.timer_ticks) @ $(round(evt.value; digits=1))s")
     end
-    m.log_selected = length(m.log)
+    return m.log_selected = length(m.log)
 end
 
 function _spawn_compute_task!(m::AsyncDemoModel)
@@ -92,10 +92,10 @@ function _spawn_compute_task!(m::AsyncDemoModel)
         # Simulate variable-duration work
         duration = 0.5 + rand() * 2.0
         sleep(duration)
-        "Task #$id done in $(round(duration; digits=2))s ($(sum(1:10_000_000)))"
+        return "Task #$id done in $(round(duration; digits=2))s ($(sum(1:10_000_000)))"
     end
     push!(m.log, ">>>  Spawned task #$id")
-    m.log_selected = length(m.log)
+    return m.log_selected = length(m.log)
 end
 
 function _spawn_failing_task!(m::AsyncDemoModel)
@@ -103,10 +103,10 @@ function _spawn_failing_task!(m::AsyncDemoModel)
     id = m.tasks_spawned
     spawn_task!(m.tq, :compute) do
         sleep(0.3 + rand() * 0.5)
-        error("Task #$id intentional failure")
+        return error("Task #$id intentional failure")
     end
     push!(m.log, ">>>  Spawned failing task #$id")
-    m.log_selected = length(m.log)
+    return m.log_selected = length(m.log)
 end
 
 function _spawn_batch_tasks!(m::AsyncDemoModel, count::Int)
@@ -116,11 +116,11 @@ function _spawn_batch_tasks!(m::AsyncDemoModel, count::Int)
         id = m.tasks_spawned
         spawn_task!(m.tq, :batch) do
             sleep(0.2 + rand() * 1.5)
-            id
+            return id
         end
     end
     push!(m.log, ">>>  Spawned batch of $count tasks (#$(base+1)-#$(base+count))")
-    m.log_selected = length(m.log)
+    return m.log_selected = length(m.log)
 end
 
 function _toggle_timer!(m::AsyncDemoModel)
@@ -135,7 +135,7 @@ function _toggle_timer!(m::AsyncDemoModel)
         m.timer_running = true
         push!(m.log, "---  Timer started (1s interval)")
     end
-    m.log_selected = length(m.log)
+    return m.log_selected = length(m.log)
 end
 
 function view(m::AsyncDemoModel, f::Frame)
@@ -144,80 +144,83 @@ function view(m::AsyncDemoModel, f::Frame)
     buf = f.buffer
 
     # Layout: top half split horizontally, bottom half for log
-    rows = split_layout(Layout(Vertical,
-        [Fixed(10), Fill(), Fixed(1)]), f.area)
-    length(rows) < 3 && return
+    rows = split_layout(Layout(Vertical, [Fixed(10), Fill(), Fixed(1)]), f.area)
+    length(rows) < 3 && return nothing
 
     top_area = rows[1]
     log_area = rows[2]
     status_area = rows[3]
 
-    cols = split_layout(Layout(Horizontal,
-        [Percent(55), Fill()]), top_area)
-    length(cols) < 2 && return
+    cols = split_layout(Layout(Horizontal, [Percent(55), Fill()]), top_area)
+    length(cols) < 2 && return nothing
 
     _render_task_panel!(m, buf, cols[1])
     _render_timer_panel!(m, buf, cols[2])
     _render_log_panel!(m, buf, log_area)
 
     # Status bar
-    render(StatusBar(
-        left=[Span("  [s]spawn [f]fail [b]batch(5) [t]timer ", tstyle(:text_dim))],
-        right=[Span("[↑↓]scroll [q]quit ", tstyle(:text_dim))],
-    ), status_area, buf)
+    return render(
+        StatusBar(;
+            left=[Span("  [s]spawn [f]fail [b]batch(5) [t]timer ", tstyle(:text_dim))],
+            right=[Span("[↑↓]scroll [q]quit ", tstyle(:text_dim))],
+        ),
+        status_area,
+        buf,
+    )
 end
 
 function _render_task_panel!(m::AsyncDemoModel, buf::Buffer, area::Rect)
-    block = Block(
-        title="Task Launcher",
-        border_style=tstyle(:border),
-        title_style=tstyle(:accent, bold=true),
+    block = Block(;
+        title="Task Launcher", border_style=tstyle(:border), title_style=tstyle(:accent; bold=true)
     )
     content = render(block, area, buf)
     rx = right(content)
     y = content.y
 
-    set_string!(buf, content.x + 1, y, "Spawned:   $(m.tasks_spawned)",
-                tstyle(:text); max_x=rx)
+    set_string!(buf, content.x + 1, y, "Spawned:   $(m.tasks_spawned)", tstyle(:text); max_x=rx)
     y += 1
-    set_string!(buf, content.x + 1, y, "Completed: $(m.tasks_completed)",
-                tstyle(:success); max_x=rx)
+    set_string!(
+        buf, content.x + 1, y, "Completed: $(m.tasks_completed)", tstyle(:success); max_x=rx
+    )
     y += 1
-    set_string!(buf, content.x + 1, y, "Failed:    $(m.tasks_failed)",
-                m.tasks_failed > 0 ? tstyle(:error) : tstyle(:text_dim); max_x=rx)
+    set_string!(
+        buf,
+        content.x + 1,
+        y,
+        "Failed:    $(m.tasks_failed)",
+        m.tasks_failed > 0 ? tstyle(:error) : tstyle(:text_dim);
+        max_x=rx,
+    )
     y += 1
     # Active spinner
     if m.active_count > 0
         si = mod1(m.tick ÷ 3, length(SPINNER_BRAILLE))
         set_char!(buf, content.x + 1, y, SPINNER_BRAILLE[si], tstyle(:accent))
-        set_string!(buf, content.x + 3, y, "$(m.active_count) active",
-                    tstyle(:accent, bold=true); max_x=rx)
+        set_string!(
+            buf, content.x + 3, y, "$(m.active_count) active", tstyle(:accent; bold=true); max_x=rx
+        )
     else
-        set_string!(buf, content.x + 1, y, "  idle",
-                    tstyle(:text_dim); max_x=rx)
+        set_string!(buf, content.x + 1, y, "  idle", tstyle(:text_dim); max_x=rx)
     end
     y += 2
-    set_string!(buf, content.x + 1, y,
-                "[s] spawn   [f] fail   [b] batch(5)",
-                tstyle(:text_dim); max_x=rx)
+    return set_string!(
+        buf, content.x + 1, y, "[s] spawn   [f] fail   [b] batch(5)", tstyle(:text_dim); max_x=rx
+    )
 end
 
 function _render_timer_panel!(m::AsyncDemoModel, buf::Buffer, area::Rect)
-    block = Block(
-        title="Timer",
-        border_style=tstyle(:border),
-        title_style=tstyle(:accent, bold=true),
+    block = Block(;
+        title="Timer", border_style=tstyle(:border), title_style=tstyle(:accent; bold=true)
     )
     content = render(block, area, buf)
     rx = right(content)
     y = content.y
 
     status = m.timer_running ? "RUNNING" : "STOPPED"
-    style = m.timer_running ? tstyle(:success, bold=true) : tstyle(:text_dim)
+    style = m.timer_running ? tstyle(:success; bold=true) : tstyle(:text_dim)
     set_string!(buf, content.x + 1, y, "Status: $status", style; max_x=rx)
     y += 1
-    set_string!(buf, content.x + 1, y, "Ticks:  $(m.timer_ticks)",
-                tstyle(:text); max_x=rx)
+    set_string!(buf, content.x + 1, y, "Ticks:  $(m.timer_ticks)", tstyle(:text); max_x=rx)
     y += 2
 
     if m.timer_running
@@ -229,21 +232,20 @@ function _render_timer_panel!(m::AsyncDemoModel, buf::Buffer, area::Rect)
     end
 
     y += 2
-    set_string!(buf, content.x + 1, y, "[t] toggle timer",
-                tstyle(:text_dim); max_x=rx)
+    return set_string!(buf, content.x + 1, y, "[t] toggle timer", tstyle(:text_dim); max_x=rx)
 end
 
 function _render_log_panel!(m::AsyncDemoModel, buf::Buffer, area::Rect)
-    block = Block(
+    block = Block(;
         title="Results Log ($(length(m.log)) entries)",
         border_style=tstyle(:border),
-        title_style=tstyle(:title, bold=true),
+        title_style=tstyle(:title; bold=true),
     )
     content = render(block, area, buf)
     rx = right(content)
     visible_h = content.height
 
-    visible_h <= 0 && return
+    visible_h <= 0 && return nothing
 
     # Auto-scroll to keep selected visible
     if m.log_selected > m.log_offset + visible_h
@@ -274,8 +276,9 @@ function _render_log_panel!(m::AsyncDemoModel, buf::Buffer, area::Rect)
             for cx in content.x:rx
                 set_char!(buf, cx, y, ' ', tstyle(:accent))
             end
-            set_string!(buf, content.x + 1, y, entry,
-                        Style(fg=Color256(0), bg=theme().accent); max_x=rx)
+            set_string!(
+                buf, content.x + 1, y, entry, Style(; fg=Color256(0), bg=theme().accent); max_x=rx
+            )
         else
             set_string!(buf, content.x + 1, y, entry, style; max_x=rx)
         end
@@ -284,5 +287,5 @@ end
 
 function async_demo(; theme_name=nothing)
     theme_name !== nothing && set_theme!(theme_name)
-    app(AsyncDemoModel(); fps=30)
+    return app(AsyncDemoModel(); fps=30)
 end

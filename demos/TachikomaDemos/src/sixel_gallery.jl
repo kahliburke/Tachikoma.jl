@@ -19,9 +19,9 @@
 
 # Flame-pane background presets.  `nothing` means "track canvas_bg()".
 const _FLAME_BG_PRESETS = (
-    ("indigo",  ColorRGBA(0x28, 0x1c, 0x50)),
+    ("indigo", ColorRGBA(0x28, 0x1c, 0x50)),
     ("crimson", ColorRGBA(0x50, 0x14, 0x1e)),
-    ("forest",  ColorRGBA(0x10, 0x38, 0x20)),
+    ("forest", ColorRGBA(0x10, 0x38, 0x20)),
     ("tracked", nothing),
 )
 
@@ -37,16 +37,14 @@ const _SIXEL_FOCUS_LO = 0.3
     tick::Int = 0
     paused::Bool = false
     focus::Int = 0              # 0 = all, 1-5 = focus pane
-    pane_springs::Vector{Spring} = [
-        Spring(_SIXEL_REST[i]; stiffness=180.0) for i in 1:5
-    ]
+    pane_springs::Vector{Spring} = [Spring(_SIXEL_REST[i]; stiffness=180.0) for i in 1:5]
     # Simulated data state
     cpu_history::Vector{Vector{Float64}} = [Float64[] for _ in 1:100]  # 100 cores
     latency_history::Vector{Vector{Float64}} = [Float64[] for _ in 1:32]  # 32 buckets
     mem_pages::Matrix{Float64} = zeros(64, 64)   # page ages (0=free, >0=allocated)
     avg_load::Vector{Float64} = Float64[]
     # Persistent flame PixelImage (holds bg state across frames)
-    flame_img::Union{PixelImage, Nothing} = nothing
+    flame_img::Union{PixelImage,Nothing} = nothing
     flame_bg_idx::Int = 1           # index into _FLAME_BG_PRESETS
 end
 
@@ -65,40 +63,40 @@ function update!(m::SixelGalleryModel, evt::KeyEvent)
         evt.char == 'p' && (m.paused = !m.paused)
         if evt.char == 'z'
             _sixel_cycle_focus!(m)
-            return
+            return nothing
         end
         if evt.char == 'b'
             _sixel_cycle_flame_bg!(m)
-            return
+            return nothing
         end
         if evt.char == 't'
             set_light_mode!(!light_mode())
-            return
+            return nothing
         end
         for c in ('0', '1', '2', '3', '4', '5')
             if evt.char == c
                 m.focus = Int(c) - Int('0')
                 _sixel_update_targets!(m)
-                return
+                return nothing
             end
         end
     end
     if evt.key == :tab
         _sixel_cycle_focus!(m)
-        return
+        return nothing
     end
-    evt.key == :escape && (m.quit = true)
+    return evt.key == :escape && (m.quit = true)
 end
 
 function _sixel_cycle_focus!(m::SixelGalleryModel)
     m.focus = m.focus >= 5 ? 0 : m.focus + 1
-    _sixel_update_targets!(m)
+    return _sixel_update_targets!(m)
 end
 
 function _sixel_cycle_flame_bg!(m::SixelGalleryModel)
     m.flame_bg_idx = mod1(m.flame_bg_idx + 1, length(_FLAME_BG_PRESETS))
     img = m.flame_img
-    img === nothing && return
+    img === nothing && return nothing
     _, color = _FLAME_BG_PRESETS[m.flame_bg_idx]
     if color === nothing
         reset_background!(img)
@@ -140,7 +138,7 @@ function _sim_cpu_tick!(m::SixelGalleryModel)
     # Average load
     avg = sum(last(h) for h in m.cpu_history if !isempty(h)) / 100.0
     push!(m.avg_load, avg)
-    length(m.avg_load) > 60 && popfirst!(m.avg_load)
+    return length(m.avg_load) > 60 && popfirst!(m.avg_load)
 end
 
 function _sim_latency_tick!(m::SixelGalleryModel)
@@ -184,7 +182,7 @@ end
 
 function _draw_cpu_heatmap!(img::PixelImage, m::SixelGalleryModel)
     pw, ph = img.pixel_w, img.pixel_h
-    (pw < 2 || ph < 2) && return
+    (pw < 2 || ph < 2) && return nothing
     n_cores = 100
     pixels = img.pixels
 
@@ -201,10 +199,18 @@ function _draw_cpu_heatmap!(img::PixelImage, m::SixelGalleryModel)
             # Color: blue (idle) → yellow (moderate) → red (saturated)
             r, g, b = if util < 0.4
                 t = util / 0.4
-                (UInt8(round(0x10 * t)), UInt8(round(0x40 + 0x80 * t)), UInt8(round(0xa0 + 0x5f * (1.0 - t))))
+                (
+                    UInt8(round(0x10 * t)),
+                    UInt8(round(0x40 + 0x80 * t)),
+                    UInt8(round(0xa0 + 0x5f * (1.0 - t))),
+                )
             elseif util < 0.7
                 t = (util - 0.4) / 0.3
-                (UInt8(round(0x10 + 0xd0 * t)), UInt8(round(0xc0 + 0x20 * t)), UInt8(round(0x20 * (1.0 - t))))
+                (
+                    UInt8(round(0x10 + 0xd0 * t)),
+                    UInt8(round(0xc0 + 0x20 * t)),
+                    UInt8(round(0x20 * (1.0 - t))),
+                )
             else
                 t = (util - 0.7) / 0.3
                 (UInt8(round(0xe0 + 0x1f * t)), UInt8(round(0xe0 * (1.0 - t * 0.7))), UInt8(0x00))
@@ -216,7 +222,7 @@ end
 
 function _draw_latency_heatmap!(img::PixelImage, m::SixelGalleryModel)
     pw, ph = img.pixel_w, img.pixel_h
-    (pw < 2 || ph < 2) && return
+    (pw < 2 || ph < 2) && return nothing
     n_buckets = 32
     pixels = img.pixels
 
@@ -241,7 +247,7 @@ end
 
 function _draw_memory_map!(img::PixelImage, m::SixelGalleryModel)
     pw, ph = img.pixel_w, img.pixel_h
-    (pw < 2 || ph < 2) && return
+    (pw < 2 || ph < 2) && return nothing
     pages = m.mem_pages
     gh, gw = size(pages)
     pixels = img.pixels
@@ -275,8 +281,7 @@ end
 
 # Recursively generate a call-tree: each span subdivides into 2-4 children.
 # `depth` counts down; the returned vector is flat spans at the CURRENT level.
-function _flame_subdivide(parent_x0::Float64, parent_x1::Float64,
-                          depth::Int, seed::Int)
+function _flame_subdivide(parent_x0::Float64, parent_x1::Float64, depth::Int, seed::Int)
     pw = parent_x1 - parent_x0
     pw < 0.005 && return _FlameSpan[]  # too narrow to split
     depth <= 0 && return _FlameSpan[]
@@ -298,10 +303,9 @@ function _flame_subdivide(parent_x0::Float64, parent_x1::Float64,
         (cx1 - cx0) < 0.004 && continue
         # Leave a tiny gap between siblings (1% of parent width, at least 0.002)
         gap = min(0.002, pw * 0.01)
-        push!(spans, _FlameSpan(cx0 + gap, cx1 - gap,
-                                seed * 97 + i * 31 + depth * 7))
+        push!(spans, _FlameSpan(cx0 + gap, cx1 - gap, seed * 97 + i * 31 + depth * 7))
     end
-    spans
+    return spans
 end
 
 # Warm color palette (reds/oranges/yellows) as in traditional flame graphs.
@@ -331,14 +335,16 @@ function _flame_color(id::Int, self_frac::Float64, t::Float64)
     else
         (m_hsv + x_hsv * 0.3, val * sat * 0.4 + m_hsv, m_hsv)
     end
-    ColorRGBA(UInt8(round(clamp(r, 0, 1) * 255)),
-              UInt8(round(clamp(g, 0, 1) * 255)),
-              UInt8(round(clamp(b, 0, 1) * 255)))
+    return ColorRGBA(
+        UInt8(round(clamp(r, 0, 1) * 255)),
+        UInt8(round(clamp(g, 0, 1) * 255)),
+        UInt8(round(clamp(b, 0, 1) * 255)),
+    )
 end
 
 function _draw_flame_graph!(img::PixelImage, tick::Int)
     pw, ph = img.pixel_w, img.pixel_h
-    (pw < 2 || ph < 2) && return
+    (pw < 2 || ph < 2) && return nothing
     clear!(img)
     pixels = img.pixels
     t = Float64(tick) * 0.01
@@ -346,10 +352,10 @@ function _draw_flame_graph!(img::PixelImage, tick::Int)
     margin = max(2, ph ÷ 30)
     draw_h = ph - 2 * margin
     draw_w = pw - 2 * margin
-    (draw_h < 4 || draw_w < 4) && return
+    (draw_h < 4 || draw_w < 4) && return nothing
 
     max_depth = min(10, draw_h ÷ 3)
-    max_depth < 1 && return
+    max_depth < 1 && return nothing
     level_h = draw_h ÷ max_depth
     v_gap = max(1, level_h ÷ 6)   # gap between levels
 
@@ -360,13 +366,13 @@ function _draw_flame_graph!(img::PixelImage, tick::Int)
     for depth in 1:max_depth
         # Draw this level (bottom-up: level 1 at the bottom)
         py_base = ph - margin - depth * level_h + 1
-        py_top  = py_base + level_h - v_gap - 1
+        py_top = py_base + level_h - v_gap - 1
         (py_base < margin || py_top < py_base) && continue
 
         for span in prev_spans
             # "Self time" fraction — deeper = more likely to be a leaf (hot)
-            self_frac = Float64(depth) / Float64(max_depth) *
-                        (0.3 + 0.7 * (((span.id * 11) % 19) / 19.0))
+            self_frac =
+                Float64(depth) / Float64(max_depth) * (0.3 + 0.7 * (((span.id * 11) % 19) / 19.0))
             color = _flame_color(span.id, self_frac, t)
 
             x0 = margin + round(Int, span.x0 * draw_w) + 1
@@ -384,8 +390,7 @@ function _draw_flame_graph!(img::PixelImage, tick::Int)
         # Generate children for next level
         next_spans = _FlameSpan[]
         for span in prev_spans
-            children = _flame_subdivide(span.x0, span.x1, max_depth - depth,
-                                         span.id)
+            children = _flame_subdivide(span.x0, span.x1, max_depth - depth, span.id)
             append!(next_spans, children)
         end
         isempty(next_spans) && break
@@ -397,10 +402,9 @@ end
 
 function _render_cpu_pane!(area::Rect, buf::Buffer, f::Frame, m::SixelGalleryModel)
     focused = m.focus == 1
-    bs = focused ? tstyle(:accent, bold=true) : tstyle(:border)
-    ts = focused ? tstyle(:accent, bold=true) : tstyle(:title)
-    blk = Block(title="CPU Cores (100)",
-                border_style=bs, title_style=ts)
+    bs = focused ? tstyle(:accent; bold=true) : tstyle(:border)
+    ts = focused ? tstyle(:accent; bold=true) : tstyle(:title)
+    blk = Block(; title="CPU Cores (100)", border_style=bs, title_style=ts)
     inner = render(blk, area, buf)
     if inner.width >= 2 && inner.height >= 2
         img = PixelImage(inner.width, inner.height)
@@ -411,12 +415,11 @@ end
 
 function _render_summary_pane!(area::Rect, buf::Buffer, m::SixelGalleryModel)
     focused = m.focus == 2
-    bs = focused ? tstyle(:accent, bold=true) : tstyle(:border)
-    ts = focused ? tstyle(:accent, bold=true) : tstyle(:title)
-    blk = Block(title="Summary",
-                border_style=bs, title_style=ts)
+    bs = focused ? tstyle(:accent; bold=true) : tstyle(:border)
+    ts = focused ? tstyle(:accent; bold=true) : tstyle(:title)
+    blk = Block(; title="Summary", border_style=bs, title_style=ts)
     inner = render(blk, area, buf)
-    (inner.width >= 4 && inner.height >= 4) || return
+    (inner.width >= 4 && inner.height >= 4) || return nothing
     iy = inner.y
     avg = isempty(m.avg_load) ? 0.0 : last(m.avg_load)
     peak = isempty(m.avg_load) ? 0.0 : maximum(m.avg_load)
@@ -434,7 +437,7 @@ function _render_summary_pane!(area::Rect, buf::Buffer, m::SixelGalleryModel)
     end
     if iy <= bottom(inner) && length(m.avg_load) >= 2
         spark_w = min(inner.width, length(m.avg_load))
-        vals = m.avg_load[end-spark_w+1:end]
+        vals = m.avg_load[(end - spark_w + 1):end]
         for (si_x, v) in enumerate(vals)
             bar_idx = clamp(round(Int, v * 8), 1, 8)
             bx = inner.x + si_x - 1
@@ -453,10 +456,9 @@ end
 
 function _render_latency_pane!(area::Rect, buf::Buffer, f::Frame, m::SixelGalleryModel)
     focused = m.focus == 3
-    bs = focused ? tstyle(:accent, bold=true) : tstyle(:border)
-    ts = focused ? tstyle(:accent, bold=true) : tstyle(:title)
-    blk = Block(title="Latency Heatmap",
-                border_style=bs, title_style=ts)
+    bs = focused ? tstyle(:accent; bold=true) : tstyle(:border)
+    ts = focused ? tstyle(:accent; bold=true) : tstyle(:title)
+    blk = Block(; title="Latency Heatmap", border_style=bs, title_style=ts)
     inner = render(blk, area, buf)
     if inner.width >= 2 && inner.height >= 2
         img = PixelImage(inner.width, inner.height)
@@ -467,10 +469,9 @@ end
 
 function _render_memory_pane!(area::Rect, buf::Buffer, f::Frame, m::SixelGalleryModel)
     focused = m.focus == 4
-    bs = focused ? tstyle(:accent, bold=true) : tstyle(:border)
-    ts = focused ? tstyle(:accent, bold=true) : tstyle(:title)
-    blk = Block(title="Memory Map",
-                border_style=bs, title_style=ts)
+    bs = focused ? tstyle(:accent; bold=true) : tstyle(:border)
+    ts = focused ? tstyle(:accent; bold=true) : tstyle(:title)
+    blk = Block(; title="Memory Map", border_style=bs, title_style=ts)
     inner = render(blk, area, buf)
     if inner.width >= 2 && inner.height >= 2
         img = PixelImage(inner.width, inner.height)
@@ -482,24 +483,22 @@ end
 function _render_flame_pane!(area::Rect, buf::Buffer, f::Frame, m::SixelGalleryModel)
     label, _ = _FLAME_BG_PRESETS[m.flame_bg_idx]
     focused = m.focus == 5
-    bs = focused ? tstyle(:accent, bold=true) : tstyle(:border)
-    ts = focused ? tstyle(:accent, bold=true) : tstyle(:title)
-    blk = Block(title="Flame Graph ── bg=$(label)  [b]cycle",
-                border_style=bs, title_style=ts)
+    bs = focused ? tstyle(:accent; bold=true) : tstyle(:border)
+    ts = focused ? tstyle(:accent; bold=true) : tstyle(:title)
+    blk = Block(; title="Flame Graph ── bg=$(label)  [b]cycle", border_style=bs, title_style=ts)
     inner = render(blk, area, buf)
-    (inner.width >= 4 && inner.height >= 2) || return
+    (inner.width >= 4 && inner.height >= 2) || return nothing
 
     # Persist the PixelImage on the model so bg state (custom color vs.
     # canvas-tracked) survives across frames. Recreate only on resize.
     img = m.flame_img
-    if img === nothing ||
-       img.cells_w != inner.width || img.cells_h != inner.height
+    if img === nothing || img.cells_w != inner.width || img.cells_h != inner.height
         _, color = _FLAME_BG_PRESETS[m.flame_bg_idx]
         img = PixelImage(inner.width, inner.height; bg=color)
         m.flame_img = img
     end
     _draw_flame_graph!(img, m.tick)
-    render(img, inner, f; tick=m.tick)
+    return render(img, inner, f; tick=m.tick)
 end
 
 # ── View ─────────────────────────────────────────────────────────────
@@ -521,7 +520,7 @@ function view(m::SixelGalleryModel, f::Frame)
 
     # Main layout
     rows = split_layout(Layout(Vertical, [Fixed(1), Fill(), Fixed(1)]), f.area)
-    length(rows) < 3 && return
+    length(rows) < 3 && return nothing
     header = rows[1]
     content = rows[2]
     footer = rows[3]
@@ -529,14 +528,17 @@ function view(m::SixelGalleryModel, f::Frame)
     # Header
     si = mod1(m.tick ÷ 3, length(SPINNER_BRAILLE))
     set_char!(buf, header.x, header.y, SPINNER_BRAILLE[si], tstyle(:accent))
-    set_string!(buf, header.x + 2, header.y,
-                "Sixel Gallery", tstyle(:primary, bold=true))
+    set_string!(buf, header.x + 2, header.y, "Sixel Gallery", tstyle(:primary; bold=true))
     focus_label = m.focus == 0 ? "all" : string(m.focus)
     bg_label, _ = _FLAME_BG_PRESETS[m.flame_bg_idx]
     theme_label = light_mode() ? "light" : "dark"
-    set_string!(buf, header.x + 16, header.y,
-                " $(DOT) Performance Monitor $(DOT) focus=$(focus_label) $(DOT) theme=$(theme_label) $(DOT) flame_bg=$(bg_label)",
-                tstyle(:text_dim))
+    set_string!(
+        buf,
+        header.x + 16,
+        header.y,
+        " $(DOT) Performance Monitor $(DOT) focus=$(focus_label) $(DOT) theme=$(theme_label) $(DOT) flame_bg=$(bg_label)",
+        tstyle(:text_dim),
+    )
 
     # ── Spring-driven layout ──
     # Pane mapping: 1=CPU, 2=Summary (row 1); 3=Latency, 4=Memory (row 2); 5=Flame (row 3)
@@ -551,7 +553,7 @@ function view(m::SixelGalleryModel, f::Frame)
     p_row2 = round(Int, row2_h / total_h * 100)
 
     vert_rows = split_layout(Layout(Vertical, [Percent(p_row1), Percent(p_row2), Fill()]), content)
-    length(vert_rows) < 3 && return
+    length(vert_rows) < 3 && return nothing
 
     # Row 1: CPU heatmap + Summary
     p_col1_r1 = round(Int, w[1] / (w[1] + w[2]) * 100)
@@ -573,13 +575,19 @@ function view(m::SixelGalleryModel, f::Frame)
     _render_flame_pane!(vert_rows[3], buf, f, m)
 
     # Footer
-    render(StatusBar(
-        left=[Span("  [0-5]focus [z/Tab]cycle [p]ause [b]flame-bg [t]heme ", tstyle(:text_dim))],
-        right=[Span("[q/Esc]quit ", tstyle(:text_dim))],
-    ), footer, buf)
+    return render(
+        StatusBar(;
+            left=[
+                Span("  [0-5]focus [z/Tab]cycle [p]ause [b]flame-bg [t]heme ", tstyle(:text_dim))
+            ],
+            right=[Span("[q/Esc]quit ", tstyle(:text_dim))],
+        ),
+        footer,
+        buf,
+    )
 end
 
 function sixel_gallery(; theme_name=nothing)
     theme_name !== nothing && set_theme!(theme_name)
-    app(SixelGalleryModel(); fps=20)
+    return app(SixelGalleryModel(); fps=20)
 end

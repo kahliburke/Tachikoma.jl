@@ -5,24 +5,25 @@
 struct Gauge
     ratio::Float64           # 0.0 – 1.0
     label::String
-    block::Union{Block, Nothing}
+    block::Union{Block,Nothing}
     filled_style::Style
     empty_style::Style
     label_style::Style
-    tick::Union{Int, Nothing}
+    tick::Union{Int,Nothing}
 end
 
-function Gauge(ratio::Real;
+function Gauge(
+    ratio::Real;
     label="",
     block=nothing,
     filled_style=tstyle(:primary),
-    empty_style=tstyle(:text_dim, dim=true),
-    label_style=tstyle(:text_bright, bold=true),
+    empty_style=tstyle(:text_dim; dim=true),
+    label_style=tstyle(:text_bright; bold=true),
     tick=nothing,
 )
     r = clamp(Float64(ratio), 0.0, 1.0)
     lbl = isempty(label) ? string(round(Int, r * 100)) * "%" : label
-    Gauge(r, lbl, block, filled_style, empty_style, label_style, tick)
+    return Gauge(r, lbl, block, filled_style, empty_style, label_style, tick)
 end
 
 function render(g::Gauge, rect::Rect, buf::Buffer)
@@ -31,7 +32,7 @@ function render(g::Gauge, rect::Rect, buf::Buffer)
     else
         rect
     end
-    (content.width < 1 || content.height < 1) && return
+    (content.width < 1 || content.height < 1) && return nothing
 
     w = content.width
     filled_w = round(Int, g.ratio * w)
@@ -51,7 +52,7 @@ function render(g::Gauge, rect::Rect, buf::Buffer)
                 sh = shimmer(g.tick, col; speed=0.06, scale=0.25)
                 adj = (sh - 0.5) * 0.2
                 c = adj > 0 ? brighten(base_fg, adj) : dim_color(base_fg, -adj)
-                s = Style(fg=c, bold=s.bold)
+                s = Style(; fg=c, bold=s.bold)
             end
             set_char!(buf, cx, y, '█', s)
         elseif col == full_cells && frac > 0.0

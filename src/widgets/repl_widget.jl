@@ -13,7 +13,7 @@
 
 using REPL
 using REPL.Terminals: TTYTerminal
-import Pkg
+using Pkg: Pkg
 
 """
     REPLWidget(; rows=24, cols=80, ...)
@@ -51,11 +51,13 @@ mutable struct REPLWidget
 end
 
 function REPLWidget(;
-        rows::Int=24, cols::Int=80,
-        show_scrollbar::Bool=true,
-        focused::Bool=true,
-        scrollback_limit::Int=1000,
-        on_exit::Union{Function,Nothing}=nothing)
+    rows::Int=24,
+    cols::Int=80,
+    show_scrollbar::Bool=true,
+    focused::Bool=true,
+    scrollback_limit::Int=1000,
+    on_exit::Union{Function,Nothing}=nothing,
+)
 
     # Create PTY pair (no subprocess)
     pty, slave_fd = pty_pair(; rows, cols)
@@ -65,7 +67,7 @@ function REPLWidget(;
     # raw!(term, false) restores ECHO, letting interactive prompts
     # (e.g., Pkg's "y/n") echo typed characters.
     # dup() so each stream has its own fd (libuv takes ownership).
-    slave_in  = Base.TTY(RawFD(slave_fd))
+    slave_in = Base.TTY(RawFD(slave_fd))
     slave_out = Base.TTY(RawFD(ccall(:dup, Cint, (Cint,), slave_fd)))
     slave_err = Base.TTY(RawFD(ccall(:dup, Cint, (Cint,), slave_fd)))
 
@@ -87,7 +89,9 @@ function REPLWidget(;
     # onlcr: cfmakeraw disables OPOST on the PTY slave, so the kernel
     # won't translate \n → \r\n. The VT parser must do it instead,
     # otherwise LF only moves the cursor down without resetting to col 1.
-    tw = TerminalWidget(pty; show_scrollbar, focused, scrollback_limit, onlcr=true, enter_as_lf=true)
+    tw = TerminalWidget(
+        pty; show_scrollbar, focused, scrollback_limit, onlcr=true, enter_as_lf=true
+    )
 
     repl_task = Threads.@spawn begin
         try
@@ -108,17 +112,17 @@ function REPLWidget(;
 
             # Route Pkg output to the REPL's PTY instead of captured stdout.
             # Without this, Pkg writes to the broken capture pipe (EPIPE).
-            Pkg.DEFAULT_IO[] = IOContext(slave_out, :color => true,
-                                        :displaysize => (rows, cols))
+            Pkg.DEFAULT_IO[] = IOContext(slave_out, :color => true, :displaysize => (rows, cols))
 
             REPL.run_repl(repl; backend_on_current_task=false)
         catch e
-            e isa EOFError || e isa Base.IOError ||
+            e isa EOFError ||
+                e isa Base.IOError ||
                 @error "REPL task error" exception=(e, catch_backtrace())
         end
     end
 
-    REPLWidget(tw, slave_in, slave_out, slave_err, repl_task, false, on_exit, saved_stdin)
+    return REPLWidget(tw, slave_in, slave_out, slave_err, repl_task, false, on_exit, saved_stdin)
 end
 
 """
@@ -146,15 +150,15 @@ end
 focusable(::REPLWidget) = true
 
 function render(rw::REPLWidget, rect::Rect, buf::Buffer)
-    render(rw.tw, rect, buf)
+    return render(rw.tw, rect, buf)
 end
 
 function handle_key!(rw::REPLWidget, evt::KeyEvent)::Bool
-    handle_key!(rw.tw, evt)
+    return handle_key!(rw.tw, evt)
 end
 
 function handle_mouse!(rw::REPLWidget, evt::MouseEvent)::Bool
-    handle_mouse!(rw.tw, evt)
+    return handle_mouse!(rw.tw, evt)
 end
 
 function drain!(rw::REPLWidget)::Bool
@@ -169,7 +173,7 @@ function drain!(rw::REPLWidget)::Bool
         changed = true
         rw.on_exit !== nothing && rw.on_exit()
     end
-    changed
+    return changed
 end
 
 """
@@ -180,10 +184,16 @@ Shut down the in-process REPL and clean up the PTY.
 function close!(rw::REPLWidget)
     # Restore original stdin before closing slave streams — redirect_stdin
     # overwrote fd 0 via dup2, so the next app() call would dup a dead fd.
-    try redirect_stdin(rw.saved_stdin) catch end
+    try
+        redirect_stdin(rw.saved_stdin)
+    catch
+    end
     # Close slave streams (causes REPL reads/writes to fail → task exits)
     for io in (rw.slave_in, rw.slave_out, rw.slave_err)
-        try close(io) catch end
+        try
+            close(io)
+        catch
+        end
     end
     # Close PTY master side + reader task
     pty_close!(rw.tw.pty)
@@ -194,5 +204,5 @@ function close!(rw::REPLWidget)
             sleep(0.05)
         end
     end
-    nothing
+    return nothing
 end

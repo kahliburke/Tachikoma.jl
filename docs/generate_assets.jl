@@ -21,38 +21,154 @@ using Tachikoma
 using SHA
 using JSON3
 
-import Tachikoma: set_char!, Style, Buffer, Rect, Frame, Model,
-    render, StatusBar, Span, tstyle, theme, to_rgb, dim_color,
-    color_lerp, brighten, bottom, right, in_bounds, set_string!,
-    Block, Layout, Vertical, Horizontal, Fixed, Fill, Percent, Min, Max,
-    split_layout, ColorRGB, KeyEvent, TestBackend, Cell,
-    record_widget, record_app, write_tach, load_tach,
-    enable_gif, export_gif_from_snapshots, discover_mono_fonts,
-    should_quit, handle_key!, text, set_text!, set_value!,
-    TabBar, BarChart, BarEntry, Gauge, Canvas, Calendar,
-    Table, DataTable, DataColumn, Scrollbar, Sparkline, GraphicsRegion, PixelSnapshot,
-    set_theme!, Paragraph, Separator, BigText,
-    Checkbox, RadioGroup, DropDown, Form, FormField, TextInput, TextArea,
+import Tachikoma:
+    set_char!,
+    Style,
+    Buffer,
+    Rect,
+    Frame,
+    Model,
+    render,
+    StatusBar,
+    Span,
+    tstyle,
+    theme,
+    to_rgb,
+    dim_color,
+    color_lerp,
+    brighten,
+    bottom,
+    right,
+    in_bounds,
+    set_string!,
+    Block,
+    Layout,
+    Vertical,
+    Horizontal,
+    Fixed,
+    Fill,
+    Percent,
+    Min,
+    Max,
+    split_layout,
+    ColorRGB,
+    KeyEvent,
+    TestBackend,
+    Cell,
+    record_widget,
+    record_app,
+    write_tach,
+    load_tach,
+    enable_gif,
+    export_gif_from_snapshots,
+    discover_mono_fonts,
+    should_quit,
+    handle_key!,
+    text,
+    set_text!,
+    set_value!,
+    TabBar,
+    BarChart,
+    BarEntry,
+    Gauge,
+    Canvas,
+    Calendar,
+    Table,
+    DataTable,
+    DataColumn,
+    Scrollbar,
+    Sparkline,
+    GraphicsRegion,
+    PixelSnapshot,
+    set_theme!,
+    Paragraph,
+    Separator,
+    BigText,
+    Checkbox,
+    RadioGroup,
+    DropDown,
+    Form,
+    FormField,
+    TextInput,
+    TextArea,
     CodeEditor,
-    TreeView, TreeNode, SelectableList, ListItem, Modal,
-    ProgressList, ProgressItem, task_done, task_running, task_pending,
-    Container, FocusRing, Button, ScrollPane, BlockCanvas,
-    col_left, col_right, col_center, sort_desc,
-    tween, advance!, value, done, reset!, Spring, retarget!, settled,
-    sequence, stagger, parallel, Animator, animate!, tick!, val,
-    pulse, breathe, shimmer, noise, fbm,
-    fill_gradient!, fill_noise!, border_shimmer!,
-    BOX_ROUNDED, BOX_HEAVY, BOX_DOUBLE, BOX_PLAIN,
-    DotWaveBackground, PhyloTreeBackground, CladogramBackground,
-    render_background!, bg_config,
-    SPINNER_BRAILLE, DOT, SCANLINE, MARKER,
-    word_wrap, no_wrap, align_center, align_left,
-    chart_line, DataSeries,
-    LayoutAlign, layout_start, layout_center, layout_end,
-    layout_space_between, layout_space_around, layout_space_evenly,
-    Constraint, center, intrinsic_size,
-    MarkdownPane, set_markdown!,
-    TaskQueue, TaskEvent, spawn_task!, drain_tasks!
+    TreeView,
+    TreeNode,
+    SelectableList,
+    ListItem,
+    Modal,
+    ProgressList,
+    ProgressItem,
+    task_done,
+    task_running,
+    task_pending,
+    Container,
+    FocusRing,
+    Button,
+    ScrollPane,
+    BlockCanvas,
+    col_left,
+    col_right,
+    col_center,
+    sort_desc,
+    tween,
+    advance!,
+    value,
+    done,
+    reset!,
+    Spring,
+    retarget!,
+    settled,
+    sequence,
+    stagger,
+    parallel,
+    Animator,
+    animate!,
+    tick!,
+    val,
+    pulse,
+    breathe,
+    shimmer,
+    noise,
+    fbm,
+    fill_gradient!,
+    fill_noise!,
+    border_shimmer!,
+    BOX_ROUNDED,
+    BOX_HEAVY,
+    BOX_DOUBLE,
+    BOX_PLAIN,
+    DotWaveBackground,
+    PhyloTreeBackground,
+    CladogramBackground,
+    render_background!,
+    bg_config,
+    SPINNER_BRAILLE,
+    DOT,
+    SCANLINE,
+    MARKER,
+    word_wrap,
+    no_wrap,
+    align_center,
+    align_left,
+    chart_line,
+    DataSeries,
+    LayoutAlign,
+    layout_start,
+    layout_center,
+    layout_end,
+    layout_space_between,
+    layout_space_around,
+    layout_space_evenly,
+    Constraint,
+    center,
+    intrinsic_size,
+    MarkdownPane,
+    set_markdown!,
+    TaskQueue,
+    TaskEvent,
+    spawn_task!,
+    drain_tasks!
 
 set_theme!(:kokaku)
 enable_markdown()   # load CommonMark extension for MarkdownPane renders
@@ -76,17 +192,18 @@ end
 
 function save_cache!(cache::Dict{String,String})
     open(CACHE_FILE, "w") do io
-        JSON3.pretty(io, cache)
+        return JSON3.pretty(io, cache)
     end
 end
 
 function file_sha256(path::String)::String
     isfile(path) || return ""
-    bytes2hex(sha256(read(path)))
+    return bytes2hex(sha256(read(path)))
 end
 
-function should_render(cache::Dict{String,String}, key::String,
-                       source_hash::String, tach_path::String)
+function should_render(
+    cache::Dict{String,String}, key::String, source_hash::String, tach_path::String
+)
     cached = get(cache, key, nothing)
     cached === nothing && return true
     parts = split(cached, ':')
@@ -94,13 +211,14 @@ function should_render(cache::Dict{String,String}, key::String,
     cached_src, cached_tach = parts
     cached_src != source_hash && return true
     file_sha256(tach_path) != cached_tach && return true
-    false
+    return false
 end
 
-function update_cache!(cache::Dict{String,String}, key::String,
-                       source_hash::String, tach_path::String)
+function update_cache!(
+    cache::Dict{String,String}, key::String, source_hash::String, tach_path::String
+)
     tach_hash = file_sha256(tach_path)
-    cache[key] = "$(source_hash):$(tach_hash)"
+    return cache[key] = "$(source_hash):$(tach_hash)"
 end
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -111,15 +229,23 @@ function _find_font()
     fonts = discover_mono_fonts()
     # Normalize by stripping spaces — _name_from_filename splits CamelCase
     # (e.g. "JetBrainsMono" → "Jet Brains Mono") so direct substring match fails.
-    for name in ["MesloLGL Nerd Font Mono", "MesloLGS NF", "MesloLGM NF",
-                  "Iosevka", "DejaVu Sans Mono", "Menlo", "JetBrains Mono", "Liberation Mono"]
+    for name in [
+        "MesloLGL Nerd Font Mono",
+        "MesloLGS NF",
+        "MesloLGM NF",
+        "Iosevka",
+        "DejaVu Sans Mono",
+        "Menlo",
+        "JetBrains Mono",
+        "Liberation Mono",
+    ]
         norm = lowercase(replace(name, " " => ""))
         idx = findfirst(f -> occursin(norm, lowercase(replace(f.name, " " => ""))), fonts)
         idx !== nothing && return fonts[idx].path
     end
     # Skip the "(none)" sentinel at index 1
     idx = findfirst(f -> !isempty(f.path), fonts)
-    idx !== nothing ? fonts[idx].path : ""
+    return idx !== nothing ? fonts[idx].path : ""
 end
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -136,9 +262,19 @@ function export_formats(tach_file::String; gif::Bool=true)
             enable_gif()
             gif_file = base * ".gif"
             # 2x cell size for retina displays (default is cell_w=10, cell_h=20, font_size=16)
-            Base.invokelatest(export_gif_from_snapshots, gif_file, w, h, cells, timestamps;
-                              pixel_snapshots=sixels, font_path=font_path,
-                              cell_w=20, cell_h=40, font_size=32)
+            Base.invokelatest(
+                export_gif_from_snapshots,
+                gif_file,
+                w,
+                h,
+                cells,
+                timestamps;
+                pixel_snapshots=sixels,
+                font_path=font_path,
+                cell_w=20,
+                cell_h=40,
+                font_size=32,
+            )
             println("    → $(basename(gif_file))")
         catch e
             @warn "GIF export skipped" exception=(e, catch_backtrace())
@@ -207,7 +343,7 @@ function _app_cache_hash(ann::TachiAnnotation)
         return bytes2hex(sha256(base * repr(events)))
     end
 
-    bytes2hex(sha256(base))
+    return bytes2hex(sha256(base))
 end
 
 """
@@ -226,7 +362,7 @@ function parse_annotation_params(s::AbstractString)
             params[tok] = "true"
         end
     end
-    params
+    return params
 end
 
 """
@@ -269,7 +405,7 @@ function _accumulate_fences(text::String)
         i += 1
     end
 
-    join(fences, "\n")
+    return join(fences, "\n")
 end
 
 """
@@ -331,7 +467,7 @@ function scan_markdown(filepath::String)
         # Mechanism B: tachi:begin accumulation
         if isempty(code) && haskey(begin_markers, id)
             begin_pos = begin_markers[id]
-            region = content[begin_pos:m.offset-1]
+            region = content[begin_pos:(m.offset - 1)]
             accumulated = _accumulate_fences(region)
             # Also get the fence after the app annotation
             fence_match = match(r"```julia\s*\n(.*?)```"s, content[ann_end_pos:end])
@@ -358,8 +494,7 @@ function scan_markdown(filepath::String)
                     continue
                 end
                 !in_fence || continue
-                if match(r"^#{1,6}\s", ln) !== nothing ||
-                   match(r"<!--\s*tachi:", ln) !== nothing
+                if match(r"^#{1,6}\s", ln) !== nothing || match(r"<!--\s*tachi:", ln) !== nothing
                     search_end = lm.offset - 1
                     break
                 end
@@ -378,7 +513,7 @@ function scan_markdown(filepath::String)
 
         push!(annotations, TachiAnnotation(kind, id, params, code, src_hash))
     end
-    annotations
+    return annotations
 end
 
 """
@@ -396,7 +531,7 @@ function scan_all_markdown()
             append!(annotations, scan_markdown(filepath))
         end
     end
-    annotations
+    return annotations
 end
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -408,8 +543,7 @@ end
 
 Render a tachi:widget annotation by wrapping its code in a record_widget block.
 """
-function render_widget_example(ann::TachiAnnotation, cache::Dict{String,String};
-                                force::Bool=false)
+function render_widget_example(ann::TachiAnnotation, cache::Dict{String,String}; force::Bool=false)
     w = parse(Int, get(ann.params, "w", "60"))
     h = parse(Int, get(ann.params, "h", "5"))
     frames = parse(Int, get(ann.params, "frames", "1"))
@@ -425,7 +559,7 @@ function render_widget_example(ann::TachiAnnotation, cache::Dict{String,String};
             println("  $(ann.id): gif missing, exporting from existing .tach")
             export_formats(tach_file)
         end
-        return
+        return nothing
     end
 
     println("  $(ann.id): rendering $(frames) frame$(frames > 1 ? "s" : "") $(w)×$(h)...")
@@ -446,7 +580,7 @@ function render_widget_example(ann::TachiAnnotation, cache::Dict{String,String};
         render_fn = eval(Symbol("_render_example_$(ann.id)"))
 
         record_widget(tach_file, w, h, frames; fps=fps) do buf, area, frame_idx
-            Base.invokelatest(render_fn, buf, area, frame_idx)
+            return Base.invokelatest(render_fn, buf, area, frame_idx)
         end
 
         println("    → $(basename(tach_file))")
@@ -470,10 +604,11 @@ function _is_app_call(ex)
     ex isa Expr || return false
     if ex.head == :call && length(ex.args) >= 1
         fn = ex.args[1]
-        return fn == :app || (fn isa Expr && fn.head == :. &&
-                              length(fn.args) >= 2 && fn.args[end] == QuoteNode(:app))
+        return fn == :app || (
+            fn isa Expr && fn.head == :. && length(fn.args) >= 2 && fn.args[end] == QuoteNode(:app)
+        )
     end
-    false
+    return false
 end
 
 """
@@ -487,7 +622,7 @@ function _app_constructor_arg(ex)
         arg isa Expr && arg.head == :parameters && continue  # skip kwargs
         return arg
     end
-    nothing
+    return nothing
 end
 
 """
@@ -497,8 +632,9 @@ Render an app whose complete source code was extracted from markdown.
 Creates an isolated module, evaluates the code, intercepts the `app()` call
 to capture the model constructor, then records with `record_app`.
 """
-function render_app_from_markdown(ann::TachiAnnotation, tach_file::String,
-                                   w::Int, h::Int, frames::Int, fps::Int)
+function render_app_from_markdown(
+    ann::TachiAnnotation, tach_file::String, w::Int, h::Int, frames::Int, fps::Int
+)
     # Create isolated module
     mod = Module(Symbol("_app_$(ann.id)"))
 
@@ -511,7 +647,8 @@ function render_app_from_markdown(ann::TachiAnnotation, tach_file::String,
     # Also import Match if available (some apps use @match)
     try
         Core.eval(mod, :(using Match))
-    catch; end
+    catch
+    end
 
     # Parse code as AST block
     code = ann.code
@@ -558,9 +695,18 @@ function render_app_from_markdown(ann::TachiAnnotation, tach_file::String,
     warmup = parse(Int, get(ann.params, "warmup", "0"))
 
     # Record
-    Base.invokelatest(record_app, model, tach_file;
-        width=w, height=h, frames=frames, fps=fps,
-        events=events, realtime=realtime, warmup=warmup)
+    Base.invokelatest(
+        record_app,
+        model,
+        tach_file;
+        width=w,
+        height=h,
+        frames=frames,
+        fps=fps,
+        events=events,
+        realtime=realtime,
+        warmup=warmup,
+    )
 
     # Call cleanup! if defined (e.g. theme restore)
     try
@@ -576,8 +722,7 @@ end
 Render a tachi:app annotation. If the annotation has extracted code from markdown,
 uses `render_app_from_markdown`. Otherwise falls back to `APP_REGISTRY` lookup.
 """
-function render_app_example(ann::TachiAnnotation, cache::Dict{String,String};
-                             force::Bool=false)
+function render_app_example(ann::TachiAnnotation, cache::Dict{String,String}; force::Bool=false)
     w = parse(Int, get(ann.params, "w", "80"))
     h = parse(Int, get(ann.params, "h", "24"))
     frames = parse(Int, get(ann.params, "frames", "120"))
@@ -595,7 +740,7 @@ function render_app_example(ann::TachiAnnotation, cache::Dict{String,String};
             println("  $(ann.id): gif missing, exporting from existing .tach")
             export_formats(tach_file)
         end
-        return
+        return nothing
     end
 
     println("  $(ann.id): rendering $(frames) frames $(w)×$(h)...")
@@ -607,7 +752,7 @@ function render_app_example(ann::TachiAnnotation, cache::Dict{String,String};
             render_fn = get(APP_REGISTRY, ann.id, nothing)
             if render_fn === nothing
                 @warn "No app registered for id=$(ann.id), skipping"
-                return
+                return nothing
             end
             realtime = haskey(ann.params, "realtime")
             warmup = parse(Int, get(ann.params, "warmup", "0"))
@@ -676,7 +821,7 @@ function extract_code_fences(filepath::String)
 
         i += 1
     end
-    fences
+    return fences
 end
 
 """
@@ -717,56 +862,58 @@ function validate_snippets()
             Base.eval(mod, Meta.parse("using Tachikoma"))
             Base.eval(mod, Meta.parse("using Test"))
             Base.eval(mod, Meta.parse("using Match"))
-            Base.eval(mod, Meta.parse("""
-                import Tachikoma: set_char!, Style, Buffer, Rect, Frame, Model,
-                    render, StatusBar, Span, tstyle, theme, to_rgb, dim_color,
-                    color_lerp, brighten, bottom, right, in_bounds, set_string!,
-                    Block, Layout, Vertical, Horizontal, Fixed, Fill, Percent, Min, Max,
-                    split_layout, ColorRGB, KeyEvent, MouseEvent, TestBackend, Cell,
-                    record_widget, record_app, write_tach, load_tach,
-                    should_quit, handle_key!, text, set_text!, set_value!,
-                    TabBar, BarChart, BarEntry, Gauge, Canvas, Calendar,
-                    Table, DataTable, DataColumn, Scrollbar, Sparkline, GraphicsRegion, PixelSnapshot,
-                    set_theme!, Paragraph, Separator, BigText,
-                    Checkbox, RadioGroup, DropDown, Form, FormField, TextInput, TextArea,
-                    CodeEditor,
-                    TreeView, TreeNode, SelectableList, ListItem, Modal,
-                    ProgressList, ProgressItem, task_done, task_running, task_pending,
-                    Container, FocusRing, Button, ScrollPane, BlockCanvas,
-                    intrinsic_size,
-                    col_left, col_right, col_center, sort_desc,
-                    tween, advance!, value, done, reset!, Spring, retarget!, settled,
-                    sequence, stagger, parallel, Animator, animate!, tick!, val,
-                    pulse, breathe, shimmer, noise, fbm,
-                    fill_gradient!, fill_noise!, border_shimmer!,
-                    BOX_ROUNDED, BOX_HEAVY, BOX_DOUBLE, BOX_PLAIN,
-                    DotWaveBackground, PhyloTreeBackground, CladogramBackground,
-                    render_background!, bg_config,
-                    SPINNER_BRAILLE, DOT, SCANLINE, MARKER,
-                    word_wrap, no_wrap, align_center, align_left,
-                    chart_line, DataSeries,
-                    NoColor, Color256, ResizableLayout, handle_resize!, render_resize_handles!,
-                    reset_layout!, Constraint, Event,
-                    mouse_left, mouse_right, mouse_press, mouse_release,
-                    mouse_scroll_up, mouse_scroll_down, mouse_drag, mouse_move,
-                    mouse_none, mouse_middle,
-                    TaskQueue, TaskEvent, spawn_task!, drain_tasks!, task_queue,
-                    spawn_timer!, cancel!, is_cancelled, CancelToken,
-                    PixelImage, PixelCanvas, set_pixel!, fill_rect!, load_pixels!,
-                    pixel_line!, fill_pixel_rect!,
-                    set_point!, unset_point!, line!, rect!, circle!, arc!,
-                    set_render_backend!, braille_backend, block_backend, sixel_backend,
-                    cycle_render_backend!, render_backend, create_canvas,
-                    decay_params, DecayParams,
-                    animations_enabled, toggle_animations!,
-                    MarkdownPane, set_markdown!,
-                    LayoutAlign, layout_start, layout_center, layout_end,
-                    layout_space_between, layout_space_around, layout_space_evenly,
-                    gif_extension_loaded, discover_mono_fonts,
-                    paragraph_line_count,
-                    list_hit, list_scroll,
-                    clipboard_copy!, buffer_to_text
-            """))
+            Base.eval(
+                mod, Meta.parse("""
+          import Tachikoma: set_char!, Style, Buffer, Rect, Frame, Model,
+              render, StatusBar, Span, tstyle, theme, to_rgb, dim_color,
+              color_lerp, brighten, bottom, right, in_bounds, set_string!,
+              Block, Layout, Vertical, Horizontal, Fixed, Fill, Percent, Min, Max,
+              split_layout, ColorRGB, KeyEvent, MouseEvent, TestBackend, Cell,
+              record_widget, record_app, write_tach, load_tach,
+              should_quit, handle_key!, text, set_text!, set_value!,
+              TabBar, BarChart, BarEntry, Gauge, Canvas, Calendar,
+              Table, DataTable, DataColumn, Scrollbar, Sparkline, GraphicsRegion, PixelSnapshot,
+              set_theme!, Paragraph, Separator, BigText,
+              Checkbox, RadioGroup, DropDown, Form, FormField, TextInput, TextArea,
+              CodeEditor,
+              TreeView, TreeNode, SelectableList, ListItem, Modal,
+              ProgressList, ProgressItem, task_done, task_running, task_pending,
+              Container, FocusRing, Button, ScrollPane, BlockCanvas,
+              intrinsic_size,
+              col_left, col_right, col_center, sort_desc,
+              tween, advance!, value, done, reset!, Spring, retarget!, settled,
+              sequence, stagger, parallel, Animator, animate!, tick!, val,
+              pulse, breathe, shimmer, noise, fbm,
+              fill_gradient!, fill_noise!, border_shimmer!,
+              BOX_ROUNDED, BOX_HEAVY, BOX_DOUBLE, BOX_PLAIN,
+              DotWaveBackground, PhyloTreeBackground, CladogramBackground,
+              render_background!, bg_config,
+              SPINNER_BRAILLE, DOT, SCANLINE, MARKER,
+              word_wrap, no_wrap, align_center, align_left,
+              chart_line, DataSeries,
+              NoColor, Color256, ResizableLayout, handle_resize!, render_resize_handles!,
+              reset_layout!, Constraint, Event,
+              mouse_left, mouse_right, mouse_press, mouse_release,
+              mouse_scroll_up, mouse_scroll_down, mouse_drag, mouse_move,
+              mouse_none, mouse_middle,
+              TaskQueue, TaskEvent, spawn_task!, drain_tasks!, task_queue,
+              spawn_timer!, cancel!, is_cancelled, CancelToken,
+              PixelImage, PixelCanvas, set_pixel!, fill_rect!, load_pixels!,
+              pixel_line!, fill_pixel_rect!,
+              set_point!, unset_point!, line!, rect!, circle!, arc!,
+              set_render_backend!, braille_backend, block_backend, sixel_backend,
+              cycle_render_backend!, render_backend, create_canvas,
+              decay_params, DecayParams,
+              animations_enabled, toggle_animations!,
+              MarkdownPane, set_markdown!,
+              LayoutAlign, layout_start, layout_center, layout_end,
+              layout_space_between, layout_space_around, layout_space_evenly,
+              gif_extension_loaded, discover_mono_fonts,
+              paragraph_line_count,
+              list_hit, list_scroll,
+              clipboard_copy!, buffer_to_text
+      """)
+            )
             Base.eval(mod, Meta.parse("const T = Tachikoma"))
 
             # Common stubs — variables referenced in API-only code blocks
@@ -800,9 +947,9 @@ function validate_snippets()
 
             # Skip empty, pkg commands, pure using blocks
             if isempty(stripped) ||
-               startswith(stripped, "Pkg.") ||
-               startswith(stripped, "pkg>") ||
-               startswith(stripped, "using Pkg")
+                startswith(stripped, "Pkg.") ||
+                startswith(stripped, "pkg>") ||
+                startswith(stripped, "using Pkg")
                 skipped += 1
                 continue
             end
@@ -816,15 +963,20 @@ function validate_snippets()
             # Strip lines we handle ourselves
             code = replace(code, r"^using Tachikoma\s*\n?"m => "")
             # Skip blocks that require unloaded extensions or unavailable packages
-            if contains(code, "using Tables") || contains(code, "using CommonMark") ||
-               contains(code, "using Supposition") || contains(code, "@check ")
+            if contains(code, "using Tables") ||
+                contains(code, "using CommonMark") ||
+                contains(code, "using Supposition") ||
+                contains(code, "@check ")
                 skipped += 1
                 continue
             end
             # Skip blocks that launch interactive apps or recordings
-            if contains(code, "app(") || contains(code, "record_app(") ||
-               contains(code, "record_widget(") || contains(code, "enable_gif(") ||
-               contains(code, "enable_tables(") || contains(code, "enable_markdown(")
+            if contains(code, "app(") ||
+                contains(code, "record_app(") ||
+                contains(code, "record_widget(") ||
+                contains(code, "enable_gif(") ||
+                contains(code, "enable_tables(") ||
+                contains(code, "enable_markdown(")
                 skipped += 1
                 continue
             end
@@ -838,8 +990,10 @@ function validate_snippets()
             try
                 expr = Meta.parse("let\n$(code)\nend")
                 if expr isa Expr && expr.head == :incomplete
-                    push!(errors, (relfile, fence.line, first(split(code, '\n')),
-                                   string(expr.args[1])))
+                    push!(
+                        errors,
+                        (relfile, fence.line, first(split(code, '\n')), string(expr.args[1])),
+                    )
                     continue
                 end
                 Base.invokelatest(Base.eval, mod, expr)
@@ -859,8 +1013,10 @@ function validate_snippets()
     if isempty(errors)
         println("  ✓ All $(tested) snippets passed ($(skipped) skipped)")
     else
-        println("  $(tested - length(errors))/$(tested) snippets passed, " *
-                "$(length(errors)) FAILED ($(skipped) skipped)")
+        println(
+            "  $(tested - length(errors))/$(tested) snippets passed, " *
+            "$(length(errors)) FAILED ($(skipped) skipped)",
+        )
         for (file, line, preview, msg) in errors
             println("    ✗ $(file):$(line)")
             println("      $(preview)")
@@ -868,7 +1024,7 @@ function validate_snippets()
         end
     end
 
-    length(errors)
+    return length(errors)
 end
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -883,16 +1039,16 @@ const README_MAX_BYTES = 5 * 1024 * 1024  # 5MB target (Camo rejects large anima
 
 const README_GIFS = [
     # (source .tach path, output name)
-    (joinpath(ASSETS_DIR, "hero_logo.tach"),    "hero_logo"),
-    (joinpath(ASSETS_DIR, "hero_demo.tach"),     "hero_demo"),
-    (joinpath(EXAMPLES_DIR, "dashboard_app.tach"),           "dashboard_app"),
-    (joinpath(EXAMPLES_DIR, "form_app.tach"),                "form_app"),
-    (joinpath(EXAMPLES_DIR, "anim_showcase_app.tach"),       "anim_showcase_app"),
-    (joinpath(EXAMPLES_DIR, "todo_app.tach"),                "todo_app"),
-    (joinpath(EXAMPLES_DIR, "github_prs_app.tach"),          "github_prs_app"),
+    (joinpath(ASSETS_DIR, "hero_logo.tach"), "hero_logo"),
+    (joinpath(ASSETS_DIR, "hero_demo.tach"), "hero_demo"),
+    (joinpath(EXAMPLES_DIR, "dashboard_app.tach"), "dashboard_app"),
+    (joinpath(EXAMPLES_DIR, "form_app.tach"), "form_app"),
+    (joinpath(EXAMPLES_DIR, "anim_showcase_app.tach"), "anim_showcase_app"),
+    (joinpath(EXAMPLES_DIR, "todo_app.tach"), "todo_app"),
+    (joinpath(EXAMPLES_DIR, "github_prs_app.tach"), "github_prs_app"),
     (joinpath(EXAMPLES_DIR, "constraint_explorer_app.tach"), "constraint_explorer_app"),
-    (joinpath(EXAMPLES_DIR, "bg_dotwave.tach"),              "bg_dotwave"),
-    (joinpath(EXAMPLES_DIR, "bg_phylotree.tach"),            "bg_phylotree"),
+    (joinpath(EXAMPLES_DIR, "bg_dotwave.tach"), "bg_dotwave"),
+    (joinpath(EXAMPLES_DIR, "bg_phylotree.tach"), "bg_phylotree"),
 ]
 
 function generate_readme_gifs(; force::Bool=false)
@@ -935,9 +1091,19 @@ function generate_readme_gifs(; force::Bool=false)
             end
 
             try
-                Base.invokelatest(export_gif_from_snapshots, gif_file, w, h, sub_cells, sub_timestamps;
-                                     pixel_snapshots=sixels, font_path=font_path,
-                                     cell_w=10, cell_h=20, font_size=16)
+                Base.invokelatest(
+                    export_gif_from_snapshots,
+                    gif_file,
+                    w,
+                    h,
+                    sub_cells,
+                    sub_timestamps;
+                    pixel_snapshots=sixels,
+                    font_path=font_path,
+                    cell_w=10,
+                    cell_h=20,
+                    font_size=16,
+                )
             catch e
                 @warn "README GIF failed for $name" exception=(e, catch_backtrace())
                 break
@@ -1039,7 +1205,7 @@ function main()
         end
     end
 
-    println("=" ^ 60)
+    return println("=" ^ 60)
 end
 
 main()

@@ -40,22 +40,22 @@ const TACH_VERSION = 0x02  # v2: adds strikethrough bit
 
 # ── Color type tags ───────────────────────────────────────────────────
 
-_color_tag(::NoColor)  = 0x00
+_color_tag(::NoColor) = 0x00
 _color_tag(::Color256) = 0x01
 _color_tag(::ColorRGB) = 0x02
 
 # ── Pack / unpack helpers ─────────────────────────────────────────────
 
 function _pack_color(io::IO, ::NoColor)
-    nothing
+    return nothing
 end
 
 function _pack_color(io::IO, c::Color256)
-    write(io, c.code)
+    return write(io, c.code)
 end
 
 function _pack_color(io::IO, c::ColorRGB)
-    write(io, c.r, c.g, c.b)
+    return write(io, c.r, c.g, c.b)
 end
 
 function _unpack_color(io::IO, tag::UInt8)
@@ -75,18 +75,15 @@ function _pack_cell(io::IO, cell::Cell)
     write(io, htol(UInt32(cell.char)))
     fg_tag = _color_tag(cell.style.fg)
     bg_tag = _color_tag(cell.style.bg)
-    flags = fg_tag |
-            (bg_tag << 2) |
-            (UInt8(cell.style.bold)      << 4) |
-            (UInt8(cell.style.dim)       << 5) |
-            (UInt8(cell.style.italic)    << 6) |
-            (UInt8(cell.style.underline) << 7)
+    flags =
+        fg_tag | (bg_tag << 2) | (UInt8(cell.style.bold) << 4) | (UInt8(cell.style.dim) << 5) |
+        (UInt8(cell.style.italic) << 6) | (UInt8(cell.style.underline) << 7)
     write(io, flags)
     # v2: extended style flags
     flags2 = UInt8(cell.style.strikethrough)
     write(io, flags2)
     _pack_color(io, cell.style.fg)
-    _pack_color(io, cell.style.bg)
+    return _pack_color(io, cell.style.bg)
 end
 
 function _unpack_cell(io::IO, version::UInt8=TACH_VERSION)
@@ -94,9 +91,9 @@ function _unpack_cell(io::IO, version::UInt8=TACH_VERSION)
     flags = read(io, UInt8)
     fg_tag = flags & 0x03
     bg_tag = (flags >> 2) & 0x03
-    bold      = (flags >> 4) & 0x01 != 0
-    dim_flag  = (flags >> 5) & 0x01 != 0
-    italic    = (flags >> 6) & 0x01 != 0
+    bold = (flags >> 4) & 0x01 != 0
+    dim_flag = (flags >> 5) & 0x01 != 0
+    italic = (flags >> 6) & 0x01 != 0
     underline = (flags >> 7) & 0x01 != 0
     # v2: extended flags byte with strikethrough
     strikethrough = if version >= 0x02
@@ -107,7 +104,7 @@ function _unpack_cell(io::IO, version::UInt8=TACH_VERSION)
     end
     fg = _unpack_color(io, fg_tag)
     bg = _unpack_color(io, bg_tag)
-    Cell(ch, Style(fg, bg, bold, dim_flag, italic, underline, strikethrough, ""))
+    return Cell(ch, Style(fg, bg, bold, dim_flag, italic, underline, strikethrough, ""))
 end
 
 # ── Write .tach file ──────────────────────────────────────────────────
@@ -118,10 +115,14 @@ end
 Write a `.tach` recording file. The header is written uncompressed,
 then all frame data is Zstd-compressed.
 """
-function write_tach(filename::String, width::Int, height::Int,
-                    cell_snapshots::Vector{Vector{Cell}},
-                    timestamps::Vector{Float64},
-                    pixel_snapshots::Vector{Vector{PixelSnapshot}})
+function write_tach(
+    filename::String,
+    width::Int,
+    height::Int,
+    cell_snapshots::Vector{Vector{Cell}},
+    timestamps::Vector{Float64},
+    pixel_snapshots::Vector{Vector{PixelSnapshot}},
+)
     open(filename, "w") do f
         # Header (uncompressed, 9 bytes)
         write(f, TACH_MAGIC)
@@ -161,9 +162,9 @@ function write_tach(filename::String, width::Int, height::Int,
                 end
             end
         end
-        close(zstream)
+        return close(zstream)
     end
-    filename
+    return filename
 end
 
 # ── Load .tach file ───────────────────────────────────────────────────
@@ -181,7 +182,7 @@ function load_tach(filename::String)
         magic == TACH_MAGIC || error("Not a .tach file (bad magic: $(String(magic)))")
         version = read(f, UInt8)
         version in (0x01, 0x02) || error("Unsupported .tach version: $version")
-        width  = Int(ltoh(read(f, UInt16)))
+        width = Int(ltoh(read(f, UInt16)))
         height = Int(ltoh(read(f, UInt16)))
 
         # Decompress payload
@@ -189,8 +190,8 @@ function load_tach(filename::String)
         nframes = Int(ltoh(read(zstream, UInt32)))
 
         ncells = width * height
-        cell_snapshots  = Vector{Vector{Cell}}(undef, nframes)
-        timestamps      = Vector{Float64}(undef, nframes)
+        cell_snapshots = Vector{Vector{Cell}}(undef, nframes)
+        timestamps = Vector{Float64}(undef, nframes)
         pixel_snapshots = Vector{Vector{PixelSnapshot}}(undef, nframes)
 
         for i in 1:nframes
@@ -223,7 +224,7 @@ function load_tach(filename::String)
         end
         close(zstream)
 
-        (width, height, cell_snapshots, timestamps, pixel_snapshots)
+        return (width, height, cell_snapshots, timestamps, pixel_snapshots)
     end
 end
 
@@ -260,10 +261,12 @@ Short gaps are barely affected; long gaps are compressed logarithmically.
 Returns `(cell_snapshots, timestamps, pixel_snapshots)` with the same
 types as the input, ready for `write_tach` or `export_gif_from_snapshots`.
 """
-function compress_dead_space(cell_snapshots::Vector{Vector{Cell}},
-                             timestamps::Vector{Float64},
-                             pixel_snapshots::Vector{Vector{T}};
-                             compress::Float64=1.0) where T
+function compress_dead_space(
+    cell_snapshots::Vector{Vector{Cell}},
+    timestamps::Vector{Float64},
+    pixel_snapshots::Vector{Vector{T}};
+    compress::Float64=1.0,
+) where {T}
     n = length(cell_snapshots)
     n <= 1 && return (cell_snapshots, timestamps, pixel_snapshots)
     compress >= 1 || throw(ArgumentError("compress must be ≥ 1.0"))
@@ -272,7 +275,7 @@ function compress_dead_space(cell_snapshots::Vector{Vector{Cell}},
     # from its predecessor
     keep = Int[1]
     for i in 2:n
-        if cell_snapshots[i] != cell_snapshots[i-1]
+        if cell_snapshots[i] != cell_snapshots[i - 1]
             push!(keep, i)
         end
     end
@@ -292,8 +295,8 @@ function compress_dead_space(cell_snapshots::Vector{Vector{Cell}},
     # Rebuild timestamps: compress gaps from dead runs logarithmically
     new_timestamps = Float64[0.0]
     for j in 2:length(keep)
-        original_gap = timestamps[keep[j]] - timestamps[keep[j-1]]
-        if keep[j] - keep[j-1] > 1
+        original_gap = timestamps[keep[j]] - timestamps[keep[j - 1]]
+        if keep[j] - keep[j - 1] > 1
             # Dead run — apply log compression
             compressed_gap = original_gap / (1 + (compress - 1) * 0.75 * log(1 + original_gap))
         else
@@ -303,5 +306,5 @@ function compress_dead_space(cell_snapshots::Vector{Vector{Cell}},
         push!(new_timestamps, new_timestamps[end] + compressed_gap)
     end
 
-    (new_cells, new_timestamps, new_pixels)
+    return (new_cells, new_timestamps, new_pixels)
 end

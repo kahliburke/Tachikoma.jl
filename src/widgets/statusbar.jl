@@ -8,16 +8,12 @@ struct StatusBar
     style::Style                   # background fill style
 end
 
-function StatusBar(;
-    left=Span[],
-    right=Span[],
-    style=tstyle(:text_dim),
-)
-    StatusBar(left, right, style)
+function StatusBar(; left=Span[], right=Span[], style=tstyle(:text_dim))
+    return StatusBar(left, right, style)
 end
 
 function render(bar::StatusBar, rect::Rect, buf::Buffer)
-    (rect.width < 1 || rect.height < 1) && return
+    (rect.width < 1 || rect.height < 1) && return nothing
     y = rect.y
 
     # Fill background

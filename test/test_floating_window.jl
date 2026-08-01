@@ -69,13 +69,27 @@
         @test !wm._dragging
 
         # Resize from bottom-right corner
-        press_resize = T.MouseEvent(T.right(T.window_rect(win)), T.bottom(T.window_rect(win)),
-                                    T.mouse_left, T.mouse_press, false, false, false)
+        press_resize = T.MouseEvent(
+            T.right(T.window_rect(win)),
+            T.bottom(T.window_rect(win)),
+            T.mouse_left,
+            T.mouse_press,
+            false,
+            false,
+            false,
+        )
         @test T.handle_mouse!(wm, press_resize)
         @test wm._resizing
 
-        drag_resize = T.MouseEvent(T.right(T.window_rect(win)) + 4, T.bottom(T.window_rect(win)) + 2,
-                                   T.mouse_left, T.mouse_drag, false, false, false)
+        drag_resize = T.MouseEvent(
+            T.right(T.window_rect(win)) + 4,
+            T.bottom(T.window_rect(win)) + 2,
+            T.mouse_left,
+            T.mouse_drag,
+            false,
+            false,
+            false,
+        )
         @test T.handle_mouse!(wm, drag_resize)
         @test win.width == 24
         @test win.height == 10
@@ -156,16 +170,40 @@
         end
         area = T.Rect(1, 1, 60, 20)
 
-        @test T.step!(wm, area; layout_interval=4, layout_tile_at=1, layout_cascade_at=3, layout_animate=false, layout_duration=4) == 1
+        @test T.step!(
+            wm,
+            area;
+            layout_interval=4,
+            layout_tile_at=1,
+            layout_cascade_at=3,
+            layout_animate=false,
+            layout_duration=4,
+        ) == 1
         @test T.tick(wm) == 1
         @test wm.windows[1].x == 1
         @test wm.windows[1].y == 1
 
-        @test T.step!(wm, area; layout_interval=4, layout_tile_at=1, layout_cascade_at=3, layout_animate=false, layout_duration=4) == 2
+        @test T.step!(
+            wm,
+            area;
+            layout_interval=4,
+            layout_tile_at=1,
+            layout_cascade_at=3,
+            layout_animate=false,
+            layout_duration=4,
+        ) == 2
         @test wm.windows[1].x == 1
         @test wm.windows[1].y == 1
 
-        @test T.step!(wm, area; layout_interval=4, layout_tile_at=1, layout_cascade_at=3, layout_animate=false, layout_duration=4) == 3
+        @test T.step!(
+            wm,
+            area;
+            layout_interval=4,
+            layout_tile_at=1,
+            layout_cascade_at=3,
+            layout_animate=false,
+            layout_duration=4,
+        ) == 3
         @test wm.windows[2].x - wm.windows[1].x == 3
         @test wm.windows[2].y - wm.windows[1].y == 2
     end

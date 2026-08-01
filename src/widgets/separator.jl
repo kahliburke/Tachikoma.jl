@@ -16,14 +16,14 @@ function Separator(;
     label::String="",
     style::Style=tstyle(:border),
     label_style::Style=tstyle(:text_dim),
-    char_h::Char='─',
-    char_v::Char='│',
+    char_h::Char=('─'),
+    char_v::Char=('│'),
 )
-    Separator(direction, label, style, label_style, char_h, char_v)
+    return Separator(direction, label, style, label_style, char_h, char_v)
 end
 
 function render(sep::Separator, rect::Rect, buf::Buffer)
-    (rect.width < 1 || rect.height < 1) && return
+    (rect.width < 1 || rect.height < 1) && return nothing
 
     if sep.direction == Horizontal
         y = rect.y
@@ -43,8 +43,9 @@ function render(sep::Separator, rect::Rect, buf::Buffer)
         # Centered label (vertical)
         if !isempty(sep.label) && rect.height >= 1
             ly = center(rect, 1, 1).y
-            set_char!(buf, x, ly, length(sep.label) > 0 ? sep.label[1] : sep.char_v,
-                      sep.label_style)
+            set_char!(
+                buf, x, ly, length(sep.label) > 0 ? sep.label[1] : sep.char_v, sep.label_style
+            )
         end
     end
 end
