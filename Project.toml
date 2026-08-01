@@ -40,6 +40,7 @@ DBInterface = "2"
 Dates = "1"
 FileWatching = "1"
 FreeTypeAbstraction = "0.10, 0.11"
+JET = "0.9"
 PrecompileTools = "1"
 Preferences = "1.5.1"
 REPL = "1"
@@ -52,9 +53,10 @@ julia = "1.10"
 ColorTypes = "3da002f7-5984-5a60-b8a6-cbb66c0b333f"
 CommonMark = "a80b9123-70ca-4bc0-993e-6e3bcb318db6"
 FreeTypeAbstraction = "663a7486-cb36-511b-a19d-713bb74d65c9"
+JET = "c3a54625-cd67-489e-a8e7-0a5a0ff4e31b"
 Supposition = "5a0628fe-1738-4658-9b6d-0b7605a9755b"
 Tables = "bd369af6-aec1-5ad0-b16a-f7cc5008161c"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["Test", "Supposition", "Tables", "ColorTypes", "FreeTypeAbstraction", "CommonMark"]
+test = ["JET", "Test", "Supposition", "Tables", "ColorTypes", "FreeTypeAbstraction", "CommonMark"]
