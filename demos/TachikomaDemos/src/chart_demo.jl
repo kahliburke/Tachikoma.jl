@@ -131,5 +131,5 @@ end
 
 function chart_demo(; theme_name=nothing)
     theme_name !== nothing && set_theme!(theme_name)
-    app(ChartModel(); fps=30)
+    run_demo(ChartModel(); fps=30)
 end

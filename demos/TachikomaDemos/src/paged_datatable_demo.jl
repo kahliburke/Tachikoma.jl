@@ -663,5 +663,5 @@ end
 
 function paged_datatable_demo(; theme_name=nothing)
     theme_name !== nothing && set_theme!(theme_name)
-    app(PagedDataTableModel(); fps=30)
+    run_demo(PagedDataTableModel(); fps=30)
 end

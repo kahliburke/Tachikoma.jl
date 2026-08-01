@@ -822,7 +822,7 @@ function fps_demo(; theme_name=nothing, fps=60)
         model.restart = false
         model.quit = false
         model.last_time = time()
-        app(model; fps=model.target_fps)
+        run_demo(model; fps=model.target_fps)
         model.restart || break
     end
 end

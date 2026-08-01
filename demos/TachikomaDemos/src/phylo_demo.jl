@@ -57,5 +57,5 @@ end
 
 function phylo_demo(; theme_name=nothing)
     theme_name !== nothing && set_theme!(theme_name)
-    app(PhyloDemoModel(); fps=30)
+    run_demo(PhyloDemoModel(); fps=30)
 end

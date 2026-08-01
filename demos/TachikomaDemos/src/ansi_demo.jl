@@ -218,5 +218,5 @@ function ansi_demo(; theme_name=nothing)
     model.scroll_off.content = model.log_lines
     model.tick = 0
 
-    app(model; fps=30)
+    run_demo(model; fps=30)
 end

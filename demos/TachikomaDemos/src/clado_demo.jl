@@ -57,5 +57,5 @@ end
 
 function clado_demo(; theme_name=nothing)
     theme_name !== nothing && set_theme!(theme_name)
-    app(CladoDemoModel(); fps=30)
+    run_demo(CladoDemoModel(); fps=30)
 end

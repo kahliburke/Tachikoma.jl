@@ -129,5 +129,5 @@ end
 
 function rain(; theme_name=nothing, density=0.4)
     theme_name !== nothing && set_theme!(theme_name)
-    app(RainModel(density=density); fps=30)
+    run_demo(RainModel(density=density); fps=30)
 end

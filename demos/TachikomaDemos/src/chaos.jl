@@ -162,5 +162,5 @@ end
 
 function chaos(; theme_name=nothing)
     theme_name !== nothing && set_theme!(theme_name)
-    app(ChaosModel(); fps=30)
+    run_demo(ChaosModel(); fps=30)
 end

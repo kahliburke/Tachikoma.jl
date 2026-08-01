@@ -205,5 +205,5 @@ end
 
 function snake(; theme_name=nothing)
     theme_name !== nothing && set_theme!(theme_name)
-    app(SnakeModel(); fps=60)
+    run_demo(SnakeModel(); fps=60)
 end

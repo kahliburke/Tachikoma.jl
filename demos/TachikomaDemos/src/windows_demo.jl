@@ -329,7 +329,7 @@ end
 # ── Entry point ───────────────────────────────────────────────────────
 
 function windows_demo()
-    app(WindowsDemoModel(); fps=30)
+    run_demo(WindowsDemoModel(); fps=30)
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__

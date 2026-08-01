@@ -153,4 +153,4 @@ function view(m::ColorTypesModel, f::Frame)
     end
 end
 
-colortypes_demo() = app(ColorTypesModel(); fps=10)
+colortypes_demo() = run_demo(ColorTypesModel(); fps=10)

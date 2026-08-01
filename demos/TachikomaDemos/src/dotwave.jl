@@ -64,5 +64,5 @@ end
 
 function dotwave(; theme_name=nothing)
     theme_name !== nothing && set_theme!(theme_name)
-    app(DotWaveModel(); fps=30)
+    run_demo(DotWaveModel(); fps=30)
 end

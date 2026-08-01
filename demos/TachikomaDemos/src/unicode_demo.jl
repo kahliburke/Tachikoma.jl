@@ -141,5 +141,5 @@ function view(m::UnicodeDemoModel, f::Frame)
 end
 
 function unicode_demo()
-    app(UnicodeDemoModel(); fps=30)
+    run_demo(UnicodeDemoModel(); fps=30)
 end

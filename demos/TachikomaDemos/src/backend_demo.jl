@@ -271,5 +271,5 @@ end
 
 function backend_demo(; theme_name=nothing)
     theme_name !== nothing && set_theme!(theme_name)
-    app(BackendDemoModel(); fps=30)
+    run_demo(BackendDemoModel(); fps=30)
 end

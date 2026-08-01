@@ -581,5 +581,5 @@ end
 
 function sixel_gallery(; theme_name=nothing)
     theme_name !== nothing && set_theme!(theme_name)
-    app(SixelGalleryModel(); fps=20)
+    run_demo(SixelGalleryModel(); fps=20)
 end

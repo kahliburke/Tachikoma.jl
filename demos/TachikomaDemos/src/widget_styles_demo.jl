@@ -176,5 +176,5 @@ function view(m::WidgetStylesModel, f::Frame)
 end
 
 function widget_styles_demo()
-    app(WidgetStylesModel(); fps=30)
+    run_demo(WidgetStylesModel(); fps=30)
 end

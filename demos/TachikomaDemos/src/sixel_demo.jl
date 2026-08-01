@@ -304,5 +304,5 @@ end
 
 function sixel_demo(; theme_name=nothing)
     theme_name !== nothing && set_theme!(theme_name)
-    app(SixelDemoModel(); fps=20)
+    run_demo(SixelDemoModel(); fps=20)
 end

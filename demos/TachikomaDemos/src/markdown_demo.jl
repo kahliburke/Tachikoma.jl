@@ -46,7 +46,7 @@ function view(m::MyModel, f::Frame)
     render(Paragraph("Count: \$(m.count)"), f.area, f.buffer)
 end
 
-app(MyModel())
+run_demo(MyModel())
 ```
 
 ## Widget Gallery
@@ -374,5 +374,5 @@ function markdown_demo(; theme_name=nothing)
     theme_name !== nothing && set_theme!(theme_name)
     enable_markdown()
     model = MarkdownDemoModel()
-    app(model; fps=30)
+    run_demo(model; fps=30)
 end
