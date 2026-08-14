@@ -7,6 +7,7 @@ using SQLite
 using DBInterface
 @tachikoma_app
 
+include("run_demo.jl")
 include("theme_demo.jl")
 include("rain.jl")
 include("dashboard.jl")
@@ -48,6 +49,7 @@ include("scroll_demo.jl")
 include("launcher.jl")
 include("simple_tree_demo.jl")
 
+export run_demo, browser
 export demo, rain, dashboard, life, snake, clock, waves, chaos,
        sysmon, anim_demo, mouse_demo, dotwave,
        showcase, backend_demo, resize_demo, scrollpane_demo,

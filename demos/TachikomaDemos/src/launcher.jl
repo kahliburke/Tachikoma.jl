@@ -463,11 +463,14 @@ function view(m::LauncherModel, f::Frame)
     ), footer_area, buf)
 end
 
-function launcher(; theme_name=nothing)
+function launcher(; theme_name=nothing, backend::Symbol=_DEMO_BACKEND[])
     theme_name !== nothing && set_theme!(theme_name)
     model = LauncherModel()
     while true
-        result = app(model; fps=30)
+        # The MENU is always a UI -- you pick from it here, and the
+        # chosen demo opens on `backend`. `run_demo` handles routing it 
+        # to terminal or webterminal based on the current context.
+        result = run_demo(model; fps=30)
         result === :restart && continue
         model.launch_idx == 0 && break
         # Launch selected demo, return to menu on exit
@@ -476,7 +479,7 @@ function launcher(; theme_name=nothing)
         model.launch_idx = 0
         model.tick = 0
         try
-            DEMO_ENTRIES[idx].launch()
+            run_demo(DEMO_ENTRIES[idx].launch; backend=backend)
         catch e
             e isa InterruptException && rethrow()
             @warn "Demo exited with error" exception=(e, catch_backtrace())

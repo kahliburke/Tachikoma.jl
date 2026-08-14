@@ -241,8 +241,8 @@ function handle_default_binding!(t::Terminal, overlay::AppOverlay, model::Model,
         overlay.show_settings = true
         return true
     end
-    # Ctrl+/ → open help (legacy: byte 0x1f → Char(0x1f + 0x60) = '\x7f')
-    if evt.key == :ctrl && evt.char == '\x7f'
+    # Ctrl+/ or F1 → open help (legacy: byte 0x1f → Char(0x1f + 0x60) = '\x7f')
+    if (evt.key == :ctrl && evt.char == '\x7f') || evt.key == :f1
         overlay.show_help = true
         return true
     end

@@ -214,5 +214,5 @@ end
 
 function dashboard(; theme_name=nothing)
     theme_name !== nothing && set_theme!(theme_name)
-    app(DashboardModel(); fps=30)
+    run_demo(DashboardModel(); fps=30)
 end

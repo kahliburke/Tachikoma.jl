@@ -304,5 +304,5 @@ end
 
 function sysmon(; theme_name=nothing)
     theme_name !== nothing && set_theme!(theme_name)
-    app(SysmonModel(); fps=30)
+    run_demo(SysmonModel(); fps=30)
 end

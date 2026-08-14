@@ -49,11 +49,11 @@ end
 should_quit(m::ShowcaseModel) = m.quit
 
 function update!(m::ShowcaseModel, evt::KeyEvent)
-    if evt.key == :char
+    if evt.key == :char && evt.action == Tachikoma.key_press
         evt.char == 'q' && (m.quit = true)
         evt.char == 'p' && (m.paused = !m.paused)
     end
-    evt.key == :escape && (m.quit = true)
+    evt.key == :escape && evt.action == Tachikoma.key_press && (m.quit = true)
 end
 
 # ── Rainbow arc renderer ─────────────────────────────────────────────
@@ -386,7 +386,7 @@ function view(m::ShowcaseModel, f::Frame)
               SPINNER_DOTS[si], Style(fg=rainbow_color(mod(Float64(tick) * 0.02, 1.0))))
 
     render(StatusBar(
-        left=[Span("  [p]pause [Ctrl+T]theme [Ctrl+?]help ",
+        left=[Span("  [p]pause [Ctrl+T]theme [F1]help ",
                     tstyle(:text_dim))],
         right=[Span("[q/Esc]quit ", tstyle(:text_dim))],
     ), footer_area, buf)
@@ -394,5 +394,5 @@ end
 
 function showcase(; theme_name=nothing)
     theme_name !== nothing && set_theme!(theme_name)
-    app(ShowcaseModel(); fps=30)
+    run_demo(ShowcaseModel(); fps=30)
 end

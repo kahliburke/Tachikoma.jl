@@ -284,5 +284,5 @@ end
 
 function async_demo(; theme_name=nothing)
     theme_name !== nothing && set_theme!(theme_name)
-    app(AsyncDemoModel(); fps=30)
+    run_demo(AsyncDemoModel(); fps=30)
 end

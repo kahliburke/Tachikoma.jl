@@ -186,5 +186,5 @@ function demo(; theme_name=nothing)
             break
         end
     end
-    app(model)
+    run_demo(model)
 end

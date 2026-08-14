@@ -157,5 +157,5 @@ end
 
 function datatable_demo(; theme_name=nothing)
     theme_name !== nothing && set_theme!(theme_name)
-    app(DataTableModel(); fps=30)
+    run_demo(DataTableModel(); fps=30)
 end

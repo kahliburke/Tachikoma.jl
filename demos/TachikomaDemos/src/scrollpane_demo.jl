@@ -186,5 +186,5 @@ end
 function scrollpane_demo(; theme_name=nothing)
     theme_name !== nothing && set_theme!(theme_name)
     model = ScrollPaneDemoModel()
-    app(model; fps=30)
+    run_demo(model; fps=30)
 end

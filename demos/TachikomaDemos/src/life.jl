@@ -213,5 +213,5 @@ end
 
 function life(; theme_name=nothing)
     theme_name !== nothing && set_theme!(theme_name)
-    app(LifeModel(); fps=60)
+    run_demo(LifeModel(); fps=60)
 end

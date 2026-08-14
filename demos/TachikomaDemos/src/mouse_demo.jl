@@ -235,5 +235,5 @@ end
 
 function mouse_demo(; theme_name=nothing)
     theme_name !== nothing && set_theme!(theme_name)
-    app(MouseDemoModel(); fps=30)
+    run_demo(MouseDemoModel(); fps=30)
 end

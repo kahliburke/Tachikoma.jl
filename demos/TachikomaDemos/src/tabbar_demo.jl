@@ -283,5 +283,5 @@ end
 
 function tabbar_demo(; theme_name=nothing)
     theme_name !== nothing && set_theme!(theme_name)
-    app(TabBarDemoModel(); fps=30)
+    run_demo(TabBarDemoModel(); fps=30)
 end

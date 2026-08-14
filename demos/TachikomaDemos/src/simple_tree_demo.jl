@@ -64,5 +64,5 @@ end
 
 function simple_tree_demo(; theme_name=nothing)
     theme_name !== nothing && set_theme!(theme_name)
-    return app(TreeState(); fps=30)
+    return run_demo(TreeState(); fps=30)
 end

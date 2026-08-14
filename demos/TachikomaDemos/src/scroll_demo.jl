@@ -306,4 +306,4 @@ function view(m::ScrollDemoModel, f::Frame)
     ), rows[2], buf)
 end
 
-scroll_demo() = app(ScrollDemoModel(); fps=30)
+scroll_demo() = run_demo(ScrollDemoModel(); fps=30)

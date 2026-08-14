@@ -102,6 +102,22 @@ launcher()  # interactive menu
 
 Or run individual demos directly: `dashboard()`, `snake()`, `life()`, `sysmon()`, `anim_demo()`, `windows_demo()`, `chart_demo()`, `form_demo()`, `effects_demo()`, and more.
 
+### In a web browser
+
+Any demo can run in a browser instead of the terminal — the same app, rendered by xterm.js over a WebSocket. This requires the `HTTP.jl` package. Because it's a weak dependency, you must install it first with `] add HTTP`. Pass a backend, or use the `browser` shorthand:
+
+```julia
+using TachikomaDemos, HTTP
+
+run_demo(snake; backend = :webterminal)   # opens http://127.0.0.1:8000
+browser(life)                     # same thing, shorthand
+launcher(backend = :webterminal)          # pick from the menu; demos open in the browser
+
+run_demo(fps_demo; backend = :webterminal, port = 9000)   # choose the port
+```
+
+`backend = :console` (the default) keeps running in the terminal. The web path is single-session (see DualUIWeb) and needs a Tachikoma with the `io=` sink; it resizes live with the browser window, and pixel panes render as SIXEL graphics through xterm.js's image addon.
+
 ## Gallery
 
 <table>

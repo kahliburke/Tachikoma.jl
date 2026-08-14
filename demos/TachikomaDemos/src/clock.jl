@@ -137,5 +137,5 @@ end
 
 function clock(; theme_name=nothing)
     theme_name !== nothing && set_theme!(theme_name)
-    app(ClockModel(); fps=30)
+    run_demo(ClockModel(); fps=30)
 end

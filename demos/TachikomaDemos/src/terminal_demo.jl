@@ -337,7 +337,7 @@ function terminal_demo(; tty_out=nothing)
     while true
         model = TerminalDemoModel()
         result = try
-            Tachikoma.app(model; fps=30, tty_out,
+            run_demo(model; fps=30, tty_out,
                 on_stdout = line -> _route_output(model, line),
                 on_stderr = line -> _route_output(model, line),
             )

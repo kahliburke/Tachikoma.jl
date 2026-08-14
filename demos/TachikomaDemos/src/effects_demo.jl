@@ -245,5 +245,5 @@ end
 
 function effects_demo(; theme_name=nothing)
     theme_name !== nothing && set_theme!(theme_name)
-    app(EffectsModel(); fps=30)
+    run_demo(EffectsModel(); fps=30)
 end

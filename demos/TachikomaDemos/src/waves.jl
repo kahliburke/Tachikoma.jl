@@ -173,5 +173,5 @@ end
 
 function waves(; theme_name=nothing)
     theme_name !== nothing && set_theme!(theme_name)
-    app(WavesModel(); fps=30)
+    run_demo(WavesModel(); fps=30)
 end

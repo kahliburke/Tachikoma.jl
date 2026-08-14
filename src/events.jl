@@ -43,7 +43,7 @@ KeyEvent(c::Char, action::KeyAction) = KeyEvent(:char, c, action)
 # repeats as plain bytes instead of CSI u with event_type=2.
 # ═══════════════════════════════════════════════════════════════════════
 
-const _KEYS_DOWN = Set{Tuple{Symbol,Char}}()
+const _KEYS_DOWN = Dict{Tuple{Symbol,Char}, Float64}()
 
 """
     _track_key_state!(evt::KeyEvent) -> KeyEvent
@@ -51,14 +51,19 @@ const _KEYS_DOWN = Set{Tuple{Symbol,Char}}()
 Update key-down tracking and reclassify press→repeat when appropriate.
 If a key_press arrives for a key already in _KEYS_DOWN (no release seen),
 it's a repeat from a terminal sending raw bytes for held keys.
+On legacy terminals without release events, we expire the key after 500ms.
 """
 function _track_key_state!(evt::KeyEvent)
     id = (evt.key, evt.char)
+    now_t = time()
     if evt.action == key_press
-        if id in _KEYS_DOWN
-            return KeyEvent(evt.key, evt.char, key_repeat)
+        if haskey(_KEYS_DOWN, id)
+            if now_t - _KEYS_DOWN[id] < 0.6
+                _KEYS_DOWN[id] = now_t
+                return KeyEvent(evt.key, evt.char, key_repeat)
+            end
         end
-        push!(_KEYS_DOWN, id)
+        _KEYS_DOWN[id] = now_t
     elseif evt.action == key_release
         delete!(_KEYS_DOWN, id)
     end
