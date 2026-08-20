@@ -21,21 +21,21 @@ const _KITTY_ENC_BUF = Ref(Matrix{ColorRGBA}(undef, 0, 0))
 # Reusable buffers for encoding (avoid per-frame allocations)
 const _KITTY_XPOSE_BUF = Ref(Matrix{ColorRGBA}(undef, 0, 0))  # transposed pixels
 const _KITTY_RGB_BUF = Ref(Vector{UInt8}(undef, 0))           # raw RGB bytes
-const _KITTY_ZLIB_CODEC = ZlibCompressor(level=1)             # fastest compression
+const _KITTY_ZLIB_CODEC = ZlibCompressor(; level=1)             # fastest compression
 const _KITTY_IO = IOBuffer()                                   # APC output
 
 # ── POSIX shared memory support for t=s Kitty transmission ───────────
 
 # Platform-specific constants (O_CREAT differs between macOS and Linux)
 const _O_CREAT = @static Sys.isapple() ? Cint(0x0200) : Cint(0x0040)
-const _O_RDWR  = Cint(0x0002)
-const _PROT_READ  = Cint(0x01)
+const _O_RDWR = Cint(0x0002)
+const _PROT_READ = Cint(0x01)
 const _PROT_WRITE = Cint(0x02)
-const _MAP_SHARED  = Cint(0x01)
+const _MAP_SHARED = Cint(0x01)
 const _MS_SYNC = @static Sys.isapple() ? Cint(0x0010) : Cint(0x0004)
 const _MAP_FAILED = Ptr{Nothing}(-1 % UInt)
 
-const _KITTY_SHM_AVAILABLE = Ref{Union{Nothing, Bool}}(nothing)
+const _KITTY_SHM_AVAILABLE = Ref{Union{Nothing,Bool}}(nothing)
 
 # ── Sender-side shm cleanup ───────────────────────────────────────────
 # POSIX shm segments created for Kitty t=s transmission are supposed to
@@ -57,7 +57,7 @@ const _KITTY_SHM_COUNTER = Ref(UInt32(0))
 
 # Two generations of segment names.
 const _KITTY_SHM_PREVIOUS = String[]   # from the frame before last — safe to unlink
-const _KITTY_SHM_CURRENT  = String[]   # from the most recent frame — terminal may still be reading
+const _KITTY_SHM_CURRENT = String[]   # from the most recent frame — terminal may still be reading
 
 """
     _kitty_shm_cleanup!()
@@ -75,7 +75,7 @@ function _kitty_shm_cleanup!()
     empty!(_KITTY_SHM_PREVIOUS)
     # Promote current → previous
     append!(_KITTY_SHM_PREVIOUS, _KITTY_SHM_CURRENT)
-    empty!(_KITTY_SHM_CURRENT)
+    return empty!(_KITTY_SHM_CURRENT)
 end
 
 """
@@ -92,7 +92,7 @@ function _kitty_shm_cleanup_all!()
     for name in _KITTY_SHM_CURRENT
         ccall(:shm_unlink, Cint, (Cstring,), name)
     end
-    empty!(_KITTY_SHM_CURRENT)
+    return empty!(_KITTY_SHM_CURRENT)
 end
 
 atexit(_kitty_shm_cleanup_all!)
@@ -134,8 +134,9 @@ function _kitty_shm_probe!()
     probe_name = "/tach_probe_$(getpid())"
     # shm_open is variadic on macOS: int shm_open(const char *, int, ...)
     # Cuint... tells Julia the mode arg uses the variadic calling convention
-    fd = ccall(:shm_open, Cint, (Cstring, Cint, Cuint...),
-               probe_name, _O_CREAT | _O_RDWR, Cuint(0o600))
+    fd = ccall(
+        :shm_open, Cint, (Cstring, Cint, Cuint...), probe_name, _O_CREAT | _O_RDWR, Cuint(0o600)
+    )
     if fd < 0
         _KITTY_SHM_AVAILABLE[] = false
         return false
@@ -165,8 +166,7 @@ function _kitty_shm_write(rgb::Vector{UInt8})
     name = "/tach_k$(getpid())_$(idx)"
 
     # shm_open is variadic on macOS: int shm_open(const char *, int, ...)
-    fd = ccall(:shm_open, Cint, (Cstring, Cint, Cuint...),
-               name, _O_CREAT | _O_RDWR, Cuint(0o600))
+    fd = ccall(:shm_open, Cint, (Cstring, Cint, Cuint...), name, _O_CREAT | _O_RDWR, Cuint(0o600))
     fd < 0 && return nothing
 
     ret = ccall(:ftruncate, Cint, (Cint, Int64), fd, nbytes)
@@ -176,9 +176,17 @@ function _kitty_shm_write(rgb::Vector{UInt8})
         return nothing
     end
 
-    ptr = ccall(:mmap, Ptr{Nothing},
-                (Ptr{Nothing}, Csize_t, Cint, Cint, Cint, Int64),
-                C_NULL, nbytes, _PROT_READ | _PROT_WRITE, _MAP_SHARED, fd, 0)
+    ptr = ccall(
+        :mmap,
+        Ptr{Nothing},
+        (Ptr{Nothing}, Csize_t, Cint, Cint, Cint, Int64),
+        C_NULL,
+        nbytes,
+        _PROT_READ | _PROT_WRITE,
+        _MAP_SHARED,
+        fd,
+        0,
+    )
     if ptr == _MAP_FAILED
         ccall(:close, Cint, (Cint,), fd)
         ccall(:shm_unlink, Cint, (Cstring,), name)
@@ -188,8 +196,9 @@ function _kitty_shm_write(rgb::Vector{UInt8})
     # Use ccall(:memcpy) — opaque to Julia's compiler, prevents dead store
     # elimination of writes to mmap'd memory (unsafe_copyto! can be optimized away)
     GC.@preserve rgb begin
-        ccall(:memcpy, Ptr{Nothing}, (Ptr{Nothing}, Ptr{Nothing}, Csize_t),
-              ptr, pointer(rgb), nbytes)
+        ccall(
+            :memcpy, Ptr{Nothing}, (Ptr{Nothing}, Ptr{Nothing}, Csize_t), ptr, pointer(rgb), nbytes
+        )
     end
 
     ccall(:msync, Cint, (Ptr{Nothing}, Csize_t, Cint), ptr, nbytes, _MS_SYNC)
@@ -213,9 +222,13 @@ cell placement when provided.
 
 Returns `UInt8[]` for all-transparent images.
 """
-function encode_kitty(pixels::Matrix{ColorRGBA};
-                      decay::DecayParams=DecayParams(), tick::Int=0,
-                      cols::Int=0, rows::Int=0)
+function encode_kitty(
+    pixels::Matrix{ColorRGBA};
+    decay::DecayParams=DecayParams(),
+    tick::Int=0,
+    cols::Int=0,
+    rows::Int=0,
+)
     h, w = size(pixels)
     (h == 0 || w == 0) && return UInt8[]
 
@@ -262,7 +275,7 @@ function encode_kitty(pixels::Matrix{ColorRGBA};
         idx = 1
         @inbounds for i in eachindex(xbuf)
             px = xbuf[i]
-            rgb[idx]     = px.r
+            rgb[idx] = px.r
             rgb[idx + 1] = px.g
             rgb[idx + 2] = px.b
             rgb[idx + 3] = px.a
@@ -273,7 +286,7 @@ function encode_kitty(pixels::Matrix{ColorRGBA};
         idx = 1
         @inbounds for i in eachindex(xbuf)
             px = xbuf[i]
-            rgb[idx]     = px.r
+            rgb[idx] = px.r
             rgb[idx + 1] = px.g
             rgb[idx + 2] = px.b
             idx += 3
@@ -337,7 +350,7 @@ function encode_kitty(pixels::Matrix{ColorRGBA};
         end
     end
 
-    take!(io)
+    return take!(io)
 end
 
 """
@@ -347,8 +360,7 @@ Encode pre-built RGBA pixel data for kitty graphics protocol.
 `rgba` must be `w * h * 4` bytes in row-major order (top-to-bottom, left-to-right).
 Alpha channel is preserved for transparency compositing.
 """
-function encode_kitty_rgba(rgba::Vector{UInt8}, w::Int, h::Int;
-                           cols::Int=0, rows::Int=0, z::Int=-1)
+function encode_kitty_rgba(rgba::Vector{UInt8}, w::Int, h::Int; cols::Int=0, rows::Int=0, z::Int=-1)
     nbytes = w * h * 4
     length(rgba) < nbytes && return UInt8[]
     (w == 0 || h == 0) && return UInt8[]
@@ -394,5 +406,5 @@ function encode_kitty_rgba(rgba::Vector{UInt8}, w::Int, h::Int;
         end
     end
 
-    take!(io)
+    return take!(io)
 end

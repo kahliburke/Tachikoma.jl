@@ -3,7 +3,7 @@ using Tachikoma
 
 mutable struct DiagModel <: Model
     quit::Bool
-    img::Union{PixelImage, Nothing}
+    img::Union{PixelImage,Nothing}
     tick::Int
     diag::String
     mode::Symbol   # :gradient, :solid, :bars
@@ -16,13 +16,16 @@ function Tachikoma.update!(m::DiagModel, evt::KeyEvent)
     if evt.key == :escape || (evt.key == :char && evt.char == 'q')
         m.quit = true
     elseif evt.key == :char && evt.char == 'g'
-        m.mode = :gradient; m.need_redraw = true
+        m.mode = :gradient
+        m.need_redraw = true
     elseif evt.key == :char && evt.char == 's'
-        m.mode = :solid; m.need_redraw = true
+        m.mode = :solid
+        m.need_redraw = true
     elseif evt.key == :char && evt.char == 'b'
-        m.mode = :bars; m.need_redraw = true
+        m.mode = :bars
+        m.need_redraw = true
     end
-    m.tick += 1
+    return m.tick += 1
 end
 
 function _draw_gradient!(img::PixelImage)
@@ -75,7 +78,7 @@ function Tachikoma.view(m::DiagModel, f::Frame)
         tap = Tachikoma.TEXT_AREA_PX[]
         tac = Tachikoma.TEXT_AREA_CELLS[]
         cpx = Tachikoma.CELL_PX[]
-        ss  = Tachikoma.SIXEL_SCALE[]
+        ss = Tachikoma.SIXEL_SCALE[]
         gfx = Tachikoma.graphics_protocol()
         m.diag = "SAP=$(sap) TAP=$(tap) TAC=$(tac) CPX=$(cpx) SS=$(ss) GFX=$(gfx)"
     end
@@ -83,7 +86,7 @@ function Tachikoma.view(m::DiagModel, f::Frame)
     # Render PixelImage into the whole area (minus 2 rows for diagnostics)
     img_h = area.height - 2
     img_w = area.width
-    (img_h < 2 || img_w < 2) && return
+    (img_h < 2 || img_w < 2) && return nothing
 
     if m.img === nothing || m.img.cells_w != img_w || m.img.cells_h != img_h
         m.img = PixelImage(img_w, img_h)
@@ -109,7 +112,7 @@ function Tachikoma.view(m::DiagModel, f::Frame)
     diag_y = area.y + area.height - 2
     set_string!(buf, area.x + 1, diag_y, m.diag, tstyle(:text_dim))
     px_info = "$(m.mode) cells=$(img_w)x$(img_h) px=$(m.img.pixel_w)x$(m.img.pixel_h)  [G]radient [S]olid [B]ars [Q]uit"
-    set_string!(buf, area.x + 1, diag_y + 1, px_info, tstyle(:accent))
+    return set_string!(buf, area.x + 1, diag_y + 1, px_info, tstyle(:accent))
 end
 
 app(DiagModel(false, nothing, 0, "", :gradient, true); fps=30)

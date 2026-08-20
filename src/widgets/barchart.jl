@@ -8,13 +8,14 @@ struct BarEntry
     style::Style
 end
 
-BarEntry(label::String, value::Real; style=tstyle(:primary)) =
-    BarEntry(label, Float64(value), style)
+function BarEntry(label::String, value::Real; style=tstyle(:primary))
+    return BarEntry(label, Float64(value), style)
+end
 
 struct BarChart
     bars::Vector{BarEntry}
-    max_val::Union{Float64, Nothing}  # nothing = auto
-    block::Union{Block, Nothing}
+    max_val::Union{Float64,Nothing}  # nothing = auto
+    block::Union{Block,Nothing}
     label_width::Int                   # 0 = auto
     show_values::Bool
     value_style::Style
@@ -22,18 +23,26 @@ struct BarChart
     empty_char::Char
 end
 
-function BarChart(bars::Vector{BarEntry};
+function BarChart(
+    bars::Vector{BarEntry};
     max_val=nothing,
     block=nothing,
     label_width=0,
     show_values=true,
     value_style=tstyle(:text_bright),
     label_style=tstyle(:text_dim),
-    empty_char='░',
+    empty_char=('░'),
 )
-    BarChart(bars, max_val === nothing ? nothing : Float64(max_val),
-             block, label_width, show_values, value_style,
-             label_style, empty_char)
+    return BarChart(
+        bars,
+        max_val === nothing ? nothing : Float64(max_val),
+        block,
+        label_width,
+        show_values,
+        value_style,
+        label_style,
+        empty_char,
+    )
 end
 
 function render(bc::BarChart, rect::Rect, buf::Buffer)
@@ -42,36 +51,32 @@ function render(bc::BarChart, rect::Rect, buf::Buffer)
     else
         rect
     end
-    (content.width < 1 || content.height < 1) && return
-    isempty(bc.bars) && return
+    (content.width < 1 || content.height < 1) && return nothing
+    isempty(bc.bars) && return nothing
 
     # Determine label width
-    lw = bc.label_width > 0 ? bc.label_width :
-         maximum(length(b.label) for b in bc.bars; init=4) + 1
+    lw = bc.label_width > 0 ? bc.label_width : maximum(length(b.label) for b in bc.bars; init=4) + 1
 
     # Determine value display width
-    mx = bc.max_val !== nothing ? bc.max_val :
-         maximum(b.value for b in bc.bars; init=1.0)
+    mx = bc.max_val !== nothing ? bc.max_val : maximum(b.value for b in bc.bars; init=1.0)
     mx = mx <= 0.0 ? 1.0 : mx
     vw = bc.show_values ? max(6, length(string(round(mx; digits=1))) + 2) : 0
 
     # Bar area width
     bar_w = content.width - lw - vw - 1  # -1 for separator
-    bar_w < 2 && return
+    bar_w < 2 && return nothing
 
     for (i, entry) in enumerate(bc.bars)
         y = content.y + i - 1
         y > bottom(content) && break
 
         # Label (right-aligned)
-        label = length(entry.label) > lw - 1 ?
-            first(entry.label, max(0, lw-2)) * "…" : entry.label
+        label = length(entry.label) > lw - 1 ? first(entry.label, max(0, lw-2)) * "…" : entry.label
         lx = content.x + lw - length(label) - 1
         set_string!(buf, lx, y, label, bc.label_style)
 
         # Separator
-        set_char!(buf, content.x + lw, y, '│',
-                  tstyle(:border, dim=true))
+        set_char!(buf, content.x + lw, y, '│', tstyle(:border; dim=true))
 
         # Bar
         bar_x = content.x + lw + 1
@@ -87,8 +92,7 @@ function render(bc::BarChart, rect::Rect, buf::Buffer)
                 idx = clamp(round(Int, frac * 8), 1, 8)
                 set_char!(buf, bx, y, BARS_H[idx], entry.style)
             else
-                set_char!(buf, bx, y, bc.empty_char,
-                          tstyle(:text_dim, dim=true))
+                set_char!(buf, bx, y, bc.empty_char, tstyle(:text_dim; dim=true))
             end
         end
 

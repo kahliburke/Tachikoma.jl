@@ -23,5 +23,11 @@ println("Kitty graphics: ", kitty_gfx)
 println("Kitty keyboard: ", kitty_kbd)
 println()
 
-proto = kitty_gfx ? T.gfx_kitty : T.SIXEL_AREA_PX[].w > 0 ? T.gfx_sixel : T.gfx_none
+proto = if kitty_gfx
+    T.gfx_kitty
+elseif T.SIXEL_AREA_PX[].w > 0
+    T.gfx_sixel
+else
+    T.gfx_none
+end
 println("Would use: ", proto)

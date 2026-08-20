@@ -59,7 +59,7 @@ function save_window_opacity!()
 end
 
 function load_window_opacity!()
-    WINDOW_OPACITY[] = clamp(@load_preference("window_opacity", 0.95), 0.0, 1.0)
+    return WINDOW_OPACITY[] = clamp(@load_preference("window_opacity", 0.95), 0.0, 1.0)
 end
 
 """
@@ -76,14 +76,16 @@ Set and persist the global window opacity.
 """
 function set_window_opacity!(v::Float64)
     WINDOW_OPACITY[] = clamp(v, 0.0, 1.0)
-    save_window_opacity!()
+    return save_window_opacity!()
 end
 
 function FloatingWindow(;
     id::Symbol=Symbol("win_", _FLOATING_WIN_COUNTER[] += 1),
     title::String="",
-    x::Int=1, y::Int=1,
-    width::Int=30, height::Int=10,
+    x::Int=1,
+    y::Int=1,
+    width::Int=30,
+    height::Int=10,
     content=nothing,
     on_render::Union{Function,Nothing}=nothing,
     box::NamedTuple=BOX_ROUNDED,
@@ -98,10 +100,27 @@ function FloatingWindow(;
     closeable::Bool=false,
     on_close::Union{Function,Nothing}=nothing,
 )
-    FloatingWindow(id, title, x, y, width, height, content, on_render, box,
-                   visible, minimized, clamp(opacity, 0.0, 1.0),
-                   border_color, bg_color, resizable, min_width, min_height,
-                   closeable, on_close)
+    return FloatingWindow(
+        id,
+        title,
+        x,
+        y,
+        width,
+        height,
+        content,
+        on_render,
+        box,
+        visible,
+        minimized,
+        clamp(opacity, 0.0, 1.0),
+        border_color,
+        bg_color,
+        resizable,
+        min_width,
+        min_height,
+        closeable,
+        on_close,
+    )
 end
 
 focusable(::FloatingWindow) = true
@@ -152,15 +171,14 @@ function _apply_window_opacity!(buf::Buffer, rect::Rect, window_bg::ColorRGB, op
                 old_s.fg
             end
 
-            new_s = Style(fg=composited_fg, bg=composited_bg)
+            new_s = Style(; fg=composited_fg, bg=composited_bg)
             @inbounds buf.content[i] = Cell(' ', new_s)
         end
     end
 end
 
-function render(w::FloatingWindow, buf::Buffer;
-                focused::Bool=false, tick::Int=0, frame=nothing)
-    w.visible || return
+function render(w::FloatingWindow, buf::Buffer; focused::Bool=false, tick::Int=0, frame=nothing)
+    w.visible || return nothing
     wr = window_rect(w)
 
     # ── Background: opacity-blended or solid clear ──
@@ -169,7 +187,7 @@ function render(w::FloatingWindow, buf::Buffer;
     if w.opacity < 1.0
         _apply_window_opacity!(buf, wr, bg, w.opacity)
     else
-        bg_s = Style(bg=bg)
+        bg_s = Style(; bg=bg)
         for row in wr.y:bottom(wr)
             for col in wr.x:right(wr)
                 set_char!(buf, col, row, ' ', bg_s)
@@ -182,7 +200,7 @@ function render(w::FloatingWindow, buf::Buffer;
     if focused && tick > 0 && animations_enabled()
         border_shimmer!(buf, wr, bc, tick; box=w.box, intensity=0.2)
     else
-        block = Block(title="", border_style=Style(fg=bc), box=w.box)
+        block = Block(; title="", border_style=Style(; fg=bc), box=w.box)
         render(block, wr, buf)
     end
 
@@ -191,20 +209,20 @@ function render(w::FloatingWindow, buf::Buffer;
         title_fg = focused ? brighten(bc, 0.3) : bc
         tx = wr.x + 2
         # Title decoration: ├ TITLE ┤
-        in_bounds(buf, tx - 1, wr.y) && set_char!(buf, tx - 1, wr.y, '┤', Style(fg=bc))
-        title_end = set_string!(buf, tx, wr.y, " $(w.title) ", Style(fg=title_fg, bold=focused))
-        in_bounds(buf, title_end, wr.y) && set_char!(buf, title_end, wr.y, '├', Style(fg=bc))
+        in_bounds(buf, tx - 1, wr.y) && set_char!(buf, tx - 1, wr.y, '┤', Style(; fg=bc))
+        title_end = set_string!(buf, tx, wr.y, " $(w.title) ", Style(; fg=title_fg, bold=focused))
+        in_bounds(buf, title_end, wr.y) && set_char!(buf, title_end, wr.y, '├', Style(; fg=bc))
     end
 
     # ── Close button ──
     if w.closeable && wr.width > 6
         cx = right(wr) - 2
         close_fg = focused ? ColorRGB(0xf0, 0x60, 0x60) : dim_color(ColorRGB(0xf0, 0x60, 0x60), 0.5)
-        in_bounds(buf, cx, wr.y) && set_char!(buf, cx, wr.y, '✕', Style(fg=close_fg, bold=true))
+        in_bounds(buf, cx, wr.y) && set_char!(buf, cx, wr.y, '✕', Style(; fg=close_fg, bold=true))
     end
 
     inner = Rect(wr.x + 1, wr.y + 1, max(0, wr.width - 2), max(0, wr.height - 2))
-    (inner.width < 1 || inner.height < 1) && return
+    (inner.width < 1 || inner.height < 1) && return nothing
 
     # ── Content ──
     if w.on_render !== nothing
@@ -213,5 +231,5 @@ function render(w::FloatingWindow, buf::Buffer;
     elseif w.content !== nothing
         render(w.content, inner, buf)
     end
-    nothing
+    return nothing
 end

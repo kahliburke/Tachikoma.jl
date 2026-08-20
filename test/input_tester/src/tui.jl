@@ -25,7 +25,7 @@ Tachikoma.handle_all_key_actions(::InputTesterModel) = true
 
 function Tachikoma.init!(m::InputTesterModel, t::Tachikoma.Terminal)
     m.kitty = t.kitty_keyboard
-    m.terminal_size = (t.size.width, t.size.height)
+    return m.terminal_size = (t.size.width, t.size.height)
 end
 
 # ── Event summarization ──────────────────────────────────────────────────────
@@ -48,14 +48,14 @@ function summarize_event(evt::Tachikoma.KeyEvent)
         push!(parts, string(evt.key))
     end
     push!(parts, string(evt.action))
-    join(parts, "  ")
+    return join(parts, "  ")
 end
 
 function summarize_event(evt::Tachikoma.MouseEvent)
-    "MOUSE  $(evt.button) $(evt.action)  ($(evt.x),$(evt.y))" *
-    (evt.shift ? " +shift" : "") *
-    (evt.alt ? " +alt" : "") *
-    (evt.ctrl ? " +ctrl" : "")
+    return "MOUSE  $(evt.button) $(evt.action)  ($(evt.x),$(evt.y))" *
+           (evt.shift ? " +shift" : "") *
+           (evt.alt ? " +alt" : "") *
+           (evt.ctrl ? " +ctrl" : "")
 end
 
 summarize_event(evt) = "EVENT  " * repr(evt)
@@ -87,42 +87,55 @@ function Tachikoma.view(m::InputTesterModel, f::Tachikoma.Frame)
     m.tick += 1
     buf = f.buffer
 
-    inner = Tachikoma.render(Tachikoma.Block(title="Input Tester",
-        border_style=Tachikoma.tstyle(:border)), f.area, buf)
+    inner = Tachikoma.render(
+        Tachikoma.Block(; title="Input Tester", border_style=Tachikoma.tstyle(:border)), f.area, buf
+    )
 
-    rows = Tachikoma.split_layout(Tachikoma.Layout(Tachikoma.Vertical,
-        [Tachikoma.Fixed(3), Tachikoma.Fixed(1), Tachikoma.Fill(), Tachikoma.Fixed(1)]), inner)
-    length(rows) < 4 && return
+    rows = Tachikoma.split_layout(
+        Tachikoma.Layout(
+            Tachikoma.Vertical,
+            [Tachikoma.Fixed(3), Tachikoma.Fixed(1), Tachikoma.Fill(), Tachikoma.Fixed(1)],
+        ),
+        inner,
+    )
+    length(rows) < 4 && return nothing
 
     header_area, sep_area, log_area, footer_area = rows[1], rows[2], rows[3], rows[4]
 
     _render_header(buf, header_area, m)
     Tachikoma.render(Tachikoma.Separator(), sep_area, buf)
     _render_log(buf, log_area, m)
-    _render_footer(buf, footer_area, m)
+    return _render_footer(buf, footer_area, m)
 end
 
 function _render_header(buf, area, m::InputTesterModel)
-    cols = Tachikoma.split_layout(Tachikoma.Layout(Tachikoma.Horizontal,
-        [Tachikoma.Percent(35), Tachikoma.Fill()]), area)
-    length(cols) < 2 && return
+    cols = Tachikoma.split_layout(
+        Tachikoma.Layout(Tachikoma.Horizontal, [Tachikoma.Percent(35), Tachikoma.Fill()]), area
+    )
+    length(cols) < 2 && return nothing
     left, right = cols[1], cols[2]
 
     # Protocol status
     kitty_label = m.kitty ? "Kitty ON" : "Kitty OFF"
-    kitty_style = m.kitty ? Tachikoma.tstyle(:success, bold=true) : Tachikoma.tstyle(:warning)
+    kitty_style = m.kitty ? Tachikoma.tstyle(:success; bold=true) : Tachikoma.tstyle(:warning)
     Tachikoma.set_string!(buf, left.x, left.y, "Protocol: ", Tachikoma.tstyle(:text_dim))
     Tachikoma.set_string!(buf, left.x + 10, left.y, kitty_label, kitty_style)
     Tachikoma.set_string!(buf, left.x, left.y + 1, "Events: $(m.count)", Tachikoma.tstyle(:accent))
-    Tachikoma.set_string!(buf, left.x, left.y + 2,
-        "Size: $(m.terminal_size[1])×$(m.terminal_size[2])", Tachikoma.tstyle(:text_dim, dim=true))
+    Tachikoma.set_string!(
+        buf,
+        left.x,
+        left.y + 2,
+        "Size: $(m.terminal_size[1])×$(m.terminal_size[2])",
+        Tachikoma.tstyle(:text_dim; dim=true),
+    )
 
     # Latest event detail
     if !isempty(m.events)
         rec = m.events[end]
         evt = rec.event
-        Tachikoma.set_string!(buf, right.x, right.y,
-            "Latest (#$(rec.count)):", Tachikoma.tstyle(:primary, bold=true))
+        Tachikoma.set_string!(
+            buf, right.x, right.y, "Latest (#$(rec.count)):", Tachikoma.tstyle(:primary; bold=true)
+        )
         if evt isa Tachikoma.KeyEvent
             line2 = "key=:$(evt.key)  char='$(evt.char)' ($(Int(evt.char)))  action=$(evt.action)"
             Tachikoma.set_string!(buf, right.x, right.y + 1, line2, Tachikoma.tstyle(:accent))
@@ -130,18 +143,20 @@ function _render_header(buf, area, m::InputTesterModel)
             line2 = "btn=$(evt.button) act=$(evt.action) pos=($(evt.x),$(evt.y))"
             mods = (evt.shift ? "shift " : "") * (evt.alt ? "alt " : "") * (evt.ctrl ? "ctrl" : "")
             Tachikoma.set_string!(buf, right.x, right.y + 1, line2, Tachikoma.tstyle(:accent))
-            !isempty(strip(mods)) && Tachikoma.set_string!(buf, right.x, right.y + 2,
-                "mods: $mods", Tachikoma.tstyle(:text_dim))
+            !isempty(strip(mods)) && Tachikoma.set_string!(
+                buf, right.x, right.y + 2, "mods: $mods", Tachikoma.tstyle(:text_dim)
+            )
         end
     else
-        Tachikoma.set_string!(buf, right.x, right.y,
-            "Press any key...", Tachikoma.tstyle(:text_dim, dim=true))
+        Tachikoma.set_string!(
+            buf, right.x, right.y, "Press any key...", Tachikoma.tstyle(:text_dim; dim=true)
+        )
     end
 end
 
 function _render_log(buf, area, m::InputTesterModel)
     h = area.height
-    h <= 0 && return
+    h <= 0 && return nothing
     n = length(m.events)
     visible_end = min(n, m.scroll)
     visible_start = max(1, visible_end - h + 1)
@@ -152,8 +167,9 @@ function _render_log(buf, area, m::InputTesterModel)
         evt = rec.event
 
         num_str = lpad(string(rec.count), 4) * " "
-        Tachikoma.set_string!(buf, area.x, area.y + row - 1, num_str,
-            Tachikoma.tstyle(:text_dim, dim=true))
+        Tachikoma.set_string!(
+            buf, area.x, area.y + row - 1, num_str, Tachikoma.tstyle(:text_dim; dim=true)
+        )
 
         action_style = if evt isa Tachikoma.KeyEvent
             if evt.action == Tachikoma.key_press
@@ -177,19 +193,23 @@ function _render_log(buf, area, m::InputTesterModel)
 end
 
 function _render_footer(buf, area, m::InputTesterModel)
-    Tachikoma.render(Tachikoma.StatusBar(
-        left=[
-            Tachikoma.Span("  PgUp/PgDn ", Tachikoma.tstyle(:accent)),
-            Tachikoma.Span("scroll  ", Tachikoma.tstyle(:text_dim)),
-        ],
-        right=[
-            Tachikoma.Span("press=", Tachikoma.tstyle(:text_dim)),
-            Tachikoma.Span("green ", Tachikoma.tstyle(:success)),
-            Tachikoma.Span("repeat=", Tachikoma.tstyle(:text_dim)),
-            Tachikoma.Span("yellow ", Tachikoma.tstyle(:warning)),
-            Tachikoma.Span("release=", Tachikoma.tstyle(:text_dim)),
-            Tachikoma.Span("red ", Tachikoma.tstyle(:error)),
-            Tachikoma.Span(" Ctrl+C quit ", Tachikoma.tstyle(:text_dim, dim=true)),
-        ]
-    ), area, buf)
+    return Tachikoma.render(
+        Tachikoma.StatusBar(;
+            left=[
+                Tachikoma.Span("  PgUp/PgDn ", Tachikoma.tstyle(:accent)),
+                Tachikoma.Span("scroll  ", Tachikoma.tstyle(:text_dim)),
+            ],
+            right=[
+                Tachikoma.Span("press=", Tachikoma.tstyle(:text_dim)),
+                Tachikoma.Span("green ", Tachikoma.tstyle(:success)),
+                Tachikoma.Span("repeat=", Tachikoma.tstyle(:text_dim)),
+                Tachikoma.Span("yellow ", Tachikoma.tstyle(:warning)),
+                Tachikoma.Span("release=", Tachikoma.tstyle(:text_dim)),
+                Tachikoma.Span("red ", Tachikoma.tstyle(:error)),
+                Tachikoma.Span(" Ctrl+C quit ", Tachikoma.tstyle(:text_dim; dim=true)),
+            ],
+        ),
+        area,
+        buf,
+    )
 end

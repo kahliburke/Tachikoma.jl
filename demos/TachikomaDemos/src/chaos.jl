@@ -19,24 +19,26 @@ should_quit(m::ChaosModel) = m.quit
 
 function chaos_compute_orbit!(m::ChaosModel)
     x = 0.5
-    for _ in 1:200; x = m.r * x * (1 - x); end
+    for _ in 1:200
+        x = m.r * x * (1 - x)
+    end
     orbit = Float64[]
     for _ in 1:64
         x = m.r * x * (1 - x)
         push!(orbit, x)
     end
-    m.orbit = orbit
+    return m.orbit = orbit
 end
 
 function init!(m::ChaosModel, ::Terminal)
-    chaos_compute_orbit!(m)
+    return chaos_compute_orbit!(m)
 end
 
 function update!(m::ChaosModel, evt::KeyEvent)
     if evt.key == :char
         evt.char == 'q' && (m.quit = true)
         evt.char == ' ' && (m.paused = !m.paused)
-        evt.char == 'r' && (m.r = 2.5; m.paused = false)
+        evt.char == 'r' && (m.r=2.5; m.paused=false)
         evt.char == '+' && (m.speed = min(0.1, m.speed * 1.5))
         evt.char == '=' && (m.speed = min(0.1, m.speed * 1.5))
         evt.char == '-' && (m.speed = max(0.001, m.speed / 1.5))
@@ -50,7 +52,7 @@ function update!(m::ChaosModel, evt::KeyEvent)
         m.speed = max(0.001, m.speed / 1.5)
     end
     evt.key == :escape && (m.quit = true)
-    chaos_compute_orbit!(m)
+    return chaos_compute_orbit!(m)
 end
 
 function view(m::ChaosModel, f::Frame)
@@ -68,20 +70,19 @@ function view(m::ChaosModel, f::Frame)
     end
 
     # Layout: border → plot area + status bar
-    block = Block(
+    block = Block(;
         title="logistic map x(n+1) = rx(1-x)",
         border_style=tstyle(:border),
-        title_style=tstyle(:title, bold=true),
+        title_style=tstyle(:title; bold=true),
     )
     content = render(block, f.area, buf)
     x0 = content.x
     status_y = bottom(content)
-    plot_area = Rect(x0, content.y, content.width,
-                     max(1, content.height - 1))
+    plot_area = Rect(x0, content.y, content.width, max(1, content.height - 1))
 
     cw = plot_area.width
     ch = plot_area.height
-    (cw < 4 || ch < 2) && return
+    (cw < 4 || ch < 2) && return nothing
 
     # r range [2.5, 4.0], x range [0, 1]
     r_min, r_max = 2.5, 4.0
@@ -96,7 +97,9 @@ function view(m::ChaosModel, f::Frame)
     orbit_iters = max(40, dh ÷ 4)
     for r_i in r_min:r_step:min(m.r, r_max)
         x = 0.5
-        for _ in 1:warmup; x = r_i * x * (1 - x); end
+        for _ in 1:warmup
+            x = r_i * x * (1 - x)
+        end
         for _ in 1:orbit_iters
             x = r_i * x * (1 - x)
             dx = round(Int, (r_i - r_min) / (r_max - r_min) * (dw - 1))
@@ -128,7 +131,7 @@ function view(m::ChaosModel, f::Frame)
             if in_bounds(buf, cursor_col, row)
                 idx = Tachikoma.buf_index(buf, cursor_col, row)
                 c = buf.content[idx].char
-                set_char!(buf, cursor_col, row, c, tstyle(:accent, bold=true))
+                set_char!(buf, cursor_col, row, c, tstyle(:accent; bold=true))
             end
         end
     end
@@ -136,31 +139,25 @@ function view(m::ChaosModel, f::Frame)
     # Status bar
     if status_y <= bottom(f.area) && !isempty(m.orbit)
         n_spark = min(20, length(m.orbit))
-        spark_vals = m.orbit[end-n_spark+1:end]
-        spark_str = String([BARS_V[clamp(
-            round(Int, v * 8), 1, 8)] for v in spark_vals])
-        set_string!(buf, x0, status_y, "r=",
-                    tstyle(:text_dim))
-        set_string!(buf, x0 + 2, status_y,
-                    string(round(m.r; digits=4)),
-                    tstyle(:primary, bold=true))
+        spark_vals = m.orbit[(end - n_spark + 1):end]
+        spark_str = String([BARS_V[clamp(round(Int, v * 8), 1, 8)] for v in spark_vals])
+        set_string!(buf, x0, status_y, "r=", tstyle(:text_dim))
+        set_string!(
+            buf, x0 + 2, status_y, string(round(m.r; digits=4)), tstyle(:primary; bold=true)
+        )
         spd_x = x0 + 9
-        spd_label = m.paused ? "paused" :
-            "v=" * string(round(m.speed; digits=3))
-        spd_x = set_string!(buf, spd_x, status_y, spd_label,
-                    tstyle(:text_dim))
-        set_string!(buf, spd_x + 1, status_y, spark_str,
-                    tstyle(:accent))
+        spd_label = m.paused ? "paused" : "v=" * string(round(m.speed; digits=3))
+        spd_x = set_string!(buf, spd_x, status_y, spd_label, tstyle(:text_dim))
+        set_string!(buf, spd_x + 1, status_y, spark_str, tstyle(:accent))
         inst = " [←→]r [↑↓+-]speed [space]pause [r]eset [q]uit"
         ix = right(content) - length(inst)
         if ix > x0 + 30
-            set_string!(buf, ix, status_y, inst,
-                        tstyle(:text_dim, dim=true))
+            set_string!(buf, ix, status_y, inst, tstyle(:text_dim; dim=true))
         end
     end
 end
 
 function chaos(; theme_name=nothing)
     theme_name !== nothing && set_theme!(theme_name)
-    app(ChaosModel(); fps=30)
+    return app(ChaosModel(); fps=30)
 end

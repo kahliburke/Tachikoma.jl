@@ -2,7 +2,7 @@
 # TabBar ── horizontal tab bar with active tab highlight and overflow
 # ═══════════════════════════════════════════════════════════════════════
 
-const TabLabel = Union{String, Vector{Span}}
+const TabLabel = Union{String,Vector{Span}}
 
 # ── Decoration types (dispatch for rendering) ─────────────────────────
 
@@ -35,7 +35,7 @@ Box-drawn borders around each tab. Requires 3 rows of height
 is removed to create a connected appearance.
 """
 struct BoxTabs <: TabDecoration
-    box::NamedTuple{(:tl, :tr, :bl, :br, :h, :v), NTuple{6, Char}}
+    box::NamedTuple{(:tl, :tr, :bl, :br, :h, :v),NTuple{6,Char}}
 end
 BoxTabs(; box=BOX_PLAIN) = BoxTabs(box)
 
@@ -83,14 +83,16 @@ end
 
 function TabBarStyle(;
     decoration::TabDecoration=BracketTabs(),
-    active::Style=tstyle(:accent, bold=true),
+    active::Style=tstyle(:accent; bold=true),
     inactive::Style=tstyle(:text_dim),
     separator::String=" │ ",
-    overflow_char::Char='…',
+    overflow_char::Char=('…'),
     overflow_style::Style=tstyle(:text_dim),
     tab_colors::Vector{Style}=Style[],
 )
-    TabBarStyle(decoration, active, inactive, separator, overflow_char, overflow_style, tab_colors)
+    return TabBarStyle(
+        decoration, active, inactive, separator, overflow_char, overflow_style, tab_colors
+    )
 end
 
 """Get the style for tab `i`, using per-tab color if available, otherwise active/inactive."""
@@ -99,8 +101,14 @@ function _tab_style(ts::TabBarStyle, i::Int, is_active::Bool)
     if !isempty(ts.tab_colors) && i <= length(ts.tab_colors)
         tc = ts.tab_colors[i]
         # Merge: use per-tab fg color with active/inactive bold/dim
-        Style(fg=tc.fg, bg=tc.bg isa NoColor ? base.bg : tc.bg,
-              bold=base.bold, dim=base.dim, italic=base.italic, underline=base.underline)
+        Style(;
+            fg=tc.fg,
+            bg=tc.bg isa NoColor ? base.bg : tc.bg,
+            bold=base.bold,
+            dim=base.dim,
+            italic=base.italic,
+            underline=base.underline,
+        )
     else
         base
     end
@@ -124,14 +132,13 @@ mutable struct TabBar{D<:TabDecoration}
     _tab_rects::Vector{Rect}
 end
 
-function TabBar(labels::Vector{<:TabLabel};
-    active=1,
-    focused=false,
-    tab_style::TabBarStyle=TabBarStyle(),
+function TabBar(
+    labels::Vector{<:TabLabel}; active=1, focused=false, tab_style::TabBarStyle=TabBarStyle()
 )
     act = clamp(active, 1, max(1, length(labels)))
-    TabBar(convert(Vector{TabLabel}, labels), act, focused, tab_style,
-           1:length(labels), Rect[])
+    return TabBar(
+        convert(Vector{TabLabel}, labels), act, focused, tab_style, 1:length(labels), Rect[]
+    )
 end
 
 value(bar::TabBar) = bar.active
@@ -151,7 +158,7 @@ function handle_key!(bar::TabBar, evt::KeyEvent)::Bool
         empty!(bar._tab_rects)
         return true
     end
-    false
+    return false
 end
 
 function handle_mouse!(bar::TabBar, evt::MouseEvent)::Symbol
@@ -169,7 +176,7 @@ function handle_mouse!(bar::TabBar, evt::MouseEvent)::Symbol
             return :none
         end
     end
-    :none
+    return :none
 end
 
 # ── Label utilities ───────────────────────────────────────────────────
@@ -183,7 +190,7 @@ _tab_rendered_width(label::TabLabel, ::PlainTabs) = _tab_label_len(label)
 _tab_rendered_width(label::TabLabel, ::BoxTabs) = _tab_label_len(label) + 4  # │ + pad + label + pad + │
 
 function _render_tab_label!(buf::Buffer, cx::Int, y::Int, label::String, sty::Style, maxcx::Int)
-    set_string!(buf, cx, y, label, sty; max_x=maxcx)
+    return set_string!(buf, cx, y, label, sty; max_x=maxcx)
 end
 
 function _render_tab_label!(buf::Buffer, cx::Int, y::Int, spans::Vector{Span}, ::Style, maxcx::Int)
@@ -191,7 +198,7 @@ function _render_tab_label!(buf::Buffer, cx::Int, y::Int, spans::Vector{Span}, :
         cx > maxcx && break
         cx = set_string!(buf, cx, y, span.content, span.style; max_x=maxcx)
     end
-    cx
+    return cx
 end
 
 # ── Overflow computation ──────────────────────────────────────────────
@@ -252,7 +259,7 @@ function _compute_visible_tabs(bar::TabBar, avail_width::Int)
         if hi < n
             need_left = lo > 1 ? 1 : 0
             need_right = (hi + 1) < n ? 1 : 0
-            test_w = sum(tab_widths[lo:hi+1]) + sep_w * (hi + 1 - lo) + need_left + need_right
+            test_w = sum(tab_widths[lo:(hi + 1)]) + sep_w * (hi + 1 - lo) + need_left + need_right
             if test_w <= avail_width
                 hi += 1
                 expanded = true
@@ -261,7 +268,7 @@ function _compute_visible_tabs(bar::TabBar, avail_width::Int)
         if lo > 1
             need_left = (lo - 1) > 1 ? 1 : 0
             need_right = hi < n ? 1 : 0
-            test_w = sum(tab_widths[lo-1:hi]) + sep_w * (hi - lo + 1) + need_left + need_right
+            test_w = sum(tab_widths[(lo - 1):hi]) + sep_w * (hi - lo + 1) + need_left + need_right
             if test_w <= avail_width
                 lo -= 1
                 expanded = true
@@ -276,9 +283,9 @@ end
 # ── Render dispatch ───────────────────────────────────────────────────
 
 function render(bar::TabBar, rect::Rect, buf::Buffer)
-    (rect.width < 1 || rect.height < 1) && return
-    isempty(bar.labels) && return
-    _render_tabs!(bar, bar.tab_style.decoration, rect, buf)
+    (rect.width < 1 || rect.height < 1) && return nothing
+    isempty(bar.labels) && return nothing
+    return _render_tabs!(bar, bar.tab_style.decoration, rect, buf)
 end
 
 # ── BracketTabs rendering (default) ──────────────────────────────────
@@ -304,7 +311,7 @@ function _render_tabs!(bar::TabBar, ::BracketTabs, rect::Rect, buf::Buffer)
     max_rx = right(rect) - (has_right ? 1 : 0)
     cx = rx
     y = rect.y
-    sep_style = tstyle(:border, dim=true)
+    sep_style = tstyle(:border; dim=true)
 
     for i in lo:hi
         label = bar.labels[i]
@@ -358,7 +365,7 @@ function _render_tabs!(bar::TabBar, ::PlainTabs, rect::Rect, buf::Buffer)
     max_rx = right(rect) - (has_right ? 1 : 0)
     cx = rx
     y = rect.y
-    sep_style = tstyle(:border, dim=true)
+    sep_style = tstyle(:border; dim=true)
 
     for i in lo:hi
         label = bar.labels[i]
@@ -433,7 +440,7 @@ function _render_tabs!(bar::TabBar, dec::BoxTabs, rect::Rect, buf::Buffer)
             sty
         elseif !isempty(ts.tab_colors) && i <= length(ts.tab_colors)
             # Use per-tab color but dimmed for inactive borders
-            Style(fg=ts.tab_colors[i].fg, dim=true)
+            Style(; fg=ts.tab_colors[i].fg, dim=true)
         else
             ts.inactive
         end

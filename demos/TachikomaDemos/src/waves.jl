@@ -39,11 +39,9 @@ function update!(m::WavesModel, evt::KeyEvent)
         evt.char == '4' && (m.mode = wave_scope)
         # Parameter adjustment
         evt.char == 'w' && (m.freq_a += 0.1; m.R += 0.2)
-        evt.char == 's' && (m.freq_a = max(0.1, m.freq_a - 0.1);
-                            m.R = max(0.5, m.R - 0.2))
+        evt.char == 's' && (m.freq_a=max(0.1, m.freq_a - 0.1); m.R=max(0.5, m.R - 0.2))
         evt.char == 'd' && (m.freq_b += 0.1; m.r += 0.1)
-        evt.char == 'a' && (m.freq_b = max(0.1, m.freq_b - 0.1);
-                            m.r = max(0.1, m.r - 0.1))
+        evt.char == 'a' && (m.freq_b=max(0.1, m.freq_b - 0.1); m.r=max(0.1, m.r - 0.1))
         evt.char == '+' && (m.speed = min(0.15, m.speed + 0.005))
         evt.char == '=' && (m.speed = min(0.15, m.speed + 0.005))
         evt.char == '-' && (m.speed = max(0.005, m.speed - 0.005))
@@ -52,11 +50,11 @@ function update!(m::WavesModel, evt::KeyEvent)
     elseif evt.key == :down
         m.trail_length = max(50, m.trail_length - 50)
     end
-    evt.key == :escape && (m.quit = true)
+    return evt.key == :escape && (m.quit = true)
 end
 
 function lissajous_point(t, a, b, delta)
-    (sin(a * t + delta), sin(b * t))
+    return (sin(a * t + delta), sin(b * t))
 end
 
 function spirograph_point(t, R, r, d)
@@ -65,21 +63,19 @@ function spirograph_point(t, R, r, d)
     x = diff * cos(t) + d * cos(ratio * t)
     y = diff * sin(t) - d * sin(ratio * t)
     scale = R + d
-    (x / scale, y / scale)
+    return (x / scale, y / scale)
 end
 
 function sine_point(t, idx)
     x = t
-    y = sin(t + idx * 0.3) * 0.3 +
-        sin(2t + idx * 0.7) * 0.2 +
-        sin(3t + idx * 1.1) * 0.1
-    (x, y)
+    y = sin(t + idx * 0.3) * 0.3 + sin(2t + idx * 0.7) * 0.2 + sin(3t + idx * 1.1) * 0.1
+    return (x, y)
 end
 
 function scope_point(t)
     x = sin(t)
     y = sin(t * 1.5) * cos(t * 0.7)
-    (x, y)
+    return (x, y)
 end
 
 function view(m::WavesModel, f::Frame)
@@ -90,9 +86,8 @@ function view(m::WavesModel, f::Frame)
     buf = f.buffer
 
     # Layout
-    rows = split_layout(Layout(Vertical,
-        [Fixed(1), Fill(), Fixed(1)]), f.area)
-    length(rows) < 3 && return
+    rows = split_layout(Layout(Vertical, [Fixed(1), Fill(), Fixed(1)]), f.area)
+    length(rows) < 3 && return nothing
     header = rows[1]
     canvas_area = rows[2]
     footer = rows[3]
@@ -106,16 +101,16 @@ function view(m::WavesModel, f::Frame)
     )
     si = mod1(m.tick ÷ 3, length(SPINNER_BRAILLE))
     set_char!(buf, header.x, header.y, SPINNER_BRAILLE[si], tstyle(:accent))
-    set_string!(buf, header.x + 2, header.y,
-                mode_names[m.mode], tstyle(:primary, bold=true))
+    set_string!(buf, header.x + 2, header.y, mode_names[m.mode], tstyle(:primary; bold=true))
     trail_info = " $(DOT) trail=$(m.trail_length)"
-    set_string!(buf, header.x + 2 + length(mode_names[m.mode]),
-                header.y, trail_info, tstyle(:text_dim))
+    set_string!(
+        buf, header.x + 2 + length(mode_names[m.mode]), header.y, trail_info, tstyle(:text_dim)
+    )
 
     # Canvas
     cw = canvas_area.width
     ch = canvas_area.height
-    (cw < 4 || ch < 2) && return
+    (cw < 4 || ch < 2) && return nothing
 
     canvas = create_canvas(cw, ch; style=tstyle(:primary))
     dw, dh = canvas_dot_size(canvas)
@@ -165,13 +160,19 @@ function view(m::WavesModel, f::Frame)
     render_canvas(canvas, canvas_area, f)
 
     # Footer
-    render(StatusBar(
-        left=[Span("  [1-4]mode [w/s]p1 [a/d]p2 [+-]speed [↑↓]trail [p]ause ", tstyle(:text_dim))],
-        right=[Span("[q]quit ", tstyle(:text_dim))],
-    ), footer, buf)
+    return render(
+        StatusBar(;
+            left=[
+                Span("  [1-4]mode [w/s]p1 [a/d]p2 [+-]speed [↑↓]trail [p]ause ", tstyle(:text_dim))
+            ],
+            right=[Span("[q]quit ", tstyle(:text_dim))],
+        ),
+        footer,
+        buf,
+    )
 end
 
 function waves(; theme_name=nothing)
     theme_name !== nothing && set_theme!(theme_name)
-    app(WavesModel(); fps=30)
+    return app(WavesModel(); fps=30)
 end

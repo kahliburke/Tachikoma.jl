@@ -38,8 +38,16 @@ _ParseState() = _ParseState(_TC_NONE, _TC_NONE, false, false, false, false, fals
 @inline function _to_style(s::_ParseState)
     fg = s.reverse ? s.bg : s.fg
     bg = s.reverse ? s.fg : s.bg
-    Style(_tc_to_color(fg), _tc_to_color(bg),
-          s.bold, s.dim, s.italic, s.underline, s.strikethrough, "")
+    Style(
+        _tc_to_color(fg),
+        _tc_to_color(bg),
+        s.bold,
+        s.dim,
+        s.italic,
+        s.underline,
+        s.strikethrough,
+        "",
+    )
 end
 
 @inline function _reset!(s::_ParseState)
@@ -82,7 +90,7 @@ function _parse_sgr_params!(bytes::AbstractVector{UInt8}, start::Int, stop::Int)
         n += 1
         n <= length(_SGR_PARAMS) && (_SGR_PARAMS[n] = has_val ? val : 0)
     end
-    min(n, length(_SGR_PARAMS))
+    return min(n, length(_SGR_PARAMS))
 end
 
 function _apply_sgr!(state::_ParseState, nparams::Int)
@@ -121,9 +129,11 @@ function _apply_sgr!(state::_ParseState, nparams::Int)
                 state.fg = _tc256(clamp(_SGR_PARAMS[i + 2], 0, 255))
                 i += 2
             elseif i + 1 <= nparams && _SGR_PARAMS[i + 1] == 2 && i + 4 <= nparams
-                state.fg = _tcrgb(clamp(_SGR_PARAMS[i + 2], 0, 255),
-                                  clamp(_SGR_PARAMS[i + 3], 0, 255),
-                                  clamp(_SGR_PARAMS[i + 4], 0, 255))
+                state.fg = _tcrgb(
+                    clamp(_SGR_PARAMS[i + 2], 0, 255),
+                    clamp(_SGR_PARAMS[i + 3], 0, 255),
+                    clamp(_SGR_PARAMS[i + 4], 0, 255),
+                )
                 i += 4
             end
         elseif p == 39
@@ -135,9 +145,11 @@ function _apply_sgr!(state::_ParseState, nparams::Int)
                 state.bg = _tc256(clamp(_SGR_PARAMS[i + 2], 0, 255))
                 i += 2
             elseif i + 1 <= nparams && _SGR_PARAMS[i + 1] == 2 && i + 4 <= nparams
-                state.bg = _tcrgb(clamp(_SGR_PARAMS[i + 2], 0, 255),
-                                  clamp(_SGR_PARAMS[i + 3], 0, 255),
-                                  clamp(_SGR_PARAMS[i + 4], 0, 255))
+                state.bg = _tcrgb(
+                    clamp(_SGR_PARAMS[i + 2], 0, 255),
+                    clamp(_SGR_PARAMS[i + 3], 0, 255),
+                    clamp(_SGR_PARAMS[i + 4], 0, 255),
+                )
                 i += 4
             end
         elseif p == 49
@@ -184,25 +196,32 @@ function parse_ansi(str::AbstractString)::Vector{Span}
         if bytes[i] == 0x1b  # ESC
             # Emit any accumulated text before this escape
             if i > text_start
-                push!(spans, Span(String(bytes[text_start:i-1]), _to_style(state)))
+                push!(spans, Span(String(bytes[text_start:(i - 1)]), _to_style(state)))
             end
 
             esc_start = i
             i += 1
-            i > len && (text_start = i; break)
+            i > len && (text_start=i; break)
 
             b = bytes[i]
             if b == UInt8('[')  # CSI sequence
                 i += 1
                 # Skip '?' '>' '=' '!' prefix if present
-                if i <= len && (bytes[i] == UInt8('?') || bytes[i] == UInt8('>') ||
-                                bytes[i] == UInt8('=') || bytes[i] == UInt8('!'))
+                if i <= len && (
+                    bytes[i] == UInt8('?') ||
+                    bytes[i] == UInt8('>') ||
+                    bytes[i] == UInt8('=') ||
+                    bytes[i] == UInt8('!')
+                )
                     i += 1
                 end
                 # Collect parameter bytes (digits, semicolons, colons)
                 param_start = i
-                while i <= len && (UInt8('0') <= bytes[i] <= UInt8('9') ||
-                                   bytes[i] == UInt8(';') || bytes[i] == UInt8(':'))
+                while i <= len && (
+                    UInt8('0') <= bytes[i] <= UInt8('9') ||
+                    bytes[i] == UInt8(';') ||
+                    bytes[i] == UInt8(':')
+                )
                     i += 1
                 end
                 param_end = i - 1
@@ -230,9 +249,11 @@ function parse_ansi(str::AbstractString)::Vector{Span}
                 i += 1
                 while i <= len
                     if bytes[i] == 0x07  # BEL terminator
-                        i += 1; break
-                    elseif bytes[i] == 0x1b && i + 1 <= len && bytes[i+1] == UInt8('\\')
-                        i += 2; break  # ST terminator
+                        i += 1
+                        break
+                    elseif bytes[i] == 0x1b && i + 1 <= len && bytes[i + 1] == UInt8('\\')
+                        i += 2
+                        break  # ST terminator
                     end
                     i += 1
                 end
@@ -243,8 +264,9 @@ function parse_ansi(str::AbstractString)::Vector{Span}
                 # DCS / PM / APC — skip until ST
                 i += 1
                 while i <= len
-                    if bytes[i] == 0x1b && i + 1 <= len && bytes[i+1] == UInt8('\\')
-                        i += 2; break
+                    if bytes[i] == 0x1b && i + 1 <= len && bytes[i + 1] == UInt8('\\')
+                        i += 2
+                        break
                     end
                     i += 1
                 end
@@ -264,5 +286,5 @@ function parse_ansi(str::AbstractString)::Vector{Span}
     end
 
     isempty(spans) && push!(spans, Span("", RESET))
-    spans
+    return spans
 end

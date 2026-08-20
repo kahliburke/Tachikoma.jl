@@ -33,7 +33,7 @@ mutable struct WindowManager
     _resize_orig_w::Int
     _resize_orig_h::Int
     # Layout animation state
-    _anim_tweens::Vector{NTuple{4, Tween}}  # per-window (x, y, w, h)
+    _anim_tweens::Vector{NTuple{4,Tween}}  # per-window (x, y, w, h)
     _animating::Bool
     # Content mouse delegation state (for drag/move/release forwarding)
     _content_active::Bool
@@ -43,12 +43,34 @@ mutable struct WindowManager
     last_area::Rect
 end
 
-function WindowManager(; windows::Vector{FloatingWindow}=FloatingWindow[], focus_shortcuts::Bool=true)
+function WindowManager(;
+    windows::Vector{FloatingWindow}=FloatingWindow[], focus_shortcuts::Bool=true
+)
     n = length(windows)
-    WindowManager(windows, n > 0 ? n : 0, false, 0, 0, 0,
-                  false, 0, :br, 0, 0, 0, 0, 0, 0,
-                  NTuple{4, Tween}[], false,
-                  false, 0, focus_shortcuts, 0, Rect())
+    return WindowManager(
+        windows,
+        n > 0 ? n : 0,
+        false,
+        0,
+        0,
+        0,
+        false,
+        0,
+        :br,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        NTuple{4,Tween}[],
+        false,
+        false,
+        0,
+        focus_shortcuts,
+        0,
+        Rect(),
+    )
 end
 
 """Current internal tick counter for per-frame/window-manager updates."""
@@ -68,10 +90,15 @@ If `layout_interval > 0`, every frame advances an internal phase from
 
 Return the updated tick count.
 """
-function step!(wm::WindowManager, area::Union{Rect, Nothing}=nothing;
-               layout_interval::Int=0, layout_tile_at::Int=1,
-               layout_cascade_at::Int=23, layout_animate::Bool=true,
-               layout_duration::Int=12)
+function step!(
+    wm::WindowManager,
+    area::Union{Rect,Nothing}=nothing;
+    layout_interval::Int=0,
+    layout_tile_at::Int=1,
+    layout_cascade_at::Int=23,
+    layout_animate::Bool=true,
+    layout_duration::Int=12,
+)
     wm._tick += 1
     if layout_interval > 0 && area !== nothing
         phase = mod1(wm._tick, layout_interval)
@@ -90,47 +117,49 @@ focusable(::WindowManager) = true
 function Base.push!(wm::WindowManager, w::FloatingWindow)
     push!(wm.windows, w)
     wm.focus = length(wm.windows)
-    wm
+    return wm
 end
 
 """Remove a window by index."""
 function Base.deleteat!(wm::WindowManager, idx::Int)
     deleteat!(wm.windows, idx)
     wm.focus = clamp(wm.focus, 0, length(wm.windows))
-    wm
+    return wm
 end
 
 """Number of windows."""
 Base.length(wm::WindowManager) = length(wm.windows)
 
 """Get the focused window, or nothing."""
-focused_window(wm::WindowManager) = 0 < wm.focus <= length(wm.windows) ? wm.windows[wm.focus] : nothing
+function focused_window(wm::WindowManager)
+    return 0 < wm.focus <= length(wm.windows) ? wm.windows[wm.focus] : nothing
+end
 
 """Bring window at `idx` to the front (top of z-order) and focus it."""
 function bring_to_front!(wm::WindowManager, idx::Int)
-    (idx < 1 || idx > length(wm.windows)) && return
+    (idx < 1 || idx > length(wm.windows)) && return nothing
     w = wm.windows[idx]
     deleteat!(wm.windows, idx)
     push!(wm.windows, w)
     wm.focus = length(wm.windows)
-    nothing
+    return nothing
 end
 
 """Cycle focus to the next window and bring it to front."""
 function focus_next!(wm::WindowManager)
     n = length(wm.windows)
-    n == 0 && return
+    n == 0 && return nothing
     # The focused window is always last (top of z-order).
     # "Next" means the bottom-most window (index 1) comes to front.
-    n > 1 && bring_to_front!(wm, 1)
+    return n > 1 && bring_to_front!(wm, 1)
 end
 
 """Cycle focus to the previous window and bring it to front."""
 function focus_prev!(wm::WindowManager)
     n = length(wm.windows)
-    n == 0 && return
+    n == 0 && return nothing
     # "Previous" means the second-from-top (index n-1) comes to front.
-    n > 1 && bring_to_front!(wm, n - 1)
+    return n > 1 && bring_to_front!(wm, n - 1)
 end
 
 # ── Render ────────────────────────────────────────────────────────────
@@ -141,7 +170,9 @@ end
 Render all windows back-to-front within the given area.
 If omitted, `tick` defaults to the manager's internal tick counter.
 """
-function render(wm::WindowManager, area::Rect, buf::Buffer; tick::Union{Int, Nothing}=nothing, frame=nothing)
+function render(
+    wm::WindowManager, area::Rect, buf::Buffer; tick::Union{Int,Nothing}=nothing, frame=nothing
+)
     wm.last_area = area
     advance_layout!(wm)
     tick = tick === nothing ? wm._tick : tick
@@ -154,14 +185,14 @@ end
 
 """Advance layout animation tweens, applying current values to windows."""
 function advance_layout!(wm::WindowManager)
-    wm._animating || return
+    wm._animating || return nothing
     all_done = true
     for (i, tw4) in enumerate(wm._anim_tweens)
         i > length(wm.windows) && break
         w = wm.windows[i]
-        w.x      = round(Int, value(tw4[1]))
-        w.y      = round(Int, value(tw4[2]))
-        w.width  = round(Int, value(tw4[3]))
+        w.x = round(Int, value(tw4[1]))
+        w.y = round(Int, value(tw4[2]))
+        w.width = round(Int, value(tw4[3]))
         w.height = round(Int, value(tw4[4]))
         for tw in tw4
             advance!(tw)
@@ -181,13 +212,13 @@ Arrange windows in a tiled grid layout. Animates smoothly when `animate=true`.
 """
 function tile!(wm::WindowManager, area::Rect; animate::Bool=true, duration::Int=15)
     n = length(wm.windows)
-    n == 0 && return
+    n == 0 && return nothing
     cols = ceil(Int, sqrt(n))
     rows = ceil(Int, n / cols)
     cw = max(10, area.width ÷ cols)
     rh = max(5, (area.height - 1) ÷ rows)  # -1 for footer
 
-    targets = NTuple{4, Int}[]
+    targets = NTuple{4,Int}[]
     for (i, _w) in enumerate(wm.windows)
         ci = mod(i - 1, cols)
         ri = (i - 1) ÷ cols
@@ -199,15 +230,18 @@ function tile!(wm::WindowManager, area::Rect; animate::Bool=true, duration::Int=
     end
 
     if animate
-        wm._anim_tweens = NTuple{4, Tween}[]
+        wm._anim_tweens = NTuple{4,Tween}[]
         for (i, w) in enumerate(wm.windows)
             t = targets[i]
-            push!(wm._anim_tweens, (
-                tween(w.x, t[1]; duration, easing=ease_out_cubic),
-                tween(w.y, t[2]; duration, easing=ease_out_cubic),
-                tween(w.width, t[3]; duration, easing=ease_out_cubic),
-                tween(w.height, t[4]; duration, easing=ease_out_cubic),
-            ))
+            push!(
+                wm._anim_tweens,
+                (
+                    tween(w.x, t[1]; duration, easing=ease_out_cubic),
+                    tween(w.y, t[2]; duration, easing=ease_out_cubic),
+                    tween(w.width, t[3]; duration, easing=ease_out_cubic),
+                    tween(w.height, t[4]; duration, easing=ease_out_cubic),
+                ),
+            )
         end
         wm._animating = true
     else
@@ -225,13 +259,13 @@ Arrange windows in a cascading stack. Animates smoothly when `animate=true`.
 """
 function cascade!(wm::WindowManager, area::Rect; animate::Bool=true, duration::Int=15)
     n = length(wm.windows)
-    n == 0 && return
+    n == 0 && return nothing
     step_x = 3
     step_y = 2
     max_w = max(10, area.width - step_x * (n - 1))
     max_h = max(5, (area.height - 1) - step_y * (n - 1))  # -1 for footer
 
-    targets = NTuple{4, Int}[]
+    targets = NTuple{4,Int}[]
     for (i, _w) in enumerate(wm.windows)
         tx = area.x + (i - 1) * step_x
         ty = area.y + (i - 1) * step_y
@@ -239,15 +273,18 @@ function cascade!(wm::WindowManager, area::Rect; animate::Bool=true, duration::I
     end
 
     if animate
-        wm._anim_tweens = NTuple{4, Tween}[]
+        wm._anim_tweens = NTuple{4,Tween}[]
         for (i, w) in enumerate(wm.windows)
             t = targets[i]
-            push!(wm._anim_tweens, (
-                tween(w.x, t[1]; duration, easing=ease_out_cubic),
-                tween(w.y, t[2]; duration, easing=ease_out_cubic),
-                tween(w.width, t[3]; duration, easing=ease_out_cubic),
-                tween(w.height, t[4]; duration, easing=ease_out_cubic),
-            ))
+            push!(
+                wm._anim_tweens,
+                (
+                    tween(w.x, t[1]; duration, easing=ease_out_cubic),
+                    tween(w.y, t[2]; duration, easing=ease_out_cubic),
+                    tween(w.width, t[3]; duration, easing=ease_out_cubic),
+                    tween(w.height, t[4]; duration, easing=ease_out_cubic),
+                ),
+            )
         end
         wm._animating = true
     else
@@ -260,7 +297,9 @@ end
 
 # Convenience methods using last_area (no-op if render hasn't run yet)
 tile!(wm::WindowManager; kwargs...) = wm.last_area.width > 0 && tile!(wm, wm.last_area; kwargs...)
-cascade!(wm::WindowManager; kwargs...) = wm.last_area.width > 0 && cascade!(wm, wm.last_area; kwargs...)
+function cascade!(wm::WindowManager; kwargs...)
+    return wm.last_area.width > 0 && cascade!(wm, wm.last_area; kwargs...)
+end
 
 # ── Keyboard ──────────────────────────────────────────────────────────
 
@@ -272,7 +311,7 @@ cascade!(wm::WindowManager; kwargs...) = wm.last_area.width > 0 && cascade!(wm, 
 function handle_event!(wm::WindowManager, evt::Event)::Bool
     evt isa KeyEvent && return handle_key!(wm, evt)
     evt isa MouseEvent && return handle_mouse!(wm, evt)
-    false
+    return false
 end
 
 """
@@ -296,7 +335,7 @@ function handle_key!(wm::WindowManager, evt::KeyEvent)::Bool
     if w.content !== nothing && applicable(handle_key!, w.content, evt)
         return handle_key!(w.content, evt)
     end
-    false
+    return false
 end
 
 # ── Mouse ─────────────────────────────────────────────────────────────
@@ -305,9 +344,9 @@ end
 function _corner_at(wr::Rect, x::Int, y::Int)::Symbol
     rx = right(wr)
     by = bottom(wr)
-    x == rx  && y == by  && return :br
-    x == wr.x && y == by  && return :bl
-    x == rx  && y == wr.y && return :tr
+    x == rx && y == by && return :br
+    x == wr.x && y == by && return :bl
+    x == rx && y == wr.y && return :tr
     x == wr.x && y == wr.y && return :tl
     return :none
 end
@@ -337,7 +376,9 @@ function handle_mouse!(wm::WindowManager, evt::MouseEvent)::Bool
     end
 
     # ── Content drag/move forwarding ──
-    if (evt.action == mouse_drag || evt.action == mouse_move) && wm._content_active && 0 < wm._content_win <= length(wm.windows)
+    if (evt.action == mouse_drag || evt.action == mouse_move) &&
+        wm._content_active &&
+        0 < wm._content_win <= length(wm.windows)
         w = wm.windows[wm._content_win]
         if w.content !== nothing && applicable(handle_mouse!, w.content, evt)
             return handle_mouse!(w.content, evt)
@@ -352,7 +393,7 @@ function handle_mouse!(wm::WindowManager, evt::MouseEvent)::Bool
         dy = evt.y - wm._resize_start_y
         c = wm._resize_corner
         if c == :br
-            w.width  = max(w.min_width,  wm._resize_orig_w + dx)
+            w.width = max(w.min_width, wm._resize_orig_w + dx)
             w.height = max(w.min_height, wm._resize_orig_h + dy)
         elseif c == :bl
             new_w = max(w.min_width, wm._resize_orig_w - dx)
@@ -360,7 +401,7 @@ function handle_mouse!(wm::WindowManager, evt::MouseEvent)::Bool
             w.width = new_w
             w.height = max(w.min_height, wm._resize_orig_h + dy)
         elseif c == :tr
-            w.width  = max(w.min_width, wm._resize_orig_w + dx)
+            w.width = max(w.min_width, wm._resize_orig_w + dx)
             new_h = max(w.min_height, wm._resize_orig_h - dy)
             w.y = wm._resize_orig_y + (wm._resize_orig_h - new_h)
             w.height = new_h
@@ -385,7 +426,7 @@ function handle_mouse!(wm::WindowManager, evt::MouseEvent)::Bool
 
     # ── Scroll wheel: forward to topmost window content under cursor ──
     if evt.action == mouse_press &&
-       (evt.button == mouse_scroll_up || evt.button == mouse_scroll_down)
+        (evt.button == mouse_scroll_up || evt.button == mouse_scroll_down)
         for i in length(wm.windows):-1:1
             w = wm.windows[i]
             w.visible || continue
@@ -469,5 +510,5 @@ function handle_mouse!(wm::WindowManager, evt::MouseEvent)::Bool
         end
     end
 
-    false
+    return false
 end

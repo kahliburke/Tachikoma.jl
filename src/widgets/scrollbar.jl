@@ -54,13 +54,15 @@ function handle_scrollbar_mouse!(state::ScrollbarState, evt::MouseEvent)
     end
 
     # Click to start drag
-    if evt.button == mouse_left && evt.action == mouse_press &&
-       state.rect.width > 0 && Base.contains(state.rect, evt.x, evt.y)
+    if evt.button == mouse_left &&
+        evt.action == mouse_press &&
+        state.rect.width > 0 &&
+        Base.contains(state.rect, evt.x, evt.y)
         state.dragging = true
         return clamp((evt.y - state.rect.y) / max(1, state.rect.height), 0.0, 1.0)
     end
 
-    nothing
+    return nothing
 end
 
 # ── Scrollbar ── rendering ──────────────────────────────────────────
@@ -73,16 +75,19 @@ struct Scrollbar
     thumb_style::Style             # thumb style
 end
 
-function Scrollbar(total::Int, visible::Int, offset::Int;
-    style=tstyle(:text_dim, dim=true),
+function Scrollbar(
+    total::Int,
+    visible::Int,
+    offset::Int;
+    style=tstyle(:text_dim; dim=true),
     thumb_style=tstyle(:primary),
 )
-    Scrollbar(total, visible, max(0, offset), style, thumb_style)
+    return Scrollbar(total, visible, max(0, offset), style, thumb_style)
 end
 
 function render(sb::Scrollbar, rect::Rect, buf::Buffer)
-    (rect.width < 1 || rect.height < 1) && return
-    sb.total <= sb.visible && return  # no scroll needed
+    (rect.width < 1 || rect.height < 1) && return nothing
+    sb.total <= sb.visible && return nothing  # no scroll needed
 
     h = rect.height
     x = rect.x
@@ -90,8 +95,7 @@ function render(sb::Scrollbar, rect::Rect, buf::Buffer)
     # Thumb size and position
     thumb_h = max(1, round(Int, h * sb.visible / sb.total))
     max_offset = sb.total - sb.visible
-    thumb_pos = max_offset > 0 ?
-        round(Int, (h - thumb_h) * sb.offset / max_offset) : 0
+    thumb_pos = max_offset > 0 ? round(Int, (h - thumb_h) * sb.offset / max_offset) : 0
 
     for row in 0:(h - 1)
         y = rect.y + row

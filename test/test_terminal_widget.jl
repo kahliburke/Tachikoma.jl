@@ -8,11 +8,11 @@ mutable struct _MockTermWidget
     vt_osc_buf::Vector{UInt8}
     vt_prev_char::Char
     vt_utf8_carry::Vector{UInt8}
-    title_callback::Union{Function, Nothing}
+    title_callback::Union{Function,Nothing}
 end
 
 function _make_test_tw(screen::T.TermScreen; title_callback=nothing)
-    _MockTermWidget(screen, T._vt_ground, UInt8[], UInt8[], ' ', UInt8[], title_callback)
+    return _MockTermWidget(screen, T._vt_ground, UInt8[], UInt8[], ' ', UInt8[], title_callback)
 end
 
 @testset "Terminal Widget" begin
@@ -374,7 +374,7 @@ end
     @testset "VT parser: OSC window title" begin
         s = T.TermScreen(24, 80)
         captured_title = Ref("")
-        tw = _make_test_tw(s; title_callback = t -> (captured_title[] = t))
+        tw = _make_test_tw(s; title_callback=t -> (captured_title[] = t))
         T._vt_feed!(tw, Vector{UInt8}("\e]0;My Title\x07"))
         @test captured_title[] == "My Title"
     end
@@ -382,7 +382,7 @@ end
     @testset "VT parser: OSC with ST terminator" begin
         s = T.TermScreen(24, 80)
         captured_title = Ref("")
-        tw = _make_test_tw(s; title_callback = t -> (captured_title[] = t))
+        tw = _make_test_tw(s; title_callback=t -> (captured_title[] = t))
         T._vt_feed!(tw, Vector{UInt8}("\e]2;Other Title\e\\"))
         @test captured_title[] == "Other Title"
     end
@@ -459,9 +459,12 @@ end
 
     @testset "Input encoding: arrow keys" begin
         @test T._encode_key(T.KeyEvent(:up, '\0', T.key_press)) == Vector{UInt8}(codeunits("\e[A"))
-        @test T._encode_key(T.KeyEvent(:down, '\0', T.key_press)) == Vector{UInt8}(codeunits("\e[B"))
-        @test T._encode_key(T.KeyEvent(:right, '\0', T.key_press)) == Vector{UInt8}(codeunits("\e[C"))
-        @test T._encode_key(T.KeyEvent(:left, '\0', T.key_press)) == Vector{UInt8}(codeunits("\e[D"))
+        @test T._encode_key(T.KeyEvent(:down, '\0', T.key_press)) ==
+            Vector{UInt8}(codeunits("\e[B"))
+        @test T._encode_key(T.KeyEvent(:right, '\0', T.key_press)) ==
+            Vector{UInt8}(codeunits("\e[C"))
+        @test T._encode_key(T.KeyEvent(:left, '\0', T.key_press)) ==
+            Vector{UInt8}(codeunits("\e[D"))
     end
 
     @testset "Input encoding: printable chars" begin
@@ -480,16 +483,23 @@ end
 
     @testset "Input encoding: function keys" begin
         @test T._encode_key(T.KeyEvent(:f1, '\0', T.key_press)) == Vector{UInt8}(codeunits("\eOP"))
-        @test T._encode_key(T.KeyEvent(:f5, '\0', T.key_press)) == Vector{UInt8}(codeunits("\e[15~"))
-        @test T._encode_key(T.KeyEvent(:f12, '\0', T.key_press)) == Vector{UInt8}(codeunits("\e[24~"))
+        @test T._encode_key(T.KeyEvent(:f5, '\0', T.key_press)) ==
+            Vector{UInt8}(codeunits("\e[15~"))
+        @test T._encode_key(T.KeyEvent(:f12, '\0', T.key_press)) ==
+            Vector{UInt8}(codeunits("\e[24~"))
     end
 
     @testset "Input encoding: navigation keys" begin
-        @test T._encode_key(T.KeyEvent(:home, '\0', T.key_press)) == Vector{UInt8}(codeunits("\e[H"))
-        @test T._encode_key(T.KeyEvent(:end_key, '\0', T.key_press)) == Vector{UInt8}(codeunits("\e[F"))
-        @test T._encode_key(T.KeyEvent(:pageup, '\0', T.key_press)) == Vector{UInt8}(codeunits("\e[5~"))
-        @test T._encode_key(T.KeyEvent(:pagedown, '\0', T.key_press)) == Vector{UInt8}(codeunits("\e[6~"))
-        @test T._encode_key(T.KeyEvent(:delete, '\0', T.key_press)) == Vector{UInt8}(codeunits("\e[3~"))
+        @test T._encode_key(T.KeyEvent(:home, '\0', T.key_press)) ==
+            Vector{UInt8}(codeunits("\e[H"))
+        @test T._encode_key(T.KeyEvent(:end_key, '\0', T.key_press)) ==
+            Vector{UInt8}(codeunits("\e[F"))
+        @test T._encode_key(T.KeyEvent(:pageup, '\0', T.key_press)) ==
+            Vector{UInt8}(codeunits("\e[5~"))
+        @test T._encode_key(T.KeyEvent(:pagedown, '\0', T.key_press)) ==
+            Vector{UInt8}(codeunits("\e[6~"))
+        @test T._encode_key(T.KeyEvent(:delete, '\0', T.key_press)) ==
+            Vector{UInt8}(codeunits("\e[3~"))
     end
 
     # ── Scrollback ───────────────────────────────────────────────────
@@ -593,5 +603,4 @@ end
         end
         @test T._STREAM_GUARD[] === nothing   # cleared again
     end
-
 end

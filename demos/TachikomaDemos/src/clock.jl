@@ -24,7 +24,7 @@ function update!(m::ClockModel, evt::KeyEvent)
         evt.char == 's' && toggle_stopwatch!(m)
         evt.char == 'r' && reset_stopwatch!(m)
     end
-    evt.key == :escape && (m.quit = true)
+    return evt.key == :escape && (m.quit = true)
 end
 
 function toggle_stopwatch!(m::ClockModel)
@@ -39,13 +39,13 @@ end
 
 function reset_stopwatch!(m::ClockModel)
     m.stopwatch_ms = 0
-    m.stopwatch_running && (m.stopwatch_start = time())
+    return m.stopwatch_running && (m.stopwatch_start = time())
 end
 
 function stopwatch_elapsed(m::ClockModel)
     ms = m.stopwatch_ms
     m.stopwatch_running && (ms += round(Int, (time() - m.stopwatch_start) * 1000))
-    ms
+    return ms
 end
 
 function format_stopwatch(ms::Int)
@@ -53,7 +53,7 @@ function format_stopwatch(ms::Int)
     mins = s ÷ 60
     secs = s % 60
     centis = (ms % 1000) ÷ 10
-    string(lpad(mins, 2, '0'), ":", lpad(secs, 2, '0'), ".", lpad(centis, 2, '0'))
+    return string(lpad(mins, 2, '0'), ":", lpad(secs, 2, '0'), ".", lpad(centis, 2, '0'))
 end
 
 function view(m::ClockModel, f::Frame)
@@ -62,10 +62,11 @@ function view(m::ClockModel, f::Frame)
     buf = f.buffer
 
     # Layout
-    rows = split_layout(Layout(Vertical,
-        [Fixed(2), Fixed(5), Fixed(2), Fixed(5), Fixed(2), Fill(), Fixed(1)]),
-        f.area)
-    length(rows) < 7 && return
+    rows = split_layout(
+        Layout(Vertical, [Fixed(2), Fixed(5), Fixed(2), Fixed(5), Fixed(2), Fill(), Fixed(1)]),
+        f.area,
+    )
+    length(rows) < 7 && return nothing
 
     header_area = rows[1]
     time_area = rows[2]
@@ -77,10 +78,8 @@ function view(m::ClockModel, f::Frame)
 
     # ── Header ──
     si = mod1(m.tick ÷ 3, length(SPINNER_BRAILLE))
-    set_char!(buf, header_area.x + 1, header_area.y,
-              SPINNER_BRAILLE[si], tstyle(:accent))
-    set_string!(buf, header_area.x + 3, header_area.y,
-                "tachikoma clock", tstyle(:title, bold=true))
+    set_char!(buf, header_area.x + 1, header_area.y, SPINNER_BRAILLE[si], tstyle(:accent))
+    set_string!(buf, header_area.x + 3, header_area.y, "tachikoma clock", tstyle(:title; bold=true))
 
     # ── Big clock ──
     now = Dates.now()
@@ -92,8 +91,11 @@ function view(m::ClockModel, f::Frame)
 
     tw = intrinsic_size(BigText(time_str))[1]
     tx = time_area.x + max(0, (time_area.width - tw) ÷ 2)
-    render(BigText(time_str; style=tstyle(:primary, bold=true)),
-           Rect(tx, time_area.y, time_area.width, 5), buf)
+    render(
+        BigText(time_str; style=tstyle(:primary; bold=true)),
+        Rect(tx, time_area.y, time_area.width, 5),
+        buf,
+    )
 
     # ── Date ──
     date_str = Dates.format(now, "E, d U yyyy")
@@ -110,10 +112,9 @@ function view(m::ClockModel, f::Frame)
     elseif elapsed > 0
         tstyle(:warning)
     else
-        tstyle(:text_dim, dim=true)
+        tstyle(:text_dim; dim=true)
     end
-    render(BigText(sw_str; style=sw_style),
-           Rect(swx, sw_area.y, sw_area.width, 5), buf)
+    render(BigText(sw_str; style=sw_style), Rect(swx, sw_area.y, sw_area.width, 5), buf)
 
     sw_label = m.stopwatch_running ? "STOPWATCH (running)" : "STOPWATCH"
     slx = label_area.x + max(0, (label_area.width - length(sw_label)) ÷ 2)
@@ -121,21 +122,24 @@ function view(m::ClockModel, f::Frame)
 
     # ── Calendar in bottom area ──
     if bottom_area.height >= 8 && bottom_area.width >= 24
-        cols = split_layout(Layout(Horizontal,
-            [Fill(), Fixed(24), Fill()]), bottom_area)
+        cols = split_layout(Layout(Horizontal, [Fill(), Fixed(24), Fill()]), bottom_area)
         if length(cols) >= 2
             render(Calendar(), cols[2], buf)
         end
     end
 
     # ── Status bar ──
-    render(StatusBar(
-        left=[Span("  [s]stopwatch [r]reset ", tstyle(:text_dim))],
-        right=[Span("[k/e/m/a/n/c]theme [q]quit ", tstyle(:text_dim))],
-    ), status_area, buf)
+    return render(
+        StatusBar(;
+            left=[Span("  [s]stopwatch [r]reset ", tstyle(:text_dim))],
+            right=[Span("[k/e/m/a/n/c]theme [q]quit ", tstyle(:text_dim))],
+        ),
+        status_area,
+        buf,
+    )
 end
 
 function clock(; theme_name=nothing)
     theme_name !== nothing && set_theme!(theme_name)
-    app(ClockModel(); fps=30)
+    return app(ClockModel(); fps=30)
 end

@@ -12,7 +12,7 @@ mutable struct TextArea
     label_style::Style
     cursor_style::Style
     focused::Bool
-    tick::Union{Int, Nothing}
+    tick::Union{Int,Nothing}
 end
 
 """
@@ -27,13 +27,13 @@ function TextArea(;
     label_style::Style=tstyle(:text_dim),
     cursor_style::Style=Style(; fg=Color256(0), bg=tstyle(:accent).fg),
     focused::Bool=true,
-    tick::Union{Int, Nothing}=nothing,
+    tick::Union{Int,Nothing}=nothing,
 )
     ls = [collect(l) for l in Base.split(text, '\n'; keepempty=true)]
     isempty(ls) && (ls = [Char[]])
     row = length(ls)
     col = length(ls[end])
-    TextArea(ls, row, col, 0, label, style, label_style, cursor_style, focused, tick)
+    return TextArea(ls, row, col, 0, label, style, label_style, cursor_style, focused, tick)
 end
 
 focusable(::TextArea) = true
@@ -43,7 +43,7 @@ set_value!(w::TextArea, s::String) = set_text!(w, s)
 # ── Helpers ──
 
 function text(ta::TextArea)
-    join(String.(ta.lines), '\n')
+    return join(String.(ta.lines), '\n')
 end
 
 function clear!(ta::TextArea)
@@ -51,7 +51,7 @@ function clear!(ta::TextArea)
     push!(ta.lines, Char[])
     ta.cursor_row = 1
     ta.cursor_col = 0
-    ta.scroll_offset = 0
+    return ta.scroll_offset = 0
 end
 
 function set_text!(ta::TextArea, s::String)
@@ -59,7 +59,7 @@ function set_text!(ta::TextArea, s::String)
     isempty(ta.lines) && push!(ta.lines, Char[])
     ta.cursor_row = length(ta.lines)
     ta.cursor_col = length(ta.lines[end])
-    ta.scroll_offset = 0
+    return ta.scroll_offset = 0
 end
 
 # ── Key handling ──
@@ -76,7 +76,7 @@ function handle_key!(ta::TextArea, evt::KeyEvent)::Bool
         # Split line at cursor
         line = ta.lines[ta.cursor_row]
         left = line[1:ta.cursor_col]
-        right_part = line[ta.cursor_col+1:end]
+        right_part = line[(ta.cursor_col + 1):end]
         ta.lines[ta.cursor_row] = left
         insert!(ta.lines, ta.cursor_row + 1, right_part)
         ta.cursor_row += 1
@@ -141,13 +141,13 @@ function handle_key!(ta::TextArea, evt::KeyEvent)::Bool
         ta.cursor_col = length(ta.lines[ta.cursor_row])
         return true
     end
-    false
+    return false
 end
 
 # ── Render ──
 
 function render(ta::TextArea, rect::Rect, buf::Buffer)
-    (rect.width < 1 || rect.height < 1) && return
+    (rect.width < 1 || rect.height < 1) && return nothing
 
     y_start = rect.y
     x_start = rect.x
@@ -156,12 +156,11 @@ function render(ta::TextArea, rect::Rect, buf::Buffer)
 
     # Label takes first row if present
     if !isempty(ta.label)
-        set_string!(buf, x_start, y_start, ta.label, ta.label_style;
-                    max_x=right(rect))
+        set_string!(buf, x_start, y_start, ta.label, ta.label_style; max_x=right(rect))
         y_start += 1
         vis_height -= 1
     end
-    vis_height < 1 && return
+    vis_height < 1 && return nothing
 
     # Auto-scroll to keep cursor visible
     if ta.cursor_row - 1 < ta.scroll_offset
@@ -176,7 +175,7 @@ function render(ta::TextArea, rect::Rect, buf::Buffer)
         base_bg = to_rgb(cur_style.bg)
         br = breathe(ta.tick; period=70)
         cur_bg = brighten(base_bg, br * 0.25)
-        cur_style = Style(fg=cur_style.fg, bg=cur_bg)
+        cur_style = Style(; fg=cur_style.fg, bg=cur_bg)
     end
 
     n = length(ta.lines)
@@ -197,8 +196,7 @@ function render(ta::TextArea, rect::Rect, buf::Buffer)
             x = x_start + ci - 1
             x > right(rect) && break
 
-            is_cursor = ta.focused && li == ta.cursor_row &&
-                        char_idx == ta.cursor_col + 1
+            is_cursor = ta.focused && li == ta.cursor_row && char_idx == ta.cursor_col + 1
 
             if char_idx >= 1 && char_idx <= length(line)
                 ch = line[char_idx]

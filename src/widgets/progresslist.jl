@@ -13,13 +13,12 @@ struct ProgressItem
     detail::String             # optional right-aligned detail text
 end
 
-ProgressItem(label; status=task_pending, detail="") =
-    ProgressItem(label, status, detail)
+ProgressItem(label; status=task_pending, detail="") = ProgressItem(label, status, detail)
 
 struct ProgressList
     items::Vector{ProgressItem}
-    tick::Union{Int, Nothing}  # for spinner animation
-    block::Union{Block, Nothing}
+    tick::Union{Int,Nothing}  # for spinner animation
+    block::Union{Block,Nothing}
     pending_style::Style
     running_style::Style
     done_style::Style
@@ -29,23 +28,33 @@ struct ProgressList
     detail_style::Style
 end
 
-function ProgressList(items::Vector{ProgressItem};
+function ProgressList(
+    items::Vector{ProgressItem};
     tick=nothing,
     block=nothing,
     pending_style=tstyle(:text_dim),
     running_style=tstyle(:accent),
     done_style=tstyle(:success),
     error_style=tstyle(:error),
-    skipped_style=tstyle(:text_dim, dim=true),
+    skipped_style=tstyle(:text_dim; dim=true),
     label_style=tstyle(:text),
     detail_style=tstyle(:text_dim),
 )
-    ProgressList(items, tick, block, pending_style, running_style,
-                 done_style, error_style, skipped_style,
-                 label_style, detail_style)
+    return ProgressList(
+        items,
+        tick,
+        block,
+        pending_style,
+        running_style,
+        done_style,
+        error_style,
+        skipped_style,
+        label_style,
+        detail_style,
+    )
 end
 
-function status_icon(status::TaskStatus, tick::Union{Int, Nothing})
+function status_icon(status::TaskStatus, tick::Union{Int,Nothing})
     if status == task_pending
         return ('○', :pending_style)
     elseif status == task_running
@@ -67,7 +76,7 @@ function render(pl::ProgressList, rect::Rect, buf::Buffer)
     else
         rect
     end
-    (content.width < 4 || content.height < 1) && return
+    (content.width < 4 || content.height < 1) && return nothing
 
     for (i, item) in enumerate(pl.items)
         y = content.y + i - 1

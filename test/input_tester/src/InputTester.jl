@@ -20,8 +20,8 @@ Run from a Kitty-capable terminal:
 function run()
     model = InputTesterModel()
     tools = create_tools(model)
-    serve(tools=tools, allow_mirror=false, force=true)
-    Tachikoma.app(model; fps=60, default_bindings=false)
+    serve(; tools=tools, allow_mirror=false, force=true)
+    return Tachikoma.app(model; fps=60, default_bindings=false)
 end
 
 export run

@@ -10,8 +10,8 @@ mutable struct TextInput
     label_style::Style
     cursor_style::Style
     focused::Bool
-    tick::Union{Int, Nothing}      # enables cursor breathing when set
-    validator::Union{Function, Nothing}  # (String) -> Union{String, Nothing}
+    tick::Union{Int,Nothing}      # enables cursor breathing when set
+    validator::Union{Function,Nothing}  # (String) -> Union{String, Nothing}
     error_msg::String
     error_style::Style
     last_area::Rect               # cached from last render for mouse hit testing
@@ -36,8 +36,20 @@ function TextInput(;
     error_style=tstyle(:error),
 )
     chars = collect(text)
-    TextInput(chars, length(chars), label, style, label_style,
-              cursor_style, focused, tick, validator, "", error_style, Rect())
+    return TextInput(
+        chars,
+        length(chars),
+        label,
+        style,
+        label_style,
+        cursor_style,
+        focused,
+        tick,
+        validator,
+        "",
+        error_style,
+        Rect(),
+    )
 end
 
 # ── Helpers ──
@@ -50,12 +62,12 @@ text(input::TextInput) = String(input.buffer)
 
 function clear!(input::TextInput)
     empty!(input.buffer)
-    input.cursor = 0
+    return input.cursor = 0
 end
 
 function set_text!(input::TextInput, s::String)
     input.buffer = collect(s)
-    input.cursor = length(input.buffer)
+    return input.cursor = length(input.buffer)
 end
 
 # ── Key handling ──
@@ -129,13 +141,13 @@ function handle_mouse!(input::TextInput, evt::MouseEvent)::Bool
             return true
         end
     end
-    false
+    return false
 end
 
 # ── Render ──
 
 function render(input::TextInput, rect::Rect, buf::Buffer)
-    (rect.width < 1 || rect.height < 1) && return
+    (rect.width < 1 || rect.height < 1) && return nothing
     input.last_area = rect
     y = rect.y
 
@@ -148,7 +160,7 @@ function render(input::TextInput, rect::Rect, buf::Buffer)
     # Available width for text area
     text_start = cx
     text_width = right(rect) - text_start + 1
-    text_width < 1 && return
+    text_width < 1 && return nothing
 
     # Animated cursor: breathe effect when focused and waiting
     cur_style = input.cursor_style
@@ -156,7 +168,7 @@ function render(input::TextInput, rect::Rect, buf::Buffer)
         base_bg = to_rgb(cur_style.bg)
         br = breathe(input.tick; period=70)
         cur_bg = brighten(base_bg, br * 0.25)
-        cur_style = Style(fg=cur_style.fg, bg=cur_bg)
+        cur_style = Style(; fg=cur_style.fg, bg=cur_bg)
     end
 
     # Horizontal scroll to keep the cursor visible. All measurements are in
@@ -200,8 +212,7 @@ function render(input::TextInput, rect::Rect, buf::Buffer)
             # Width-1 char, or a wide glyph clipped by a scroll/area boundary:
             # draw a blank so the half-glyph doesn't corrupt the row.
             draw_x = max(cx_pos, text_start)
-            draw_x <= right(rect) &&
-                set_char!(buf, draw_x, y, w == 2 ? ' ' : ch, style)
+            draw_x <= right(rect) && set_char!(buf, draw_x, y, w == 2 ? ' ' : ch, style)
         end
     end
 
@@ -216,7 +227,6 @@ function render(input::TextInput, rect::Rect, buf::Buffer)
     # Render validation error below if there's room
     if !isempty(input.error_msg) && rect.height > 1
         err_y = rect.y + 1
-        set_string!(buf, rect.x, err_y, input.error_msg, input.error_style;
-                    max_x=right(rect))
+        set_string!(buf, rect.x, err_y, input.error_msg, input.error_style; max_x=right(rect))
     end
 end

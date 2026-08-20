@@ -20,10 +20,11 @@ is_cancelled(t::CancelToken) = t.cancelled[]
 mutable struct TaskQueue
     channel::Channel{Event}
     active::Threads.Atomic{Int}
-    on_ready::Union{Function, Nothing}
+    on_ready::Union{Function,Nothing}
 end
-TaskQueue(; capacity::Int=256, on_ready::Union{Function, Nothing}=nothing) =
-    TaskQueue(Channel{Event}(capacity), Threads.Atomic{Int}(0), on_ready)
+function TaskQueue(; capacity::Int=256, on_ready::Union{Function,Nothing}=nothing)
+    return TaskQueue(Channel{Event}(capacity), Threads.Atomic{Int}(0), on_ready)
+end
 
 # ── spawn_task! ──────────────────────────────────────────────────────
 
@@ -45,8 +46,7 @@ end
 
 # ── spawn_timer! ─────────────────────────────────────────────────────
 
-function spawn_timer!(queue::TaskQueue, id::Symbol, interval_s::Float64;
-                      repeat::Bool=false)
+function spawn_timer!(queue::TaskQueue, id::Symbol, interval_s::Float64; repeat::Bool=false)
     token = CancelToken()
     Threads.atomic_add!(queue.active, 1)
     Threads.@spawn begin
@@ -62,7 +62,7 @@ function spawn_timer!(queue::TaskQueue, id::Symbol, interval_s::Float64;
             Threads.atomic_sub!(queue.active, 1)
         end
     end
-    token
+    return token
 end
 
 # ── drain_tasks! ─────────────────────────────────────────────────────
@@ -74,5 +74,5 @@ function drain_tasks!(callback::Function, queue::TaskQueue)
         callback(evt)
         count += 1
     end
-    count
+    return count
 end

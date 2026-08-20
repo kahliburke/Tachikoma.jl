@@ -1,8 +1,11 @@
 @testset "TabBar styles" begin
-
     @testset "BracketTabs rendering" begin
-        tabs = TabBar(["Alpha", "Beta", "Gamma"]; active=2, focused=true,
-                      tab_style=TabBarStyle(decoration=BracketTabs()))
+        tabs = TabBar(
+            ["Alpha", "Beta", "Gamma"];
+            active=2,
+            focused=true,
+            tab_style=TabBarStyle(decoration=BracketTabs()),
+        )
         tb = T.TestBackend(40, 1)
         render(tabs, T.Rect(1, 1, 40, 1), tb.buf)
         row = T.row_text(tb, 1)
@@ -13,8 +16,9 @@
     end
 
     @testset "PlainTabs rendering" begin
-        tabs = TabBar(["Foo", "Bar", "Baz"]; active=1,
-                      tab_style=TabBarStyle(decoration=PlainTabs()))
+        tabs = TabBar(
+            ["Foo", "Bar", "Baz"]; active=1, tab_style=TabBarStyle(decoration=PlainTabs())
+        )
         tb = T.TestBackend(30, 1)
         render(tabs, T.Rect(1, 1, 30, 1), tb.buf)
         row = T.row_text(tb, 1)
@@ -25,8 +29,11 @@
     end
 
     @testset "PlainTabs custom separator" begin
-        tabs = TabBar(["A", "B", "C"]; active=2,
-                      tab_style=TabBarStyle(decoration=PlainTabs(), separator=" · "))
+        tabs = TabBar(
+            ["A", "B", "C"];
+            active=2,
+            tab_style=TabBarStyle(decoration=PlainTabs(), separator=" · "),
+        )
         tb = T.TestBackend(20, 1)
         render(tabs, T.Rect(1, 1, 20, 1), tb.buf)
         row = T.row_text(tb, 1)
@@ -34,8 +41,9 @@
     end
 
     @testset "BoxTabs rendering" begin
-        tabs = TabBar(["Tab1", "Tab2", "Tab3"]; active=1,
-                      tab_style=TabBarStyle(decoration=BoxTabs()))
+        tabs = TabBar(
+            ["Tab1", "Tab2", "Tab3"]; active=1, tab_style=TabBarStyle(decoration=BoxTabs())
+        )
         tb = T.TestBackend(40, 3)
         render(tabs, T.Rect(1, 1, 40, 3), tb.buf)
         row1 = T.row_text(tb, 1)
@@ -51,8 +59,7 @@
     end
 
     @testset "BoxTabs active tab open bottom" begin
-        tabs = TabBar(["A", "B"]; active=1,
-                      tab_style=TabBarStyle(decoration=BoxTabs()))
+        tabs = TabBar(["A", "B"]; active=1, tab_style=TabBarStyle(decoration=BoxTabs()))
         tb = T.TestBackend(20, 3)
         render(tabs, T.Rect(1, 1, 20, 3), tb.buf)
         row2 = T.row_text(tb, 2)
@@ -65,8 +72,7 @@
     end
 
     @testset "BoxTabs inactive tab closed bottom" begin
-        tabs = TabBar(["A", "B"]; active=1,
-                      tab_style=TabBarStyle(decoration=BoxTabs()))
+        tabs = TabBar(["A", "B"]; active=1, tab_style=TabBarStyle(decoration=BoxTabs()))
         tb = T.TestBackend(20, 3)
         render(tabs, T.Rect(1, 1, 20, 3), tb.buf)
         row2 = T.row_text(tb, 2)
@@ -79,8 +85,9 @@
     end
 
     @testset "BoxTabs heavy border" begin
-        tabs = TabBar(["X", "Y"]; active=1,
-                      tab_style=TabBarStyle(decoration=BoxTabs(box=BOX_HEAVY)))
+        tabs = TabBar(
+            ["X", "Y"]; active=1, tab_style=TabBarStyle(decoration=BoxTabs(box=BOX_HEAVY))
+        )
         tb = T.TestBackend(20, 3)
         render(tabs, T.Rect(1, 1, 20, 3), tb.buf)
         row1 = T.row_text(tb, 1)
@@ -91,8 +98,9 @@
     end
 
     @testset "BoxTabs double border" begin
-        tabs = TabBar(["X", "Y"]; active=2,
-                      tab_style=TabBarStyle(decoration=BoxTabs(box=BOX_DOUBLE)))
+        tabs = TabBar(
+            ["X", "Y"]; active=2, tab_style=TabBarStyle(decoration=BoxTabs(box=BOX_DOUBLE))
+        )
         tb = T.TestBackend(20, 3)
         render(tabs, T.Rect(1, 1, 20, 3), tb.buf)
         row1 = T.row_text(tb, 1)
@@ -101,8 +109,7 @@
     end
 
     @testset "BoxTabs falls back when height < 3" begin
-        tabs = TabBar(["A", "B"]; active=1,
-                      tab_style=TabBarStyle(decoration=BoxTabs()))
+        tabs = TabBar(["A", "B"]; active=1, tab_style=TabBarStyle(decoration=BoxTabs()))
         tb = T.TestBackend(20, 1)
         render(tabs, T.Rect(1, 1, 20, 1), tb.buf)
         row = T.row_text(tb, 1)
@@ -121,8 +128,7 @@
 
     @testset "Overflow BoxTabs" begin
         labels = ["Tab$i" for i in 1:20]
-        tabs = TabBar(labels; active=10,
-                      tab_style=TabBarStyle(decoration=BoxTabs()))
+        tabs = TabBar(labels; active=10, tab_style=TabBarStyle(decoration=BoxTabs()))
         tb = T.TestBackend(30, 3)
         render(tabs, T.Rect(1, 1, 30, 3), tb.buf)
         row2 = T.row_text(tb, 2)
@@ -132,8 +138,7 @@
 
     @testset "Overflow PlainTabs" begin
         labels = ["Tab$i" for i in 1:20]
-        tabs = TabBar(labels; active=10,
-                      tab_style=TabBarStyle(decoration=PlainTabs()))
+        tabs = TabBar(labels; active=10, tab_style=TabBarStyle(decoration=PlainTabs()))
         tb = T.TestBackend(30, 1)
         render(tabs, T.Rect(1, 1, 30, 1), tb.buf)
         row = T.row_text(tb, 1)
@@ -143,8 +148,9 @@
 
     @testset "handle_key! across styles" begin
         for dec in (BracketTabs(), BoxTabs(), PlainTabs())
-            tabs = TabBar(["A", "B", "C"]; active=1, focused=true,
-                          tab_style=TabBarStyle(decoration=dec))
+            tabs = TabBar(
+                ["A", "B", "C"]; active=1, focused=true, tab_style=TabBarStyle(decoration=dec)
+            )
             @test handle_key!(tabs, T.KeyEvent(:right, Char(0)))
             @test value(tabs) == 2
             @test handle_key!(tabs, T.KeyEvent(:left, Char(0)))
@@ -185,8 +191,7 @@
     end
 
     @testset "handle_mouse! BoxTabs" begin
-        tabs = TabBar(["AA", "BB"]; active=1,
-                      tab_style=TabBarStyle(decoration=BoxTabs()))
+        tabs = TabBar(["AA", "BB"]; active=1, tab_style=TabBarStyle(decoration=BoxTabs()))
         tb = T.TestBackend(20, 3)
         render(tabs, T.Rect(1, 1, 20, 3), tb.buf)
         row2 = T.row_text(tb, 2)
@@ -240,8 +245,7 @@
             [Span("Tab", tstyle(:primary)), Span("1", tstyle(:accent))],
             [Span("Tab", tstyle(:primary)), Span("2", tstyle(:accent))],
         ])
-        tabs = TabBar(labels; active=1,
-                      tab_style=TabBarStyle(decoration=BoxTabs()))
+        tabs = TabBar(labels; active=1, tab_style=TabBarStyle(decoration=BoxTabs()))
         tb = T.TestBackend(30, 3)
         render(tabs, T.Rect(1, 1, 30, 3), tb.buf)
         row2 = T.row_text(tb, 2)
@@ -250,15 +254,18 @@
     end
 
     @testset "explicit TabBarStyle" begin
-        tabs = TabBar(["A", "B"]; tab_style=TabBarStyle(inactive=tstyle(:text), active=tstyle(:primary)))
+        tabs = TabBar(
+            ["A", "B"]; tab_style=TabBarStyle(inactive=tstyle(:text), active=tstyle(:primary))
+        )
         @test value(tabs) == 1
         @test tabs.tab_style.active == tstyle(:primary)
         @test tabs.tab_style.inactive == tstyle(:text)
     end
 
     @testset "switch active and re-render BoxTabs" begin
-        tabs = TabBar(["A", "B", "C"]; active=1, focused=true,
-                      tab_style=TabBarStyle(decoration=BoxTabs()))
+        tabs = TabBar(
+            ["A", "B", "C"]; active=1, focused=true, tab_style=TabBarStyle(decoration=BoxTabs())
+        )
         tb = T.TestBackend(30, 3)
 
         # Render with tab 1 active

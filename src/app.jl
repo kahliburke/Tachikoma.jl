@@ -27,11 +27,22 @@ import Tachikoma: view, update!, should_quit, init!, cleanup!,
 ```
 """
 macro tachikoma_app()
-    esc(quote
-        import Tachikoma: view, update!, should_quit, init!, cleanup!,
-                          handle_all_key_actions, copy_rect, task_queue,
-                          recording_enabled, has_pending_output, set_wake!
-    end)
+    return esc(
+        quote
+            import Tachikoma:
+                view,
+                update!,
+                should_quit,
+                init!,
+                cleanup!,
+                handle_all_key_actions,
+                copy_rect,
+                task_queue,
+                recording_enabled,
+                has_pending_output,
+                set_wake!
+        end,
+    )
 end
 
 """
@@ -52,7 +63,6 @@ cleanup!(::Model) = nothing
 should_quit(::Model) = false
 pre_render!(::Model) = nothing
 post_render!(::Model) = nothing
-
 
 """
     handle_all_key_actions(model::Model) → Bool
@@ -140,10 +150,27 @@ mutable struct AppOverlay
     pending_export::Bool             # deferred _do_exports!
     restart::Bool                    # set by Settings → Reload App
 end
-AppOverlay() = AppOverlay(false, 1, false, false, 1, "", 0,
-                          false, [false, false],
-                          [true, true], 1, 1, 1,
-                          true, false, false, false)
+function AppOverlay()
+    return AppOverlay(
+        false,
+        1,
+        false,
+        false,
+        1,
+        "",
+        0,
+        false,
+        [false, false],
+        [true, true],
+        1,
+        1,
+        1,
+        true,
+        false,
+        false,
+        false,
+    )
+end
 
 """
     clipboard_copy!(text::String)
@@ -154,25 +181,25 @@ function clipboard_copy!(text::String)
     try
         if Sys.isapple()
             open(pipeline(`pbcopy`), "w") do io
-                write(io, text)
+                return write(io, text)
             end
         elseif Sys.islinux()
             open(pipeline(`xclip -selection clipboard`), "w") do io
-                write(io, text)
+                return write(io, text)
             end
         end
     catch
         # Silently ignore clipboard errors (e.g., xclip not installed)
     end
-    nothing
+    return nothing
 end
 
 function _sync_theme_overlay_idx!(overlay::AppOverlay)
     overlay.theme_idx = 1
     for (i, th) in enumerate(active_themes())
-        th === THEME[] && (overlay.theme_idx = i; break)
+        th === THEME[] && (overlay.theme_idx=i; break)
     end
-    nothing
+    return nothing
 end
 
 function handle_default_binding!(t::Terminal, overlay::AppOverlay, model::Model, evt::KeyEvent)
@@ -281,7 +308,7 @@ function handle_default_binding!(t::Terminal, overlay::AppOverlay, model::Model,
 end
 
 function overlay_active(overlay::AppOverlay)
-    overlay.show_theme || overlay.show_help || overlay.show_settings || overlay.show_export
+    return overlay.show_theme || overlay.show_help || overlay.show_settings || overlay.show_export
 end
 
 function render_overlay!(overlay::AppOverlay, f::Frame)
@@ -291,7 +318,7 @@ function render_overlay!(overlay::AppOverlay, f::Frame)
     overlay.show_export && return render_export_overlay!(overlay, f)
     # Transient notification (rendered on top of normal view)
     overlay.notify_ttl > 0 && render_notification!(overlay, f)
-    nothing
+    return nothing
 end
 
 function render_notification!(overlay::AppOverlay, f::Frame)
@@ -319,7 +346,7 @@ function render_notification!(overlay::AppOverlay, f::Frame)
     # Draw background bar
     for cx in bx:(bx + tw - 1)
         cx > right(area) && break
-        set_char!(buf, cx, by, ' ', Style(bg=bg_color))
+        set_char!(buf, cx, by, ' ', Style(; bg=bg_color))
     end
 
     # Draw text centered in bar
@@ -327,13 +354,15 @@ function render_notification!(overlay::AppOverlay, f::Frame)
     if fade < 1.0
         # Dim during fade-out
         fg_color = dim_color(to_rgb(bg_color), 1.0 - fade)
-        set_string!(buf, tx, by, text, Style(fg=fg_color, bg=bg_color, bold=true);
-                    max_x=right(area))
+        set_string!(
+            buf, tx, by, text, Style(; fg=fg_color, bg=bg_color, bold=true); max_x=right(area)
+        )
     else
-        set_string!(buf, tx, by, text, Style(fg=fg_color, bg=bg_color, bold=true);
-                    max_x=right(area))
+        set_string!(
+            buf, tx, by, text, Style(; fg=fg_color, bg=bg_color, bold=true); max_x=right(area)
+        )
     end
-    nothing
+    return nothing
 end
 
 function render_theme_overlay!(overlay::AppOverlay, f::Frame)
@@ -349,14 +378,14 @@ function render_theme_overlay!(overlay::AppOverlay, f::Frame)
 
     # Dim background
     for row in area.y:bottom(area), col in area.x:right(area)
-        set_char!(buf, col, row, ' ', Style(fg=Color256(238)))
+        set_char!(buf, col, row, ' ', Style(; fg=Color256(238)))
     end
 
     # Draw border
-    block = Block(
+    block = Block(;
         title="Theme",
-        border_style=tstyle(:accent, bold=true),
-        title_style=tstyle(:accent, bold=true),
+        border_style=tstyle(:accent; bold=true),
+        title_style=tstyle(:accent; bold=true),
         box=BOX_HEAVY,
     )
     content = render(block, modal_rect, buf)
@@ -364,11 +393,11 @@ function render_theme_overlay!(overlay::AppOverlay, f::Frame)
 
     # Mode indicator row
     mode_y = content.y
-    set_string!(buf, content.x, mode_y, "  $mode_label",
-                Style(fg=theme().accent, bold=true); max_x=rx)
+    set_string!(
+        buf, content.x, mode_y, "  $mode_label", Style(; fg=theme().accent, bold=true); max_x=rx
+    )
     tab_hint = "[Tab] switch"
-    set_string!(buf, rx - length(tab_hint) + 1, mode_y, tab_hint,
-                tstyle(:text_dim); max_x=rx)
+    set_string!(buf, rx - length(tab_hint) + 1, mode_y, tab_hint, tstyle(:text_dim); max_x=rx)
 
     # Separator
     sep_y = content.y + 1
@@ -385,23 +414,27 @@ function render_theme_overlay!(overlay::AppOverlay, f::Frame)
                 set_char!(buf, cx, y, ' ', tstyle(:accent))
             end
             label = string(MARKER, ' ', th.name)
-            set_string!(buf, content.x, y, label,
-                        Style(fg=Color256(0), bg=theme().accent, bold=true);
-                        max_x=rx)
+            set_string!(
+                buf,
+                content.x,
+                y,
+                label,
+                Style(; fg=Color256(0), bg=theme().accent, bold=true);
+                max_x=rx,
+            )
         else
-            set_string!(buf, content.x + 2, y, th.name, tstyle(:text);
-                        max_x=rx)
+            set_string!(buf, content.x + 2, y, th.name, tstyle(:text); max_x=rx)
         end
     end
 
     # Footer hint
     hint_y = bottom(content)
     if hint_y > sep_y + n
-        set_string!(buf, content.x, hint_y,
-                    "[↑↓] [Enter]save [Esc]close",
-                    tstyle(:text_dim); max_x=rx)
+        set_string!(
+            buf, content.x, hint_y, "[↑↓] [Enter]save [Esc]close", tstyle(:text_dim); max_x=rx
+        )
     end
-    nothing
+    return nothing
 end
 
 const HELP_LINES = [
@@ -426,13 +459,13 @@ function render_help_overlay!(f::Frame)
 
     # Dim background
     for row in area.y:bottom(area), col in area.x:right(area)
-        set_char!(buf, col, row, ' ', Style(fg=Color256(238)))
+        set_char!(buf, col, row, ' ', Style(; fg=Color256(238)))
     end
 
-    block = Block(
+    block = Block(;
         title="Help",
-        border_style=tstyle(:accent, bold=true),
-        title_style=tstyle(:accent, bold=true),
+        border_style=tstyle(:accent; bold=true),
+        title_style=tstyle(:accent; bold=true),
         box=BOX_HEAVY,
     )
     content = render(block, modal_rect, buf)
@@ -446,11 +479,9 @@ function render_help_overlay!(f::Frame)
 
     hint_y = bottom(content)
     if hint_y > content.y + n
-        set_string!(buf, content.x, hint_y,
-                    "[Esc]close",
-                    tstyle(:text_dim); max_x=rx)
+        set_string!(buf, content.x, hint_y, "[Esc]close", tstyle(:text_dim); max_x=rx)
     end
-    nothing
+    return nothing
 end
 
 # ── Settings overlay ──────────────────────────────────────────────────
@@ -523,7 +554,13 @@ end
 function _settings_value_str(idx::Int)
     if idx == 1
         rb = RENDER_BACKEND[]
-        rb == sixel_backend ? "sixel" : rb == block_backend ? "block" : "braille"
+        if rb == sixel_backend
+            "sixel"
+        elseif rb == block_backend
+            "block"
+        else
+            "braille"
+        end
     elseif idx == 2
         _pct_bar(WINDOW_OPACITY[])
     elseif idx == 3
@@ -550,8 +587,9 @@ end
 function _pct_bar(v::Float64)
     filled = round(Int, v * 10)
     empty = 10 - filled
-    string(repeat('█', filled), repeat('░', empty), ' ',
-           lpad(string(round(Int, v * 100)), 3), '%')
+    return string(
+        repeat('█', filled), repeat('░', empty), ' ', lpad(string(round(Int, v * 100)), 3), '%'
+    )
 end
 
 function render_settings_overlay!(overlay::AppOverlay, f::Frame)
@@ -565,13 +603,13 @@ function render_settings_overlay!(overlay::AppOverlay, f::Frame)
 
     # Dim background
     for row in area.y:bottom(area), col in area.x:right(area)
-        set_char!(buf, col, row, ' ', Style(fg=Color256(238)))
+        set_char!(buf, col, row, ' ', Style(; fg=Color256(238)))
     end
 
-    block = Block(
+    block = Block(;
         title="Settings",
-        border_style=tstyle(:accent, bold=true),
-        title_style=tstyle(:accent, bold=true),
+        border_style=tstyle(:accent; bold=true),
+        title_style=tstyle(:accent; bold=true),
         box=BOX_HEAVY,
     )
     content = render(block, modal_rect, buf)
@@ -586,30 +624,39 @@ function render_settings_overlay!(overlay::AppOverlay, f::Frame)
                 set_char!(buf, cx, y, ' ', tstyle(:accent))
             end
             line = string(MARKER, ' ', rpad(label, 18), val_str)
-            set_string!(buf, content.x, y, line,
-                        Style(fg=Color256(0), bg=theme().accent, bold=true);
-                        max_x=rx)
+            set_string!(
+                buf,
+                content.x,
+                y,
+                line,
+                Style(; fg=Color256(0), bg=theme().accent, bold=true);
+                max_x=rx,
+            )
         else
             line = string("  ", rpad(label, 18), val_str)
-            set_string!(buf, content.x, y, line, tstyle(:text);
-                        max_x=rx)
+            set_string!(buf, content.x, y, line, tstyle(:text); max_x=rx)
         end
     end
 
     # Footer hint
     hint_y = bottom(content)
     if hint_y > content.y + n
-        set_string!(buf, content.x, hint_y,
-                    "[↑↓]nav [←→]adjust [Enter]save [Esc]close",
-                    tstyle(:text_dim); max_x=rx)
+        set_string!(
+            buf,
+            content.x,
+            hint_y,
+            "[↑↓]nav [←→]adjust [Enter]save [Esc]close",
+            tstyle(:text_dim);
+            max_x=rx,
+        )
     end
-    nothing
+    return nothing
 end
 
 # ── Export recording overlay ──────────────────────────────────────────
 
 const EXPORT_FORMATS = [".gif", ".svg"]
-const EXPORT_LABELS  = ["animated GIF", "animated SVG"]
+const EXPORT_LABELS = ["animated GIF", "animated SVG"]
 
 function render_export_overlay!(overlay::AppOverlay, f::Frame)
     buf = f.buffer
@@ -622,21 +669,20 @@ function render_export_overlay!(overlay::AppOverlay, f::Frame)
 
     # Dim background
     for row in area.y:bottom(area), col in area.x:right(area)
-        set_char!(buf, col, row, ' ', Style(fg=Color256(238)))
+        set_char!(buf, col, row, ' ', Style(; fg=Color256(238)))
     end
 
-    block = Block(
+    block = Block(;
         title="Export Recording",
-        border_style=tstyle(:accent, bold=true),
-        title_style=tstyle(:accent, bold=true),
+        border_style=tstyle(:accent; bold=true),
+        title_style=tstyle(:accent; bold=true),
         box=BOX_HEAVY,
     )
     content = render(block, modal_rect, buf)
     rx = right(content)
 
     # Show .tach saved notice
-    set_string!(buf, content.x + 1, content.y, ".tach saved",
-                tstyle(:success, bold=true); max_x=rx)
+    set_string!(buf, content.x + 1, content.y, ".tach saved", tstyle(:success; bold=true); max_x=rx)
 
     # Format toggles
     for (i, fmt) in enumerate(EXPORT_FORMATS)
@@ -651,15 +697,18 @@ function render_export_overlay!(overlay::AppOverlay, f::Frame)
             for cx in content.x:rx
                 set_char!(buf, cx, y, ' ', tstyle(:accent))
             end
-            set_string!(buf, content.x + 1, y, label,
-                        Style(fg=Color256(0), bg=theme().accent, bold=true);
-                        max_x=rx)
+            set_string!(
+                buf,
+                content.x + 1,
+                y,
+                label,
+                Style(; fg=Color256(0), bg=theme().accent, bold=true);
+                max_x=rx,
+            )
         elseif !avail
-            set_string!(buf, content.x + 1, y, label, tstyle(:text_dim);
-                        max_x=rx)
+            set_string!(buf, content.x + 1, y, label, tstyle(:text_dim); max_x=rx)
         else
-            set_string!(buf, content.x + 1, y, label, tstyle(:text);
-                        max_x=rx)
+            set_string!(buf, content.x + 1, y, label, tstyle(:text); max_x=rx)
         end
     end
 
@@ -680,12 +729,16 @@ function render_export_overlay!(overlay::AppOverlay, f::Frame)
             for cx in content.x:rx
                 set_char!(buf, cx, font_y, ' ', tstyle(:accent))
             end
-            set_string!(buf, content.x + 1, font_y, label,
-                        Style(fg=Color256(0), bg=theme().accent, bold=true);
-                        max_x=rx)
+            set_string!(
+                buf,
+                content.x + 1,
+                font_y,
+                label,
+                Style(; fg=Color256(0), bg=theme().accent, bold=true);
+                max_x=rx,
+            )
         else
-            set_string!(buf, content.x + 1, font_y, label, tstyle(:text);
-                        max_x=rx)
+            set_string!(buf, content.x + 1, font_y, label, tstyle(:text); max_x=rx)
         end
     end
 
@@ -701,12 +754,16 @@ function render_export_overlay!(overlay::AppOverlay, f::Frame)
             for cx in content.x:rx
                 set_char!(buf, cx, theme_y, ' ', tstyle(:accent))
             end
-            set_string!(buf, content.x + 1, theme_y, label,
-                        Style(fg=Color256(0), bg=theme().accent, bold=true);
-                        max_x=rx)
+            set_string!(
+                buf,
+                content.x + 1,
+                theme_y,
+                label,
+                Style(; fg=Color256(0), bg=theme().accent, bold=true);
+                max_x=rx,
+            )
         else
-            set_string!(buf, content.x + 1, theme_y, label, tstyle(:text);
-                        max_x=rx)
+            set_string!(buf, content.x + 1, theme_y, label, tstyle(:text); max_x=rx)
         end
     end
 
@@ -721,29 +778,33 @@ function render_export_overlay!(overlay::AppOverlay, f::Frame)
             for cx in content.x:rx
                 set_char!(buf, cx, embed_y, ' ', tstyle(:accent))
             end
-            set_string!(buf, content.x + 1, embed_y, label,
-                        Style(fg=Color256(0), bg=theme().accent, bold=true);
-                        max_x=rx)
+            set_string!(
+                buf,
+                content.x + 1,
+                embed_y,
+                label,
+                Style(; fg=Color256(0), bg=theme().accent, bold=true);
+                max_x=rx,
+            )
         else
-            set_string!(buf, content.x + 1, embed_y, label, tstyle(:text);
-                        max_x=rx)
+            set_string!(buf, content.x + 1, embed_y, label, tstyle(:text); max_x=rx)
         end
     end
 
     # Footer hints
     hint_y = content.y + n + 6
     if hint_y <= bottom(content)
-        set_string!(buf, content.x, hint_y,
-                    " [Space]toggle [◀▶]adjust",
-                    tstyle(:text_dim); max_x=rx)
+        set_string!(
+            buf, content.x, hint_y, " [Space]toggle [◀▶]adjust", tstyle(:text_dim); max_x=rx
+        )
     end
     hint_y2 = content.y + n + 7
     if hint_y2 <= bottom(content)
-        set_string!(buf, content.x, hint_y2,
-                    " [Enter]export [Esc]done",
-                    tstyle(:text_dim); max_x=rx)
+        set_string!(
+            buf, content.x, hint_y2, " [Enter]export [Esc]done", tstyle(:text_dim); max_x=rx
+        )
     end
-    nothing
+    return nothing
 end
 
 function _save_export_overlay_prefs!(overlay::AppOverlay)
@@ -757,9 +818,9 @@ function _save_export_overlay_prefs!(overlay::AppOverlay)
     for (i, key) in enumerate(fmt_keys)
         overlay.export_selected[i] && push!(selected_fmts, key)
     end
-    save_export_prefs!(font_path, selected_fmts;
-                       theme_name=theme_name,
-                       embed_font=overlay.export_embed_font)
+    return save_export_prefs!(
+        font_path, selected_fmts; theme_name=theme_name, embed_font=overlay.export_embed_font
+    )
 end
 
 function _handle_export_key!(overlay::AppOverlay, rec::CastRecorder, evt::KeyEvent)
@@ -807,7 +868,10 @@ function _setup_export_modal!(overlay::AppOverlay, rec::CastRecorder)
     overlay.show_export = true
     # Auto-load GIF extension if packages are available
     if !gif_extension_loaded()
-        try enable_gif() catch end
+        try
+            enable_gif()
+        catch
+        end
     end
     # Availability: GIF needs the FreeTypeAbstraction + ColorTypes extension;
     # SVG is pure-core and always available.
@@ -836,7 +900,7 @@ function _setup_export_modal!(overlay::AppOverlay, rec::CastRecorder)
     theme_idx = 1
     for (i, th) in enumerate(ALL_THEMES)
         if (!isempty(saved_theme) && th.name == saved_theme) ||
-           (isempty(saved_theme) && th === THEME[])
+            (isempty(saved_theme) && th === THEME[])
             theme_idx = i
             break
         end
@@ -844,7 +908,7 @@ function _setup_export_modal!(overlay::AppOverlay, rec::CastRecorder)
     overlay.export_theme_idx = theme_idx
     overlay.export_embed_font = EXPORT_EMBED_FONT_PREF[]
     overlay.notify_text = ""
-    overlay.notify_ttl = 0
+    return overlay.notify_ttl = 0
 end
 
 # ── Async export types ────────────────────────────────────────────────
@@ -872,9 +936,14 @@ struct RecordingSnapshot
 end
 
 function snapshot_recording(rec::CastRecorder)
-    RecordingSnapshot(rec.filename, rec.width, rec.height,
-                      copy(rec.cell_snapshots), copy(rec.pixel_snapshots),
-                      copy(rec.timestamps))
+    return RecordingSnapshot(
+        rec.filename,
+        rec.width,
+        rec.height,
+        copy(rec.cell_snapshots),
+        copy(rec.pixel_snapshots),
+        copy(rec.timestamps),
+    )
 end
 
 function _resolve_export_config(overlay::AppOverlay, snap::RecordingSnapshot)
@@ -907,13 +976,22 @@ function _resolve_export_config(overlay::AppOverlay, snap::RecordingSnapshot)
     for (i, key) in enumerate(fmt_keys)
         overlay.export_selected[i] && push!(selected_fmts, key)
     end
-    save_export_prefs!(font_path, selected_fmts;
-                       theme_name=export_theme.name,
-                       embed_font=overlay.export_embed_font)
+    save_export_prefs!(
+        font_path, selected_fmts; theme_name=export_theme.name, embed_font=overlay.export_embed_font
+    )
 
-    ExportConfig(base, overlay.export_selected[1], overlay.export_selected[2],
-                 font_path, font_name, export_theme.name,
-                 svg_fg, text_rgb, ff, svg_font)
+    return ExportConfig(
+        base,
+        overlay.export_selected[1],
+        overlay.export_selected[2],
+        font_path,
+        font_name,
+        export_theme.name,
+        svg_fg,
+        text_rgb,
+        ff,
+        svg_font,
+    )
 end
 
 function _do_exports_bg(config::ExportConfig, snap::RecordingSnapshot)
@@ -926,12 +1004,17 @@ function _do_exports_bg(config::ExportConfig, snap::RecordingSnapshot)
 
     if config.export_gif
         try
-            Base.invokelatest(export_gif_from_snapshots,
-                              config.base * ".gif", snap.width, snap.height,
-                              snap.cell_snapshots, snap.timestamps;
-                              pixel_snapshots=snap.pixel_snapshots,
-                              font_path=config.font_path,
-                              default_fg=config.text_rgb)
+            Base.invokelatest(
+                export_gif_from_snapshots,
+                config.base * ".gif",
+                snap.width,
+                snap.height,
+                snap.cell_snapshots,
+                snap.timestamps;
+                pixel_snapshots=snap.pixel_snapshots,
+                font_path=config.font_path,
+                default_fg=config.text_rgb,
+            )
             push!(exported, ".gif")
         catch e
             @warn "GIF export failed" exception=(e, catch_backtrace())
@@ -941,12 +1024,17 @@ function _do_exports_bg(config::ExportConfig, snap::RecordingSnapshot)
 
     if config.export_svg
         try
-            Base.invokelatest(export_svg,
-                              config.base * ".svg", snap.width, snap.height,
-                              snap.cell_snapshots, snap.timestamps;
-                              font_family=config.svg_font_family,
-                              font_path=config.svg_embed_font_path,
-                              fg_color=config.svg_fg)
+            Base.invokelatest(
+                export_svg,
+                config.base * ".svg",
+                snap.width,
+                snap.height,
+                snap.cell_snapshots,
+                snap.timestamps;
+                font_family=config.svg_font_family,
+                font_path=config.svg_embed_font_path,
+                fg_color=config.svg_fg,
+            )
             push!(exported, ".svg")
         catch e
             @warn "SVG export failed" exception=(e, catch_backtrace())
@@ -958,17 +1046,18 @@ function _do_exports_bg(config::ExportConfig, snap::RecordingSnapshot)
     base_name = basename(config.base)
     msg = "Saved: $base_name ($(join(exported, " ")))"
     isempty(failed) || (msg *= "  — FAILED: $(join(failed, " "))")
-    msg
+    return msg
 end
 
-function dispatch_event!(t::Terminal, overlay::AppOverlay, model::Model,
-                        evt::Event, default_bindings::Bool)
+function dispatch_event!(
+    t::Terminal, overlay::AppOverlay, model::Model, evt::Event, default_bindings::Bool
+)
     # With Kitty keyboard protocol, each key generates press, repeat, and
     # release events.  Press and repeat are forwarded (repeat = held key),
     # but release is dropped by default.  Apps that need release events
     # (e.g. games) can override `handle_all_key_actions(::MyModel) = true`.
     if evt isa KeyEvent && evt.action == key_release
-        handle_all_key_actions(model) || return
+        handle_all_key_actions(model) || return nothing
     end
     if default_bindings && evt isa KeyEvent
         handled = handle_default_binding!(t, overlay, model, evt)
@@ -989,8 +1078,11 @@ waits for that reader in `pty_close!`.
 """
 function _try_put!(ch::Channel{Nothing})
     isready(ch) && return nothing
-    try put!(ch, nothing) catch end
-    nothing
+    try
+        put!(ch, nothing)
+    catch
+    end
+    return nothing
 end
 
 """
@@ -1020,7 +1112,18 @@ receive captured lines (e.g., for an activity log). See [`with_terminal`](@ref).
   terminal gets a handle to call [`set_size!`](@ref) on when its viewport
   changes.
 """
-function app(model::Model; fps=60, default_bindings=true, on_stdout=nothing, on_stderr=nothing, io=nothing, input=nothing, tty_out=nothing, tty_size=nothing, on_terminal=nothing)
+function app(
+    model::Model;
+    fps=60,
+    default_bindings=true,
+    on_stdout=nothing,
+    on_stderr=nothing,
+    io=nothing,
+    input=nothing,
+    tty_out=nothing,
+    tty_size=nothing,
+    on_terminal=nothing,
+)
     # Preserve real stdin for the event loop before any REPL widget
     # redirects Base.stdin to its PTY slave (for interactive prompts).
     # We dup fd 0 to get an independent fd to the real terminal —
@@ -1097,7 +1200,11 @@ function app(model::Model; fps=60, default_bindings=true, on_stdout=nothing, on_
                 io = _input_io()
                 while INPUT_ACTIVE[]
                     if bytesavailable(io) == 0
-                        try wait(io) catch; break end
+                        try
+                            wait(io)
+                        catch
+                            break
+                        end
                     end
                     _try_put!(wake)
                     yield()
@@ -1145,13 +1252,17 @@ function app(model::Model; fps=60, default_bindings=true, on_stdout=nothing, on_
                     elseif tevt isa TaskEvent && tevt.id == :_tach_saved
                         # no-op, .tach write complete
                     else
-                        Base.invokelatest(dispatch_event!, t, overlay, model, tevt, default_bindings)
+                        Base.invokelatest(
+                            dispatch_event!, t, overlay, model, tevt, default_bindings
+                        )
                     end
                 end
                 _user_tq = task_queue(model)
                 if _user_tq !== nothing
                     drain_tasks!(_user_tq) do tevt
-                        Base.invokelatest(dispatch_event!, t, overlay, model, tevt, default_bindings)
+                        return Base.invokelatest(
+                            dispatch_event!, t, overlay, model, tevt, default_bindings
+                        )
                     end
                 end
 
@@ -1191,10 +1302,15 @@ function app(model::Model; fps=60, default_bindings=true, on_stdout=nothing, on_
                     rec = t.recorder
                     _tach_snap = snapshot_recording(rec)
                     spawn_task!(_framework_tasks, :_tach_saved) do
-                        write_tach(_tach_snap.filename, _tach_snap.width, _tach_snap.height,
-                                  _tach_snap.cell_snapshots, _tach_snap.timestamps,
-                                  _tach_snap.pixel_snapshots)
-                        :ok
+                        write_tach(
+                            _tach_snap.filename,
+                            _tach_snap.width,
+                            _tach_snap.height,
+                            _tach_snap.cell_snapshots,
+                            _tach_snap.timestamps,
+                            _tach_snap.pixel_snapshots,
+                        )
+                        return :ok
                     end
                     _setup_export_modal!(overlay, rec)
                 end
@@ -1204,7 +1320,7 @@ function app(model::Model; fps=60, default_bindings=true, on_stdout=nothing, on_
                     _cfg = _resolve_export_config(overlay, _snap)
                     clear_recording!(t.recorder)
                     spawn_task!(_framework_tasks, :_export_done) do
-                        _do_exports_bg(_cfg, _snap)
+                        return _do_exports_bg(_cfg, _snap)
                     end
                     overlay.notify_text = "Exporting..."
                     overlay.notify_ttl = typemax(Int)
@@ -1229,5 +1345,5 @@ function app(model::Model; fps=60, default_bindings=true, on_stdout=nothing, on_
         println(stderr)
         throw(_app_error[])
     end
-    _restarting[] ? :restart : nothing
+    return _restarting[] ? :restart : nothing
 end

@@ -3,7 +3,7 @@
 # ═══════════════════════════════════════════════════════════════════════
 
 function cli_main(args::Vector{String})
-    isempty(args) && (print_usage(); return)
+    isempty(args) && (print_usage(); return nothing)
 
     cmd = args[1]
     rest = args[2:end]
@@ -29,44 +29,44 @@ function cli_main(args::Vector{String})
 end
 
 function print_usage()
-    println("""
-    tachi — Tachikoma recording tool
+    return println("""
+           tachi — Tachikoma recording tool
 
-    Usage:
-      tachi render <file.tach> [options]    Render .tach to GIF/APNG
-      tachi info <file.tach>                Show recording info
-      tachi fonts                           List available monospace fonts
-      tachi -i [file.tach]                  Interactive TUI mode
-      tachi <file.tach> [options]           Shortcut for render
+           Usage:
+             tachi render <file.tach> [options]    Render .tach to GIF/APNG
+             tachi info <file.tach>                Show recording info
+             tachi fonts                           List available monospace fonts
+             tachi -i [file.tach]                  Interactive TUI mode
+             tachi <file.tach> [options]           Shortcut for render
 
-    Render options:
-      -o, --output <path>       Output file (default: <input>.gif)
-      -f, --font <name|path>    Font name or path (use `tachi fonts` to list)
-      --font-size <n>           Font size in pixels (default: 16)
-      --scale <f>               Scale factor (default: 1.0)
-      --start <n>               First frame to render, 1-based (default: 1)
-      --end <n>                 Last frame to render, inclusive (default: last)
-      --skip <n>                Use every Nth frame (default: 1)
-      --compress                Compress dead space before rendering
-      --bg <color>              Background: black, dark (default), white, or r,g,b
-      --format <fmt>            Output format: gif (default), mp4
-      --fps <n>                 Override frame rate
-      --cell-w <n>              Cell width in pixels (default: 10)
-      --cell-h <n>              Cell height in pixels (default: 20)
+           Render options:
+             -o, --output <path>       Output file (default: <input>.gif)
+             -f, --font <name|path>    Font name or path (use `tachi fonts` to list)
+             --font-size <n>           Font size in pixels (default: 16)
+             --scale <f>               Scale factor (default: 1.0)
+             --start <n>               First frame to render, 1-based (default: 1)
+             --end <n>                 Last frame to render, inclusive (default: last)
+             --skip <n>                Use every Nth frame (default: 1)
+             --compress                Compress dead space before rendering
+             --bg <color>              Background: black, dark (default), white, or r,g,b
+             --format <fmt>            Output format: gif (default), mp4
+             --fps <n>                 Override frame rate
+             --cell-w <n>              Cell width in pixels (default: 10)
+             --cell-h <n>              Cell height in pixels (default: 20)
 
-    Examples:
-      tachi render demo.tach -o demo.gif --font "Meslo" --bg black
-      tachi demo.tach --scale 0.7 --skip 2
-      tachi demo.tach --start 20 --end 60
-      tachi info demo.tach
-      tachi fonts
-      tachi -i demo.tach""")
+           Examples:
+             tachi render demo.tach -o demo.gif --font "Meslo" --bg black
+             tachi demo.tach --scale 0.7 --skip 2
+             tachi demo.tach --start 20 --end 60
+             tachi info demo.tach
+             tachi fonts
+             tachi -i demo.tach""")
 end
 
 # ── Argument parser ──────────────────────────────────────────────────
 
 function parse_render_opts(args)
-    opts = Dict{Symbol, Any}(
+    opts = Dict{Symbol,Any}(
         :input => nothing,
         :output => nothing,
         :font => "",
@@ -86,31 +86,43 @@ function parse_render_opts(args)
     while i <= length(args)
         a = args[i]
         if a == "-o" || a == "--output"
-            i += 1; opts[:output] = args[i]
+            i += 1
+            opts[:output] = args[i]
         elseif a == "-f" || a == "--font"
-            i += 1; opts[:font] = args[i]
+            i += 1
+            opts[:font] = args[i]
         elseif a == "--font-size"
-            i += 1; opts[:font_size] = parse(Int, args[i])
+            i += 1
+            opts[:font_size] = parse(Int, args[i])
         elseif a == "--scale"
-            i += 1; opts[:scale] = parse(Float64, args[i])
+            i += 1
+            opts[:scale] = parse(Float64, args[i])
         elseif a == "--start"
-            i += 1; opts[:start] = parse(Int, args[i])
+            i += 1
+            opts[:start] = parse(Int, args[i])
         elseif a == "--end"
-            i += 1; opts[:stop] = parse(Int, args[i])
+            i += 1
+            opts[:stop] = parse(Int, args[i])
         elseif a == "--skip"
-            i += 1; opts[:skip] = parse(Int, args[i])
+            i += 1
+            opts[:skip] = parse(Int, args[i])
         elseif a == "--compress"
             opts[:compress] = true
         elseif a == "--bg"
-            i += 1; opts[:bg] = args[i]
+            i += 1
+            opts[:bg] = args[i]
         elseif a == "--format"
-            i += 1; opts[:format] = lowercase(args[i])
+            i += 1
+            opts[:format] = lowercase(args[i])
         elseif a == "--fps"
-            i += 1; opts[:fps] = parse(Int, args[i])
+            i += 1
+            opts[:fps] = parse(Int, args[i])
         elseif a == "--cell-w"
-            i += 1; opts[:cell_w] = parse(Int, args[i])
+            i += 1
+            opts[:cell_w] = parse(Int, args[i])
         elseif a == "--cell-h"
-            i += 1; opts[:cell_h] = parse(Int, args[i])
+            i += 1
+            opts[:cell_h] = parse(Int, args[i])
         elseif startswith(a, "-")
             printstyled(stderr, "Unknown option: $a\n"; color=:red)
             exit(1)
@@ -122,7 +134,7 @@ function parse_render_opts(args)
         end
         i += 1
     end
-    opts
+    return opts
 end
 
 # ── Font resolution ──────────────────────────────────────────────────
@@ -141,14 +153,14 @@ function resolve_font(font_spec::String)
     end
     printstyled(stderr, "Font not found: $font_spec\n"; color=:red)
     printstyled(stderr, "Use `tachi fonts` to list available fonts.\n"; color=:yellow)
-    exit(1)
+    return exit(1)
 end
 
 # ── Background color parsing ─────────────────────────────────────────
 
 function parse_bg(bg_str::String)
     bg_str == "black" && return CT.RGB{CT.FixedPointNumbers.N0f8}(0.0, 0.0, 0.0)
-    bg_str == "dark"  && return CT.RGB{CT.FixedPointNumbers.N0f8}(0.067, 0.075, 0.118)
+    bg_str == "dark" && return CT.RGB{CT.FixedPointNumbers.N0f8}(0.067, 0.075, 0.118)
     bg_str == "white" && return CT.RGB{CT.FixedPointNumbers.N0f8}(1.0, 1.0, 1.0)
     parts = split(bg_str, ',')
     if length(parts) == 3
@@ -156,7 +168,7 @@ function parse_bg(bg_str::String)
         return CT.RGB{CT.FixedPointNumbers.N0f8}(r/255, g/255, b/255)
     end
     printstyled(stderr, "Invalid --bg: $bg_str (use: black, dark, white, or r,g,b)\n"; color=:red)
-    exit(1)
+    return exit(1)
 end
 
 # ── Commands ─────────────────────────────────────────────────────────
@@ -193,7 +205,7 @@ function cmd_fonts()
     fonts = Tachikoma.discover_mono_fonts()
     if isempty(fonts)
         println("No monospace fonts found.")
-        return
+        return nothing
     end
     # Column widths
     max_name = maximum(length(f.name) for f in fonts)
@@ -202,7 +214,7 @@ function cmd_fonts()
         printstyled(rpad(f.name, max_name + 2); color=:cyan)
         printstyled(f.path, "\n"; color=:light_black)
     end
-    println("\n$(length(fonts)) fonts found")
+    return println("\n$(length(fonts)) fonts found")
 end
 
 function cmd_render(args)
@@ -211,7 +223,7 @@ function cmd_render(args)
         printstyled(stderr, "Usage: tachi render <file.tach> [options]\n"; color=:yellow)
         exit(1)
     end
-    render_tach(opts)
+    return render_tach(opts)
 end
 
 function cmd_interactive(args)

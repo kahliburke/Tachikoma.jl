@@ -22,48 +22,58 @@ function default_gif_fallback_fonts()
     paths = String[]
     if Sys.isapple()
         sys = "/System/Library/Fonts"
-        cands = [joinpath(sys, "Apple Symbols.ttf"),     # braille, math, misc symbols
-                 joinpath(sys, "AquaKana.ttc"),          # half- & full-width kana + kanji
-                 joinpath(sys, "Hiragino Sans GB.ttc"),  # broad CJK ideographs
-                 joinpath(sys, "Apple Color Emoji.ttc")] # emoji (best-effort; see notes)
-        for p in cands; (!isempty(p) && isfile(p)) && push!(paths, p); end
+        cands = [
+            joinpath(sys, "Apple Symbols.ttf"),     # braille, math, misc symbols
+            joinpath(sys, "AquaKana.ttc"),          # half- & full-width kana + kanji
+            joinpath(sys, "Hiragino Sans GB.ttc"),  # broad CJK ideographs
+            joinpath(sys, "Apple Color Emoji.ttc"),
+        ] # emoji (best-effort; see notes)
+        for p in cands
+            (!isempty(p) && isfile(p)) && push!(paths, p)
+        end
     elseif Sys.islinux()
-        cands = ["/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
-                 "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
-                 "/usr/share/fonts/noto/NotoSansCJK-Regular.ttc",
-                 "/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf",
-                 "/usr/share/fonts/noto/NotoColorEmoji.ttf"]
-        for p in cands; isfile(p) && push!(paths, p); end
+        cands = [
+            "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+            "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
+            "/usr/share/fonts/noto/NotoSansCJK-Regular.ttc",
+            "/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf",
+            "/usr/share/fonts/noto/NotoColorEmoji.ttf",
+        ]
+        for p in cands
+            isfile(p) && push!(paths, p)
+        end
     elseif Sys.iswindows()
         win = joinpath(get(ENV, "WINDIR", "C:\\Windows"), "Fonts")
-        for p in [joinpath(win, "msgothic.ttc"),    # CJK
-                  joinpath(win, "seguiemj.ttf"),     # emoji
-                  joinpath(win, "seguisym.ttf")]     # symbols
+        for p in [
+            joinpath(win, "msgothic.ttc"),    # CJK
+            joinpath(win, "seguiemj.ttf"),     # emoji
+            joinpath(win, "seguisym.ttf"),
+        ]     # symbols
             isfile(p) && push!(paths, p)
         end
     end
-    paths
+    return paths
 end
 
 # Ref hooks — set by TachikomaGifExt.__init__()
-const _gif_export_fn  = Ref{Union{Function, Nothing}}(nothing)
-const _apng_export_fn = Ref{Union{Function, Nothing}}(nothing)
+const _gif_export_fn = Ref{Union{Function,Nothing}}(nothing)
+const _apng_export_fn = Ref{Union{Function,Nothing}}(nothing)
 
 function gif_extension_loaded()
-    _gif_export_fn[] !== nothing
+    return _gif_export_fn[] !== nothing
 end
 
 # ── Extension convenience loaders ─────────────────────────────────
 
 const _FREETYPEABSTRACTION_UUID = Base.UUID("663a7486-cb36-511b-a19d-713bb74d65c9")
-const _COLORTYPES_UUID          = Base.UUID("3da002f7-5984-5a60-b8a6-cbb66c0b333f")
-const _TABLES_UUID              = Base.UUID("bd369af6-aec1-5ad0-b16a-f7cc5008161c")
+const _COLORTYPES_UUID = Base.UUID("3da002f7-5984-5a60-b8a6-cbb66c0b333f")
+const _TABLES_UUID = Base.UUID("bd369af6-aec1-5ad0-b16a-f7cc5008161c")
 
-_pkg_available(name::String, uuid::Base.UUID) =
-    Base.locate_package(Base.PkgId(uuid, name)) !== nothing
+function _pkg_available(name::String, uuid::Base.UUID)
+    return Base.locate_package(Base.PkgId(uuid, name)) !== nothing
+end
 
-_pkg_loaded(name::String, uuid::Base.UUID) =
-    haskey(Base.loaded_modules, Base.PkgId(uuid, name))
+_pkg_loaded(name::String, uuid::Base.UUID) = haskey(Base.loaded_modules, Base.PkgId(uuid, name))
 
 """
     enable_gif()
@@ -76,21 +86,25 @@ if the packages are missing.
 function enable_gif()
     gif_extension_loaded() && return nothing
     missing_pkgs = String[]
-    _pkg_available("FreeTypeAbstraction", _FREETYPEABSTRACTION_UUID) || push!(missing_pkgs, "FreeTypeAbstraction")
+    _pkg_available("FreeTypeAbstraction", _FREETYPEABSTRACTION_UUID) ||
+        push!(missing_pkgs, "FreeTypeAbstraction")
     _pkg_available("ColorTypes", _COLORTYPES_UUID) || push!(missing_pkgs, "ColorTypes")
     if !isempty(missing_pkgs)
         add_cmd = join(["\"$p\"" for p in missing_pkgs], ", ")
-        error("GIF export requires $(join(missing_pkgs, ", ")).\n  Install with: using Pkg; Pkg.add([$add_cmd])")
+        error(
+            "GIF export requires $(join(missing_pkgs, ", ")).\n  Install with: using Pkg; Pkg.add([$add_cmd])",
+        )
     end
     Base.require(Main, :FreeTypeAbstraction)
     Base.require(Main, :ColorTypes)
-    gif_extension_loaded() || @warn "TachikomaGifExt did not activate — possible version incompatibility."
-    nothing
+    gif_extension_loaded() ||
+        @warn "TachikomaGifExt did not activate — possible version incompatibility."
+    return nothing
 end
 
 # Ref hooks — set by TachikomaTablesExt.__init__()
-const _datatable_from_table = Ref{Union{Function, Nothing}}(nothing)
-const _paged_provider_from_table = Ref{Union{Function, Nothing}}(nothing)
+const _datatable_from_table = Ref{Union{Function,Nothing}}(nothing)
+const _paged_provider_from_table = Ref{Union{Function,Nothing}}(nothing)
 
 """
     tables_extension_loaded() → Bool
@@ -99,7 +113,7 @@ Return `true` if the Tables.jl extension has been loaded (i.e. `DataTable`
 accepts a Tables.jl-compatible source).
 """
 function tables_extension_loaded()
-    _datatable_from_table[] !== nothing
+    return _datatable_from_table[] !== nothing
 end
 
 """
@@ -112,14 +126,17 @@ activates. Errors with an install hint if the package is missing.
 function enable_tables()
     tables_extension_loaded() && return nothing
     if !_pkg_available("Tables", _TABLES_UUID)
-        error("Tables integration requires Tables.jl.\n  Install with: using Pkg; Pkg.add(\"Tables\")")
+        error(
+            "Tables integration requires Tables.jl.\n  Install with: using Pkg; Pkg.add(\"Tables\")"
+        )
     end
     Base.require(Main, :Tables)
-    tables_extension_loaded() || @warn "TachikomaTablesExt did not activate — possible version incompatibility."
-    nothing
+    tables_extension_loaded() ||
+        @warn "TachikomaTablesExt did not activate — possible version incompatibility."
+    return nothing
 end
 
-const _SQLITE_UUID      = Base.UUID("0aa819cd-b072-5ff4-a722-6bc24af294d9")
+const _SQLITE_UUID = Base.UUID("0aa819cd-b072-5ff4-a722-6bc24af294d9")
 const _DBINTERFACE_UUID = Base.UUID("a10d1c49-ce27-4219-8d33-6db1a4562965")
 
 """
@@ -129,7 +146,7 @@ Return `true` if the SQLite extension has been loaded (i.e. `SQLitePagedProvider
 is available).
 """
 function sqlite_extension_loaded()
-    Paged._create_sqlite_provider[] !== nothing
+    return Paged._create_sqlite_provider[] !== nothing
 end
 
 """
@@ -146,10 +163,13 @@ function enable_sqlite()
     _pkg_available("DBInterface", _DBINTERFACE_UUID) || push!(missing_pkgs, "DBInterface")
     if !isempty(missing_pkgs)
         add_cmd = join(["\"$p\"" for p in missing_pkgs], ", ")
-        error("SQLite provider requires $(join(missing_pkgs, ", ")).\n  Install with: using Pkg; Pkg.add([$add_cmd])")
+        error(
+            "SQLite provider requires $(join(missing_pkgs, ", ")).\n  Install with: using Pkg; Pkg.add([$add_cmd])",
+        )
     end
     Base.require(Main, :SQLite)
     Base.require(Main, :DBInterface)
-    sqlite_extension_loaded() || @warn "TachikomaSQLiteExt did not activate — possible version incompatibility."
-    nothing
+    sqlite_extension_loaded() ||
+        @warn "TachikomaSQLiteExt did not activate — possible version incompatibility."
+    return nothing
 end

@@ -2,7 +2,7 @@
 # Render — load .tach, apply options, export to GIF/APNG
 # ═══════════════════════════════════════════════════════════════════════
 
-function render_tach(opts::Dict{Symbol, Any})
+function render_tach(opts::Dict{Symbol,Any})
     path = opts[:input]
     isfile(path) || (printstyled(stderr, "File not found: $path\n"; color=:red); exit(1))
 
@@ -27,9 +27,11 @@ function render_tach(opts::Dict{Symbol, Any})
         first_f = opts[:start] === nothing ? 1 : opts[:start]
         last_f = opts[:stop] === nothing ? nframes : opts[:stop]
         if first_f < 1 || last_f > nframes || first_f > last_f
-            printstyled(stderr,
+            printstyled(
+                stderr,
                 "Invalid frame range: $(first_f)–$(last_f) (recording has $nframes frames)\n";
-                color=:red)
+                color=:red,
+            )
             exit(1)
         end
         rng = first_f:last_f
@@ -67,7 +69,7 @@ function render_tach(opts::Dict{Symbol, Any})
     bg = parse_bg(opts[:bg])
 
     # Build kwargs
-    kwargs = Dict{Symbol, Any}(
+    kwargs = Dict{Symbol,Any}(
         :font_path => font_path,
         :font_size => opts[:font_size],
         :cell_w => opts[:cell_w],
@@ -101,5 +103,5 @@ function render_tach(opts::Dict{Symbol, Any})
 
     size_mb = filesize(output) / 1024 / 1024
     printstyled("Done "; color=:green, bold=true)
-    println("$(round(size_mb, digits=2)) MB in $(round(elapsed, digits=1))s → $output")
+    return println("$(round(size_mb, digits=2)) MB in $(round(elapsed, digits=1))s → $output")
 end

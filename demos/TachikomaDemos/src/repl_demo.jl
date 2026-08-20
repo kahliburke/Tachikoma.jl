@@ -6,7 +6,7 @@
 # cycles tile/cascade. Ctrl+J / Ctrl+K cycle focus between windows.
 # ═══════════════════════════════════════════════════════════════════════
 
-import Tachikoma
+using Tachikoma: Tachikoma
 
 @kwdef mutable struct REPLDemoModel <: Tachikoma.Model
     quit::Bool = false
@@ -15,7 +15,7 @@ import Tachikoma
     repl_count::Int = 0
     repls::Vector{Tachikoma.REPLWidget} = Tachikoma.REPLWidget[]
     layout_mode::Symbol = :none   # :none, :tile, :cascade
-    _wake_fn::Union{Function, Nothing} = nothing
+    _wake_fn::Union{Function,Nothing} = nothing
 end
 
 Tachikoma.should_quit(m::REPLDemoModel) = m.quit
@@ -25,7 +25,7 @@ function Tachikoma.has_pending_output(m::REPLDemoModel)
     for rw in m.repls
         isready(rw.tw.pty.output) && return true
     end
-    false
+    return false
 end
 
 function Tachikoma.set_wake!(m::REPLDemoModel, notify::Function)
@@ -37,7 +37,7 @@ end
 
 function _close_repl_window!(m::REPLDemoModel, win_id::Symbol)
     idx = findfirst(w -> w.id == win_id, m.wm.windows)
-    idx === nothing && return
+    idx === nothing && return nothing
     win = m.wm.windows[idx]
     if win.content isa Tachikoma.REPLWidget
         rw = win.content
@@ -77,16 +77,19 @@ function _spawn_repl!(m::REPLDemoModel, area::Tachikoma.Rect)
     m._wake_fn !== nothing && Tachikoma.set_wake!(rw.tw, m._wake_fn)
     push!(m.repls, rw)
 
-    win = Tachikoma.FloatingWindow(
-        id = win_id,
-        title = "Julia REPL #$n",
-        x = x, y = y, width = w, height = h,
-        content = rw,
-        border_color = _repl_color(n),
-        closeable = true,
-        on_close = () -> _close_repl_window!(m, win_id),
+    win = Tachikoma.FloatingWindow(;
+        id=win_id,
+        title="Julia REPL #$n",
+        x=x,
+        y=y,
+        width=w,
+        height=h,
+        content=rw,
+        border_color=_repl_color(n),
+        closeable=true,
+        on_close=() -> _close_repl_window!(m, win_id),
     )
-    push!(m.wm, win)
+    return push!(m.wm, win)
 end
 
 function _repl_color(n::Int)
@@ -98,7 +101,7 @@ function _repl_color(n::Int)
         Tachikoma.ColorRGB(0x90, 0x60, 0xc0),  # purple
         Tachikoma.ColorRGB(0x90, 0xc0, 0x60),  # lime
     ]
-    colors[mod1(n, length(colors))]
+    return colors[mod1(n, length(colors))]
 end
 
 function _resize_repls!(m::REPLDemoModel)
@@ -117,7 +120,7 @@ function Tachikoma.update!(m::REPLDemoModel, evt::Tachikoma.Event)
     if evt isa Tachikoma.KeyEvent
         if evt.key == :escape
             m.quit = true
-            return
+            return nothing
         end
 
         # Ctrl+N: spawn new REPL
@@ -125,7 +128,7 @@ function Tachikoma.update!(m::REPLDemoModel, evt::Tachikoma.Event)
             if m.wm.last_area.width > 0
                 _spawn_repl!(m, m.wm.last_area)
             end
-            return
+            return nothing
         end
 
         # Ctrl+T: cycle tile → cascade → tile
@@ -138,11 +141,11 @@ function Tachikoma.update!(m::REPLDemoModel, evt::Tachikoma.Event)
                 m.layout_mode = :tile
             end
             _resize_repls!(m)
-            return
+            return nothing
         end
     end
 
-    Tachikoma.handle_event!(m.wm, evt)
+    return Tachikoma.handle_event!(m.wm, evt)
 end
 
 function Tachikoma.view(m::REPLDemoModel, f::Tachikoma.Frame)
@@ -151,9 +154,9 @@ function Tachikoma.view(m::REPLDemoModel, f::Tachikoma.Frame)
 
     # Layout: content | footer
     rows = Tachikoma.split_layout(
-        Tachikoma.Layout(Tachikoma.Vertical, [Tachikoma.Fill(), Tachikoma.Fixed(1)]),
-        f.area)
-    length(rows) < 2 && return
+        Tachikoma.Layout(Tachikoma.Vertical, [Tachikoma.Fill(), Tachikoma.Fixed(1)]), f.area
+    )
+    length(rows) < 2 && return nothing
     content_area = rows[1]
     footer_area = rows[2]
 
@@ -169,15 +172,23 @@ function Tachikoma.view(m::REPLDemoModel, f::Tachikoma.Frame)
     n = length(m.wm.windows)
     focused = Tachikoma.focused_window(m.wm)
     focus_name = focused !== nothing ? string(focused.title) : "none"
-    layout = m.layout_mode == :tile ? "tile" : m.layout_mode == :cascade ? "cascade" : "free"
+    layout = if m.layout_mode == :tile
+        "tile"
+    elseif m.layout_mode == :cascade
+        "cascade"
+    else
+        "free"
+    end
     hint = " [Ctrl+N] new │ [Ctrl+T] $layout │ [Ctrl+J/K] focus │ [Esc] quit │ $n window$(n != 1 ? "s" : "") │ focus: $focus_name "
-    Tachikoma.render(Tachikoma.StatusBar(
-        left=[Tachikoma.Span(hint, Tachikoma.tstyle(:text_dim))],
-    ), footer_area, buf)
+    return Tachikoma.render(
+        Tachikoma.StatusBar(; left=[Tachikoma.Span(hint, Tachikoma.tstyle(:text_dim))]),
+        footer_area,
+        buf,
+    )
 end
 
 function _route_output(m::REPLDemoModel, line::String)
-    isempty(m.repls) && return
+    isempty(m.repls) && return nothing
     # Route to the focused REPL's widget, falling back to the last one
     fw = Tachikoma.focused_window(m.wm)
     if fw !== nothing && fw.content isa Tachikoma.REPLWidget
@@ -191,9 +202,12 @@ function repl_demo(; tty_out=nothing)
     while true
         model = REPLDemoModel()
         result = try
-            Tachikoma.app(model; fps=30, tty_out,
-                on_stdout = line -> _route_output(model, line),
-                on_stderr = line -> _route_output(model, line),
+            Tachikoma.app(
+                model;
+                fps=30,
+                tty_out,
+                on_stdout=line -> _route_output(model, line),
+                on_stderr=line -> _route_output(model, line),
             )
         finally
             for rw in model.repls

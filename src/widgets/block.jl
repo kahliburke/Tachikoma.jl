@@ -14,19 +14,20 @@ end
 
 function Block(;
     title="",
-    title_style=tstyle(:title, bold=true),
+    title_style=tstyle(:title; bold=true),
     title_right="",
-    title_right_style=tstyle(:title, bold=true),
+    title_right_style=tstyle(:title; bold=true),
     border_style=tstyle(:border),
     box=BOX_ROUNDED,
     title_padding=1,
 )
-    Block(title, title_style, title_right, title_right_style, border_style, box, title_padding)
+    return Block(
+        title, title_style, title_right, title_right_style, border_style, box, title_padding
+    )
 end
 
 function inner_area(block::Block, rect::Rect)
-    Rect(rect.x + 1, rect.y + 1,
-         max(0, rect.width - 2), max(0, rect.height - 2))
+    return Rect(rect.x + 1, rect.y + 1, max(0, rect.width - 2), max(0, rect.height - 2))
 end
 
 function render(block::Block, rect::Rect, buf::Buffer)
@@ -56,8 +57,7 @@ function render(block::Block, rect::Rect, buf::Buffer)
     # Title — left-aligned (auto-padded for visual separation from border)
     if !isempty(block.title) && rect.width > 4
         tx = rect.x + 1 + block.title_padding
-        set_string!(buf, tx, rect.y, pad * block.title * pad,
-                    block.title_style)
+        set_string!(buf, tx, rect.y, pad * block.title * pad, block.title_style)
     end
 
     # Title — right-aligned (same padding)
@@ -69,5 +69,5 @@ function render(block::Block, rect::Rect, buf::Buffer)
         end
     end
 
-    inner_area(block, rect)
+    return inner_area(block, rect)
 end

@@ -11,10 +11,10 @@
     byid(pt, i) = first(filter(p -> p.content.id == i, T.panes(pt)))
 
     @testset "combined H+V splits" begin
-        pt = T.PanelTree(_PTWidget(1); title = "one")
+        pt = T.PanelTree(_PTWidget(1); title="one")
         @test T.pane_count(pt) == 1
-        T.split_pane!(pt, _PTWidget(2); horizontal = true)    # columns
-        l3 = T.split_pane!(pt, _PTWidget(3); horizontal = false)  # rows under pane 2
+        T.split_pane!(pt, _PTWidget(2); horizontal=true)    # columns
+        l3 = T.split_pane!(pt, _PTWidget(3); horizontal=false)  # rows under pane 2
         @test T.pane_count(pt) == 3
         @test T.focused_pane(pt) === l3
         @test pt.root isa T.PaneSplit && pt.root.horizontal
@@ -23,7 +23,7 @@
 
     @testset "render populates rects" begin
         pt = T.PanelTree(_PTWidget(1))
-        T.split_pane!(pt, _PTWidget(2); horizontal = true)
+        T.split_pane!(pt, _PTWidget(2); horizontal=true)
         T.render(pt, buf.area, buf)
         for p in T.panes(pt)
             @test p.rect.width > 0 && p.rect.height > 0
@@ -32,10 +32,11 @@
 
     @testset "drag-dock to a nested split" begin
         pt = T.PanelTree(_PTWidget(1))
-        T.split_pane!(pt, _PTWidget(2); horizontal = true)
-        T.split_pane!(pt, _PTWidget(3); horizontal = false)
+        T.split_pane!(pt, _PTWidget(2); horizontal=true)
+        T.split_pane!(pt, _PTWidget(3); horizontal=false)
         T.render(pt, buf.area, buf)
-        l1 = byid(pt, 1); l3 = byid(pt, 3)
+        l1 = byid(pt, 1)
+        l3 = byid(pt, 3)
         hr = T._pt_handle_rect(l3)
         @test T.handle_mouse!(pt, pb(hr.x + 1, hr.y, T.mouse_press))
         @test pt.grab === l3
@@ -50,7 +51,7 @@
 
     @testset "stacked bottom-pane header grabs (not resize)" begin
         pt = T.PanelTree(_PTWidget(1))
-        T.split_pane!(pt, _PTWidget(2); horizontal = false)   # vertical: 1 over 2
+        T.split_pane!(pt, _PTWidget(2); horizontal=false)   # vertical: 1 over 2
         T.render(pt, buf.area, buf)
         l2 = byid(pt, 2)
         T.handle_mouse!(pt, pb(l2.rect.x + 3, l2.rect.y, T.mouse_press))  # bottom pane header row
@@ -66,10 +67,11 @@
 
     @testset "focus cycle + close" begin
         pt = T.PanelTree(_PTWidget(1))
-        T.split_pane!(pt, _PTWidget(2); horizontal = true)
-        T.split_pane!(pt, _PTWidget(3); horizontal = true)
+        T.split_pane!(pt, _PTWidget(2); horizontal=true)
+        T.split_pane!(pt, _PTWidget(3); horizontal=true)
         f0 = T.focused_pane(pt)
-        T.focus_next!(pt); @test T.focused_pane(pt) !== f0
+        T.focus_next!(pt)
+        @test T.focused_pane(pt) !== f0
         @test T.close_pane!(pt)
         @test T.pane_count(pt) == 2
         # never closes the last pane
@@ -87,8 +89,8 @@
         T.update!(m::_PTModel, e::T.MouseEvent) = nothing
         T.should_quit(m::_PTModel) = m.q
 
-        pt = T.PanelTree(_PTModel(false); title = "model", chrome = :minimal)
-        T.split_pane!(pt, _PTWidget(9); horizontal = true)
+        pt = T.PanelTree(_PTModel(false); title="model", chrome=:minimal)
+        T.split_pane!(pt, _PTWidget(9); horizontal=true)
         T.render(pt, buf.area, buf)           # minimal chrome path (focus ring)
         @test T.handle_key!(pt, T.KeyEvent('a'))
         # a Model pane prunes when it should_quit

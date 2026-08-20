@@ -18,7 +18,7 @@
         end
 
         function ioctl_variadic_ref()
-            ref = Ref{NTuple{4, UInt16}}((0, 0, 0, 0))
+            ref = Ref{NTuple{4,UInt16}}((0, 0, 0, 0))
             ret = ccall(:ioctl, Cint, (Cint, Culong, Ptr{Cvoid}...), 1, tiocgwinsz, ref)
             t = ref[]
             (ret, Int(t[1]), Int(t[2]), Int(t[3]), Int(t[4]))
@@ -28,8 +28,13 @@
             ref = Ref{UInt64}(0)
             ret = ccall(:ioctl, Cint, (Cint, Culong, Ptr{Cvoid}...), 1, tiocgwinsz, ref)
             val = ref[]
-            (ret, Int(val & 0xFFFF), Int((val >> 16) & 0xFFFF),
-             Int((val >> 32) & 0xFFFF), Int((val >> 48) & 0xFFFF))
+            (
+                ret,
+                Int(val & 0xFFFF),
+                Int((val >> 16) & 0xFFFF),
+                Int((val >> 32) & 0xFFFF),
+                Int((val >> 48) & 0xFFFF),
+            )
         end
 
         @testset "no segfault under GC pressure (1000 calls × 3 variants)" begin

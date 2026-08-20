@@ -11,7 +11,8 @@ T._KITTY_SHM_AVAILABLE[] = nothing
 red_pixels = fill(T.ColorRGB(0xff, 0x00, 0x00), 60, 60)
 data1 = T.encode_kitty(red_pixels; cols=8, rows=4)
 str1 = String(copy(data1))
-write(stdout, data1); flush(stdout)
+write(stdout, data1);
+flush(stdout)
 println("  path: ", occursin("t=s", str1) ? "shm" : "inline")
 println()
 
@@ -20,7 +21,8 @@ println("Test 2: encode_kitty inline (should be BLUE)")
 T._KITTY_SHM_AVAILABLE[] = false
 blue_pixels = fill(T.ColorRGB(0x00, 0x00, 0xff), 60, 60)
 data2 = T.encode_kitty(blue_pixels; cols=8, rows=4)
-write(stdout, data2); flush(stdout)
+write(stdout, data2);
+flush(stdout)
 T._KITTY_SHM_AVAILABLE[] = nothing
 println()
 
@@ -30,7 +32,8 @@ T._KITTY_SHM_AVAILABLE[] = nothing
 green_pixels = fill(T.ColorRGB(0x00, 0xff, 0x00), 60, 60)
 data3 = T.encode_kitty(green_pixels; cols=8, rows=4)
 str3 = String(copy(data3))
-write(stdout, data3); flush(stdout)
+write(stdout, data3);
+flush(stdout)
 println("  path: ", occursin("t=s", str3) ? "shm" : "inline")
 println()
 

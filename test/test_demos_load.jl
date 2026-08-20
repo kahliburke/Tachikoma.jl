@@ -35,8 +35,10 @@
         # the TEST process's VERSION, so the subprocess has to be that same binary
         # or the gate is deciding for a Julia that isn't the one doing the work.
         out, err = IOBuffer(), IOBuffer()
-        p = run(pipeline(`$(Base.julia_cmd()) --project=$demos_dir -e $code`,
-                         stdout=out, stderr=err); wait=false)
+        p = run(
+            pipeline(`$(Base.julia_cmd()) --project=$demos_dir -e $code`, stdout=out, stderr=err);
+            wait=false,
+        )
         wait(p)
         p.exitcode == 0 || println("DEMO LOAD STDERR:\n", String(take!(err)))
         @test p.exitcode == 0
@@ -46,8 +48,7 @@
         # Regression guard: a test run must leave the tracked project untouched.
         # Only meaningful where no develop ran -- the LTS rewrites it by design.
         if VERSION >= v"1.11"
-            @test occursin("path = \"../..\"",
-                           read(joinpath(demos_dir, "Project.toml"), String))
+            @test occursin("path = \"../..\"", read(joinpath(demos_dir, "Project.toml"), String))
         end
     end
 end

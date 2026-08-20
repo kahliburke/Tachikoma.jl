@@ -12,12 +12,12 @@
 # ═══════════════════════════════════════════════════════════════════════
 
 const EASING_NAMES = [
-    ("linear",        linear),
-    ("ease_in_quad",  ease_in_quad),
+    ("linear", linear),
+    ("ease_in_quad", ease_in_quad),
     ("ease_out_quad", ease_out_quad),
     ("ease_in_out_q", ease_in_out_quad),
-    ("ease_in_cub",   ease_in_cubic),
-    ("ease_out_cub",  ease_out_cubic),
+    ("ease_in_cub", ease_in_cubic),
+    ("ease_out_cub", ease_out_cubic),
     ("ease_in_out_c", ease_in_out_cubic),
     ("ease_out_elst", ease_out_elastic),
     ("ease_out_bnce", ease_out_bounce),
@@ -29,8 +29,7 @@ const EASING_NAMES = [
     tick::Int = 0
     # Easing gallery — one tween per easing function
     easing_tweens::Vector{Tween} = [
-        tween(0.0, 1.0; duration=60, easing=fn, loop=:pingpong)
-        for (_, fn) in EASING_NAMES
+        tween(0.0, 1.0; duration=60, easing=fn, loop=:pingpong) for (_, fn) in EASING_NAMES
     ]
     # Spring — interactive target
     spring::Spring = Spring(0.5; value=0.0, stiffness=180.0)
@@ -39,7 +38,7 @@ const EASING_NAMES = [
     spring_trail::Vector{Float64} = Float64[]
     # Timeline — staggered cascade
     cascade_tweens::Vector{Tween} = Tween[]
-    cascade_timeline::Union{Timeline, Nothing} = nothing
+    cascade_timeline::Union{Timeline,Nothing} = nothing
     # Looping tweens
     loop_tween::Tween = tween(0.0, 1.0; duration=45, easing=ease_out_cubic, loop=:loop)
     pp_tween::Tween = tween(0.0, 1.0; duration=60, easing=ease_in_out_cubic, loop=:pingpong)
@@ -49,13 +48,13 @@ end
 
 function _init_cascade!(m::AnimDemoModel, n::Int=8)
     m.cascade_tweens = [tween(0.0, 1.0; duration=30, easing=ease_out_cubic) for _ in 1:n]
-    m.cascade_timeline = stagger(m.cascade_tweens...; delay=5)
+    return m.cascade_timeline = stagger(m.cascade_tweens...; delay=5)
 end
 
 should_quit(m::AnimDemoModel) = m.quit
 
 function init!(m::AnimDemoModel, ::Terminal)
-    _init_cascade!(m)
+    return _init_cascade!(m)
 end
 
 function update!(m::AnimDemoModel, evt::KeyEvent)
@@ -68,12 +67,16 @@ function update!(m::AnimDemoModel, evt::KeyEvent)
         end
         # Restart cascade
         if evt.char == 'r'
-            for tw in m.cascade_tweens; reset!(tw); end
+            for tw in m.cascade_tweens
+                reset!(tw)
+            end
             m.cascade_timeline !== nothing && (m.cascade_timeline.frame = 0)
         end
         # Restart easing gallery
         if evt.char == 'e'
-            for tw in m.easing_tweens; reset!(tw); end
+            for tw in m.easing_tweens
+                reset!(tw)
+            end
         end
     elseif evt.key == :up
         m.spring_target_idx = mod1(m.spring_target_idx + 1, length(m.spring_targets))
@@ -82,7 +85,7 @@ function update!(m::AnimDemoModel, evt::KeyEvent)
         m.spring_target_idx = mod1(m.spring_target_idx - 1, length(m.spring_targets))
         retarget!(m.spring, m.spring_targets[m.spring_target_idx])
     end
-    evt.key == :escape && (m.quit = true)
+    return evt.key == :escape && (m.quit = true)
 end
 
 function view(m::AnimDemoModel, f::Frame)
@@ -90,7 +93,9 @@ function view(m::AnimDemoModel, f::Frame)
     buf = f.buffer
 
     # ── Advance all animations ──
-    for tw in m.easing_tweens; advance!(tw); end
+    for tw in m.easing_tweens
+        advance!(tw)
+    end
     advance!(m.spring)
     push!(m.spring_trail, m.spring.value)
     length(m.spring_trail) > 120 && popfirst!(m.spring_trail)
@@ -103,16 +108,16 @@ function view(m::AnimDemoModel, f::Frame)
     advance!(m.elastic_tween)
 
     # ── Outer frame ──
-    outer = Block(
+    outer = Block(;
         title="animation system",
         border_style=tstyle(:border),
-        title_style=tstyle(:title, bold=true),
+        title_style=tstyle(:title; bold=true),
     )
     main = render(outer, f.area, buf)
 
     # Layout: header | top row | bottom row | footer
     rows = split_layout(Layout(Vertical, [Fixed(1), Fill(), Fill(), Fixed(1)]), main)
-    length(rows) < 4 && return
+    length(rows) < 4 && return nothing
     header = rows[1]
     top_area = rows[2]
     bot_area = rows[3]
@@ -121,40 +126,50 @@ function view(m::AnimDemoModel, f::Frame)
     # ── Header ──
     si = mod1(m.tick ÷ 3, length(SPINNER_BRAILLE))
     set_char!(buf, header.x, header.y, SPINNER_BRAILLE[si], tstyle(:accent))
-    set_string!(buf, header.x + 2, header.y,
-                "Tween · Spring · Timeline · Easing", tstyle(:primary, bold=true))
-    set_string!(buf, header.x + 39, header.y,
-                " $(DOT) tick $(m.tick)", tstyle(:text_dim))
+    set_string!(
+        buf,
+        header.x + 2,
+        header.y,
+        "Tween · Spring · Timeline · Easing",
+        tstyle(:primary; bold=true),
+    )
+    set_string!(buf, header.x + 39, header.y, " $(DOT) tick $(m.tick)", tstyle(:text_dim))
 
     # ── Top row: easing gallery | spring ──
     top_cols = split_layout(Layout(Horizontal, [Percent(50), Fill()]), top_area)
-    length(top_cols) < 2 && return
+    length(top_cols) < 2 && return nothing
 
     _draw_easing_gallery(m, buf, top_cols[1])
     _draw_spring_panel(m, buf, top_cols[2])
 
     # ── Bottom row: cascade timeline | looping tweens ──
     bot_cols = split_layout(Layout(Horizontal, [Percent(50), Fill()]), bot_area)
-    length(bot_cols) < 2 && return
+    length(bot_cols) < 2 && return nothing
 
     _draw_cascade(m, buf, bot_cols[1])
     _draw_loops(m, buf, bot_cols[2])
 
     # ── Footer ──
-    render(StatusBar(
-        left=[Span("  [space/↑↓]spring [r]restart cascade [e]restart easing ", tstyle(:text_dim))],
-        right=[Span("[q]quit ", tstyle(:text_dim))],
-    ), footer, buf)
+    return render(
+        StatusBar(;
+            left=[
+                Span("  [space/↑↓]spring [r]restart cascade [e]restart easing ", tstyle(:text_dim))
+            ],
+            right=[Span("[q]quit ", tstyle(:text_dim))],
+        ),
+        footer,
+        buf,
+    )
 end
 
 # ── Panel: Easing Gallery ────────────────────────────────────────────
 
 function _draw_easing_gallery(m::AnimDemoModel, buf::Buffer, area::Rect)
-    blk = Block(title="easing gallery",
-                border_style=tstyle(:border),
-                title_style=tstyle(:text_dim))
+    blk = Block(;
+        title="easing gallery", border_style=tstyle(:border), title_style=tstyle(:text_dim)
+    )
     inner = render(blk, area, buf)
-    inner.width < 10 && return
+    inner.width < 10 && return nothing
 
     label_w = 15
     bar_w = inner.width - label_w - 1
@@ -174,24 +189,24 @@ function _draw_easing_gallery(m::AnimDemoModel, buf::Buffer, area::Rect)
         bar_x = inner.x + label_w
         for cx in 0:(bar_w - 1)
             ch = cx < filled ? '█' : '·'
-            s = cx < filled ? tstyle(:primary) : tstyle(:text_dim, dim=true)
+            s = cx < filled ? tstyle(:primary) : tstyle(:text_dim; dim=true)
             set_char!(buf, bar_x + cx, y, ch, s)
         end
 
         # Value indicator
         marker_x = bar_x + clamp(filled, 0, bar_w - 1)
-        set_char!(buf, marker_x, y, '▸', tstyle(:accent, bold=true))
+        set_char!(buf, marker_x, y, '▸', tstyle(:accent; bold=true))
     end
 end
 
 # ── Panel: Spring ────────────────────────────────────────────────────
 
 function _draw_spring_panel(m::AnimDemoModel, buf::Buffer, area::Rect)
-    blk = Block(title="spring physics",
-                border_style=tstyle(:border),
-                title_style=tstyle(:text_dim))
+    blk = Block(;
+        title="spring physics", border_style=tstyle(:border), title_style=tstyle(:text_dim)
+    )
     inner = render(blk, area, buf)
-    inner.width < 10 || inner.height < 4 && return
+    inner.width < 10 || inner.height < 4 && return nothing
 
     # Info line
     tv = m.spring_targets[m.spring_target_idx]
@@ -206,31 +221,31 @@ function _draw_spring_panel(m::AnimDemoModel, buf::Buffer, area::Rect)
 
     # Current value as a horizontal bar at bottom
     bar_y = bottom(inner)
-    bar_y > inner.y + 2 || return
+    bar_y > inner.y + 2 || return nothing
     bar_w = inner.width
     pos = round(Int, clamp(m.spring.value, 0.0, 1.0) * (bar_w - 1))
     target_pos = round(Int, clamp(tv, 0.0, 1.0) * (bar_w - 1))
 
     for cx in 0:(bar_w - 1)
         ch = cx == target_pos ? '┃' : '─'
-        s = cx == target_pos ? tstyle(:warning) : tstyle(:text_dim, dim=true)
+        s = cx == target_pos ? tstyle(:warning) : tstyle(:text_dim; dim=true)
         set_char!(buf, inner.x + cx, bar_y, ch, s)
     end
     # Spring position marker
-    set_char!(buf, inner.x + pos, bar_y, '●', tstyle(:primary, bold=true))
+    return set_char!(buf, inner.x + pos, bar_y, '●', tstyle(:primary; bold=true))
 end
 
 # ── Panel: Cascade Timeline ──────────────────────────────────────────
 
 function _draw_cascade(m::AnimDemoModel, buf::Buffer, area::Rect)
-    blk = Block(title="staggered timeline",
-                border_style=tstyle(:border),
-                title_style=tstyle(:text_dim))
+    blk = Block(;
+        title="staggered timeline", border_style=tstyle(:border), title_style=tstyle(:text_dim)
+    )
     inner = render(blk, area, buf)
-    inner.width < 10 && return
+    inner.width < 10 && return nothing
 
     tl = m.cascade_timeline
-    tl === nothing && return
+    tl === nothing && return nothing
 
     frame_info = "frame $(tl.frame)"
     if done(tl)
@@ -257,15 +272,20 @@ function _draw_cascade(m::AnimDemoModel, buf::Buffer, area::Rect)
                 ch = BARS_H[clamp(round(Int, brightness * 8), 1, 8)]
                 set_char!(buf, bar_x + cx, y, ch, tstyle(:primary))
             else
-                set_char!(buf, bar_x + cx, y, '·', tstyle(:text_dim, dim=true))
+                set_char!(buf, bar_x + cx, y, '·', tstyle(:text_dim; dim=true))
             end
         end
 
         # Value text
         pct = round(Int, v * 100)
         if inner.x + 4 + bar_w + 3 <= right(inner)
-            set_string!(buf, bar_x + bar_w + 1, y, "$(pct)%",
-                        pct >= 100 ? tstyle(:success) : tstyle(:text_dim))
+            set_string!(
+                buf,
+                bar_x + bar_w + 1,
+                y,
+                "$(pct)%",
+                pct >= 100 ? tstyle(:success) : tstyle(:text_dim),
+            )
         end
     end
 end
@@ -273,16 +293,14 @@ end
 # ── Panel: Looping Tweens ────────────────────────────────────────────
 
 function _draw_loops(m::AnimDemoModel, buf::Buffer, area::Rect)
-    blk = Block(title="loop modes",
-                border_style=tstyle(:border),
-                title_style=tstyle(:text_dim))
+    blk = Block(; title="loop modes", border_style=tstyle(:border), title_style=tstyle(:text_dim))
     inner = render(blk, area, buf)
-    inner.width < 10 || inner.height < 4 && return
+    inner.width < 10 || inner.height < 4 && return nothing
 
     items = [
-        ("loop/cubic  ", m.loop_tween,    :primary),
-        ("pp/in-out   ", m.pp_tween,      :secondary),
-        ("pp/bounce   ", m.bounce_tween,  :accent),
+        ("loop/cubic  ", m.loop_tween, :primary),
+        ("pp/in-out   ", m.pp_tween, :secondary),
+        ("pp/bounce   ", m.bounce_tween, :accent),
         ("pp/elastic  ", m.elastic_tween, :warning),
     ]
 
@@ -303,7 +321,7 @@ function _draw_loops(m::AnimDemoModel, buf::Buffer, area::Rect)
             if cx < filled
                 set_char!(buf, bar_x + cx, y, '█', tstyle(color))
             else
-                set_char!(buf, bar_x + cx, y, '░', tstyle(:text_dim, dim=true))
+                set_char!(buf, bar_x + cx, y, '░', tstyle(:text_dim; dim=true))
             end
         end
 
@@ -311,11 +329,11 @@ function _draw_loops(m::AnimDemoModel, buf::Buffer, area::Rect)
         dot_y = y + 1
         dot_y > bottom(inner) && continue
         dot_x = bar_x + clamp(round(Int, v * (bar_w - 1)), 0, bar_w - 1)
-        set_char!(buf, dot_x, dot_y, '◆', tstyle(color, bold=true))
+        set_char!(buf, dot_x, dot_y, '◆', tstyle(color; bold=true))
     end
 end
 
 function anim_demo(; theme_name=nothing)
     theme_name !== nothing && set_theme!(theme_name)
-    app(AnimDemoModel(); fps=30)
+    return app(AnimDemoModel(); fps=30)
 end

@@ -19,8 +19,9 @@
         old_input = T.INPUT_IO[]
         T.INPUT_IO[] = fake_input
         try
-            task = @async app(m; fps=60, default_bindings=false,
-                              tty_out="/dev/null", tty_size=(rows=24, cols=80))
+            task = @async app(
+                m; fps=60, default_bindings=false, tty_out="/dev/null", tty_size=(rows=24, cols=80)
+            )
             # Wait for the task to finish (should fail quickly)
             result = timedwait(() -> istaskdone(task), 10.0)
             @test result == :ok  # task completed within timeout
@@ -59,8 +60,9 @@
         old_input = T.INPUT_IO[]
         T.INPUT_IO[] = fake_input
         try
-            task = @async app(m; fps=60, default_bindings=false,
-                              tty_out="/dev/null", tty_size=(rows=24, cols=80))
+            task = @async app(
+                m; fps=60, default_bindings=false, tty_out="/dev/null", tty_size=(rows=24, cols=80)
+            )
             result = timedwait(() -> istaskdone(task), 10.0)
             @test result == :ok
             @test !istaskfailed(task)

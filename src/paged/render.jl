@@ -1,8 +1,15 @@
 # ── Render helpers ────────────────────────────────────────────────────
 
-function _pdt_render_header!(pdt::PagedDataTable, buf::Buffer,
-                             hy::Int, data_x::Int, max_x::Int,
-                             widths::Vector{Int}, first_col::Int, nc::Int)
+function _pdt_render_header!(
+    pdt::PagedDataTable,
+    buf::Buffer,
+    hy::Int,
+    data_x::Int,
+    max_x::Int,
+    widths::Vector{Int},
+    first_col::Int,
+    nc::Int,
+)
     hx = data_x
     pdt.last_col_positions = Tuple{Int,Int}[]
     for i in first_col:nc
@@ -24,10 +31,10 @@ function _pdt_render_header!(pdt::PagedDataTable, buf::Buffer,
         filter_ind = haskey(pdt.filters, i) && !isempty(pdt.filters[i].value) ? "⊘" : ""
 
         combined = string(hdr, indicator, filter_ind)
-        text_str = textwidth(combined) <= w ? combined : truncate_to_width(combined, w; ellipsis = "")
+        text_str = textwidth(combined) <= w ? combined : truncate_to_width(combined, w; ellipsis="")
 
         hdr_style = if pdt.col_hover_border > 0 && i == pdt.col_hover_border
-            Style(fg=pdt.header_style.fg, bold=true, underline=true)
+            Style(; fg=pdt.header_style.fg, bold=true, underline=true)
         else
             pdt.header_style
         end
@@ -42,22 +49,30 @@ function _pdt_render_header!(pdt::PagedDataTable, buf::Buffer,
             hx += 1
         else
             if hx <= max_x
-                set_char!(buf, hx, hy, '│', tstyle(:border, dim=true))
+                set_char!(buf, hx, hy, '│', tstyle(:border; dim=true))
                 push!(pdt.last_col_positions, (hx, i))
             end
         end
     end
 end
 
-function _pdt_render_separator!(buf::Buffer, sep_y::Int,
-                                data_x::Int, data_w::Int, max_x::Int,
-                                widths::Vector{Int}, first_col::Int, nc::Int,
-                                has_left_overflow::Bool, has_right_overflow::Bool)
+function _pdt_render_separator!(
+    buf::Buffer,
+    sep_y::Int,
+    data_x::Int,
+    data_w::Int,
+    max_x::Int,
+    widths::Vector{Int},
+    first_col::Int,
+    nc::Int,
+    has_left_overflow::Bool,
+    has_right_overflow::Bool,
+)
     sx = data_x
     for i in first_col:nc
         sx > max_x && break
         w = widths[i]
-        for dx in 0:w-1
+        for dx in 0:(w - 1)
             sx + dx <= max_x && set_char!(buf, sx + dx, sep_y, '─', tstyle(:border))
         end
         sx += w
@@ -68,7 +83,7 @@ function _pdt_render_separator!(buf::Buffer, sep_y::Int,
             sx += 1
         else
             if sx <= max_x
-                set_char!(buf, sx, sep_y, '┤', tstyle(:border, dim=true))
+                set_char!(buf, sx, sep_y, '┤', tstyle(:border; dim=true))
             end
         end
     end
@@ -81,10 +96,20 @@ function _pdt_render_separator!(buf::Buffer, sep_y::Int,
     end
 end
 
-function _pdt_render_data!(pdt::PagedDataTable, buf::Buffer,
-                           cur_y::Int, footer_y::Int, vis_h::Int, n::Int,
-                           content_area::Rect, data_x::Int, max_x::Int,
-                           widths::Vector{Int}, first_col::Int, nc::Int)
+function _pdt_render_data!(
+    pdt::PagedDataTable,
+    buf::Buffer,
+    cur_y::Int,
+    footer_y::Int,
+    vis_h::Int,
+    n::Int,
+    content_area::Rect,
+    data_x::Int,
+    max_x::Int,
+    widths::Vector{Int},
+    first_col::Int,
+    nc::Int,
+)
     for vi in 1:vis_h
         row_idx = pdt.row_offset + vi
         row_idx > n && break
@@ -102,11 +127,14 @@ function _pdt_render_data!(pdt::PagedDataTable, buf::Buffer,
         end
 
         # Animated selection highlight
-        if is_selected && pdt.tick !== nothing && animations_enabled() && !(row_style.fg isa NoColor)
+        if is_selected &&
+            pdt.tick !== nothing &&
+            animations_enabled() &&
+            !(row_style.fg isa NoColor)
             base_fg = to_rgb(row_style.fg)
             p = pulse(pdt.tick; period=80, lo=0.0, hi=0.2)
             anim_fg = brighten(base_fg, p * 0.3)
-            row_style = Style(fg=anim_fg, bold=row_style.bold)
+            row_style = Style(; fg=anim_fg, bold=row_style.bold)
         end
 
         if is_selected
@@ -135,8 +163,7 @@ function _pdt_render_data!(pdt::PagedDataTable, buf::Buffer,
                 rx
             end
 
-            set_string!(buf, cell_x, ry, cell_text, row_style;
-                        max_x=min(rx + w - 1, max_x))
+            set_string!(buf, cell_x, ry, cell_text, row_style; max_x=min(rx + w - 1, max_x))
             rx += w
             if i < nc
                 if rx <= max_x
@@ -145,7 +172,7 @@ function _pdt_render_data!(pdt::PagedDataTable, buf::Buffer,
                 rx += 1
             else
                 if rx <= max_x
-                    set_char!(buf, rx, ry, '│', tstyle(:border, dim=true))
+                    set_char!(buf, rx, ry, '│', tstyle(:border; dim=true))
                 end
             end
         end
@@ -167,12 +194,12 @@ function render(pdt::PagedDataTable, rect::Rect, buf::Buffer)
     else
         rect
     end
-    (content_area.width < 4 || content_area.height < 5) && return
+    (content_area.width < 4 || content_area.height < 5) && return nothing
 
     pdt.last_content_area = content_area
 
     nc = length(pdt.columns)
-    nc == 0 && return
+    nc == 0 && return nothing
     n = _pdt_nrows(pdt)
 
     # Vertical layout: [search] [header] [separator] [filter] [data rows] [footer]
@@ -226,8 +253,18 @@ function render(pdt::PagedDataTable, rect::Rect, buf::Buffer)
     _pdt_render_header!(pdt, buf, cur_y, data_x, max_x, widths, first_col, nc)
     cur_y += 1
 
-    _pdt_render_separator!(buf, cur_y, data_x, data_w, max_x, widths,
-                           first_col, nc, has_left_overflow, has_right_overflow)
+    _pdt_render_separator!(
+        buf,
+        cur_y,
+        data_x,
+        data_w,
+        max_x,
+        widths,
+        first_col,
+        nc,
+        has_left_overflow,
+        has_right_overflow,
+    )
     cur_y += 1
 
     # (filter modal renders as overlay later)
@@ -235,7 +272,7 @@ function render(pdt::PagedDataTable, rect::Rect, buf::Buffer)
     # ── Footer area (reserve 1 row) ──
     footer_y = bottom(content_area)
     vis_h = footer_y - cur_y  # rows available for data
-    vis_h < 1 && return
+    vis_h < 1 && return nothing
 
     # ── Auto-scroll to keep selection visible ──
     if pdt.selected > 0
@@ -247,8 +284,9 @@ function render(pdt::PagedDataTable, rect::Rect, buf::Buffer)
     end
     pdt.row_offset = clamp(pdt.row_offset, 0, max(0, n - vis_h))
 
-    _pdt_render_data!(pdt, buf, cur_y, footer_y, vis_h, n,
-                      content_area, data_x, max_x, widths, first_col, nc)
+    _pdt_render_data!(
+        pdt, buf, cur_y, footer_y, vis_h, n, content_area, data_x, max_x, widths, first_col, nc
+    )
 
     # ── Footer ──
     _pdt_render_footer!(pdt, Rect(content_area.x, footer_y, content_area.width, 1), buf)
@@ -270,8 +308,7 @@ function render(pdt::PagedDataTable, rect::Rect, buf::Buffer)
         load_text = string(" ", spinner_chars[si], " Loading… ")
         lx = content_area.x + max(0, (content_area.width - textwidth(load_text)) ÷ 2)
         ly = content_area.y + max(0, (content_area.height - 1) ÷ 2)
-        set_string!(buf, lx, ly, load_text, tstyle(:accent, bold=true);
-                    max_x=right(content_area))
+        set_string!(buf, lx, ly, load_text, tstyle(:accent; bold=true); max_x=right(content_area))
     end
 
     # ── Error overlay ──
@@ -288,15 +325,17 @@ function render(pdt::PagedDataTable, rect::Rect, buf::Buffer)
             end
         end
         err_x = content_area.x + max(0, (content_area.width - length(err_text)) ÷ 2)
-        set_string!(buf, err_x, err_y, err_text,
-                    tstyle(:error, bold=true); max_x=right(content_area))
+        set_string!(
+            buf, err_x, err_y, err_text, tstyle(:error; bold=true); max_x=right(content_area)
+        )
         # Retry hint
         retry_text = "Press [r] to retry"
         retry_x = content_area.x + max(0, (content_area.width - length(retry_text)) ÷ 2)
         retry_y = err_y + 1
         if retry_y <= bottom(content_area)
-            set_string!(buf, retry_x, retry_y, retry_text,
-                        tstyle(:error); max_x=right(content_area))
+            set_string!(
+                buf, retry_x, retry_y, retry_text, tstyle(:error); max_x=right(content_area)
+            )
         end
     end
 end
@@ -353,7 +392,7 @@ function _pdt_render_footer!(pdt::PagedDataTable, rect::Rect, buf::Buffer)
     for ps in pdt.page_sizes
         x > max_x && break
         ps_text = string(ps)
-        ps_style = ps == pdt.page_size ? tstyle(:accent, bold=true) : fs
+        ps_style = ps == pdt.page_size ? tstyle(:accent; bold=true) : fs
         if ps == pdt.page_size
             ps_text = "[$(ps_text)]"
         end
@@ -383,17 +422,17 @@ function _pdt_word_wrap(text::String, width::Int)::Vector{String}
         end
         push!(lines, current)
     end
-    isempty(lines) ? [""] : lines
+    return isempty(lines) ? [""] : lines
 end
 
 function _pdt_render_detail!(pdt::PagedDataTable, content_area::Rect, buf::Buffer)
     row_idx = pdt.detail_row
-    (row_idx < 1 || row_idx > length(pdt.rows)) && return
+    (row_idx < 1 || row_idx > length(pdt.rows)) && return nothing
 
     row_data = pdt.rows[row_idx]
     fields = _pdt_detail_fn(pdt)(pdt.columns, row_data)
     nf = length(fields)
-    nf == 0 && return
+    nf == 0 && return nothing
 
     modal_w = min(content_area.width - 4, max(70, content_area.width * 3 ÷ 4))
     label_w = min(16, maximum(length(first(p)) for p in fields) + 1)
@@ -405,7 +444,7 @@ function _pdt_render_detail!(pdt::PagedDataTable, content_area::Rect, buf::Buffe
 
     max_h = content_area.height - 4
     modal_h = min(max_h, total_lines + 4)  # +4 for top border, sep, help, bottom border
-    modal_h < 5 && return
+    modal_h < 5 && return nothing
 
     modal_pos = center(content_area, modal_w, modal_h)
     mx, my = modal_pos.x, modal_pos.y
@@ -413,11 +452,11 @@ function _pdt_render_detail!(pdt::PagedDataTable, content_area::Rect, buf::Buffe
     max_row = my + modal_h - 1
 
     border_style = tstyle(:accent)
-    title_style  = tstyle(:title, bold=true)
-    label_style  = tstyle(:text_dim)
-    value_style  = tstyle(:text)
-    bg_col       = ColorRGB(0x12, 0x14, 0x1e)
-    bg_style     = Style(bg=bg_col)
+    title_style = tstyle(:title; bold=true)
+    label_style = tstyle(:text_dim)
+    value_style = tstyle(:text)
+    bg_col = ColorRGB(0x12, 0x14, 0x1e)
+    bg_style = Style(; bg=bg_col)
 
     # Flood fill background
     blank = repeat(' ', modal_w)
@@ -429,17 +468,22 @@ function _pdt_render_detail!(pdt::PagedDataTable, content_area::Rect, buf::Buffe
     set_char!(buf, mx, my, '┌', border_style)
     title_str = " Record Detail "
     title_pad = inner_w - length(title_str)
-    left_pad  = title_pad ÷ 2
+    left_pad = title_pad ÷ 2
     right_pad = title_pad - left_pad
-    set_string!(buf, mx + 1, my,
+    set_string!(
+        buf,
+        mx + 1,
+        my,
         repeat('─', left_pad) * title_str * repeat('─', right_pad),
-        border_style; max_x = mx + modal_w - 2)
+        border_style;
+        max_x=mx + modal_w - 2,
+    )
     set_char!(buf, mx + modal_w - 1, my, '┐', border_style)
 
     # Separator  ├──────┤
     sep_y = my + 1
     set_char!(buf, mx, sep_y, '├', border_style)
-    for rx in mx+1:mx+modal_w-2
+    for rx in (mx + 1):(mx + modal_w - 2)
         set_char!(buf, rx, sep_y, '─', border_style)
     end
     set_char!(buf, mx + modal_w - 1, sep_y, '┤', border_style)
@@ -466,11 +510,9 @@ function _pdt_render_detail!(pdt::PagedDataTable, content_area::Rect, buf::Buffe
         lbl, val = flat_lines[flat_idx]
         if !isempty(lbl)
             lbl_text = rpad(lbl * ":", label_w)
-            set_string!(buf, mx + 2, fy, lbl_text, label_style;
-                        max_x = mx + 1 + label_w)
+            set_string!(buf, mx + 2, fy, lbl_text, label_style; max_x=mx + 1 + label_w)
         end
-        set_string!(buf, mx + 2 + label_w, fy, val, value_style;
-                    max_x = mx + modal_w - 2)
+        set_string!(buf, mx + 2 + label_w, fy, val, value_style; max_x=mx + modal_w - 2)
     end
 
     # Bottom border  └──── [↑↓]scroll [Esc]close ────┘
@@ -478,11 +520,17 @@ function _pdt_render_detail!(pdt::PagedDataTable, content_area::Rect, buf::Buffe
     set_char!(buf, mx, bot_y, '└', border_style)
     help_str = " [↑↓] scroll  [Esc] close "
     hpad = inner_w - length(help_str)
-    lh = hpad ÷ 2; rh = hpad - lh
-    set_string!(buf, mx + 1, bot_y,
+    lh = hpad ÷ 2
+    rh = hpad - lh
+    set_string!(
+        buf,
+        mx + 1,
+        bot_y,
         repeat('─', lh) * help_str * repeat('─', rh),
-        border_style; max_x = mx + modal_w - 2)
-    set_char!(buf, mx + modal_w - 1, bot_y, '┘', border_style)
+        border_style;
+        max_x=mx + modal_w - 2,
+    )
+    return set_char!(buf, mx + modal_w - 1, bot_y, '┘', border_style)
 end
 
 # ── Filter modal ─────────────────────────────────────────────────────
@@ -492,23 +540,23 @@ function _pdt_render_filter_modal!(pdt::PagedDataTable, content_area::Rect, buf:
     nc = length(pdt.columns)
     filterable_cols = [i for i in 1:nc if pdt.columns[i].filterable]
     nf = length(filterable_cols)
-    nf == 0 && return
+    nf == 0 && return nothing
 
     nops = length(fm.available_ops)
 
     # Modal size: columns + separator + ops row + separator + value row + separator + help
     modal_h = min(content_area.height - 2, nf + nops + 8)
     modal_w = min(50, content_area.width - 4)
-    modal_h < 8 && return
+    modal_h < 8 && return nothing
 
     modal_rect = center(content_area, modal_w, modal_h)
     mx, my = modal_rect.x, modal_rect.y
 
     border_style = tstyle(:accent)
-    title_style = tstyle(:title, bold=true)
+    title_style = tstyle(:title; bold=true)
     bg_style = tstyle(:text)
-    section_style = tstyle(:primary, bold=true)
-    selected_style = tstyle(:accent, bold=true)
+    section_style = tstyle(:primary; bold=true)
+    selected_style = tstyle(:accent; bold=true)
     dim_style = tstyle(:text_dim)
     active_marker_style = tstyle(:accent)
     badge_style = tstyle(:accent)
@@ -522,16 +570,15 @@ function _pdt_render_filter_modal!(pdt::PagedDataTable, content_area::Rect, buf:
 
     # Border with shimmer
     if pdt.tick !== nothing && pdt.tick > 0 && animations_enabled()
-        border_shimmer!(buf, modal_rect, border_style.fg, pdt.tick;
-                        box=BOX_HEAVY, intensity=0.12)
+        border_shimmer!(buf, modal_rect, border_style.fg, pdt.tick; box=BOX_HEAVY, intensity=0.12)
     else
-        block = Block(border_style=border_style, box=BOX_HEAVY)
+        block = Block(; border_style=border_style, box=BOX_HEAVY)
         render(block, modal_rect, buf)
     end
 
     # Clear interior
-    for ry in my+1:my+modal_h-2
-        for rx in mx+1:mx+modal_w-2
+    for ry in (my + 1):(my + modal_h - 2)
+        for rx in (mx + 1):(mx + modal_w - 2)
             set_char!(buf, rx, ry, ' ', bg_style)
         end
     end
@@ -582,7 +629,7 @@ function _pdt_render_filter_modal!(pdt::PagedDataTable, content_area::Rect, buf:
     # Separator
     cy = min(cy, my + modal_h - 5)
     set_char!(buf, mx, cy, '┃', border_style)
-    for rx in mx+1:mx+modal_w-2
+    for rx in (mx + 1):(mx + modal_w - 2)
         set_char!(buf, rx, cy, '─', border_style)
     end
     set_char!(buf, mx + modal_w - 1, cy, '┃', border_style)
@@ -625,7 +672,7 @@ function _pdt_render_filter_modal!(pdt::PagedDataTable, content_area::Rect, buf:
     # Separator
     cy = min(cy, my + modal_h - 3)
     set_char!(buf, mx, cy, '┃', border_style)
-    for rx in mx+1:mx+modal_w-2
+    for rx in (mx + 1):(mx + modal_w - 2)
         set_char!(buf, rx, cy, '─', border_style)
     end
     set_char!(buf, mx + modal_w - 1, cy, '┃', border_style)
@@ -644,5 +691,5 @@ function _pdt_render_filter_modal!(pdt::PagedDataTable, content_area::Rect, buf:
     # Help row
     help_y = my + modal_h - 1
     help = " [↑↓]select [Tab]next [x]clear [Enter]apply [Esc]cancel "
-    set_string!(buf, mx + max(0, (modal_w - length(help)) ÷ 2), help_y, help, dim_style)
+    return set_string!(buf, mx + max(0, (modal_w - length(help)) ÷ 2), help_y, help, dim_style)
 end

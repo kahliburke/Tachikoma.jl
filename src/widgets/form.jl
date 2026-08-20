@@ -8,16 +8,15 @@ struct FormField
     required::Bool
 end
 
-FormField(label::String, widget; required::Bool=false) =
-    FormField(label, widget, required)
+FormField(label::String, widget; required::Bool=false) = FormField(label, widget, required)
 
 mutable struct Form
     fields::Vector{FormField}
     submit_label::String
-    block::Union{Block, Nothing}
+    block::Union{Block,Nothing}
     label_width::Int               # 0 = auto
     focus::FocusRing
-    tick::Union{Int, Nothing}
+    tick::Union{Int,Nothing}
     submit_button::Button
 end
 
@@ -27,16 +26,17 @@ end
 Container for labeled input fields with Tab/Shift-Tab navigation and a submit button.
 Use `value(form)` to get a `Dict` of field values and `valid(form)` to check validation.
 """
-function Form(fields::Vector{FormField};
+function Form(
+    fields::Vector{FormField};
     submit_label::String="Submit",
-    block::Union{Block, Nothing}=nothing,
+    block::Union{Block,Nothing}=nothing,
     label_width::Int=0,
-    tick::Union{Int, Nothing}=nothing,
+    tick::Union{Int,Nothing}=nothing,
     bordered_submit::Bool=false,
 )
     # Build focus ring from widgets + submit button
     widgets = Any[f.widget for f in fields]
-    btn_style = bordered_submit ? ButtonStyle(decoration=BorderedButton()) : ButtonStyle()
+    btn_style = bordered_submit ? ButtonStyle(; decoration=BorderedButton()) : ButtonStyle()
     btn = Button(submit_label; focused=false, tick=tick, button_style=btn_style)
     push!(widgets, btn)
     ring = FocusRing(widgets)
@@ -44,7 +44,7 @@ function Form(fields::Vector{FormField};
     # Auto-compute label width
     lw = label_width > 0 ? label_width : maximum(length(f.label) for f in fields; init=6) + 2
 
-    Form(fields, submit_label, block, lw, ring, tick, btn)
+    return Form(fields, submit_label, block, lw, ring, tick, btn)
 end
 
 focusable(::Form) = true
@@ -59,7 +59,7 @@ function valid(form::Form)::Bool
         end
         Tachikoma.valid(w) || return false
     end
-    true
+    return true
 end
 
 # ── Key handling ──
@@ -80,11 +80,11 @@ function handle_key!(form::Form, evt::KeyEvent)::Bool
     # Delegate to focused widget
     cur = current(form.focus)
     if cur !== nothing
-        if hasmethod(handle_key!, Tuple{typeof(cur), KeyEvent})
+        if hasmethod(handle_key!, Tuple{typeof(cur),KeyEvent})
             return handle_key!(cur, evt)
         end
     end
-    false
+    return false
 end
 
 function _form_unfocus!(form::Form)
@@ -94,7 +94,7 @@ function _form_unfocus!(form::Form)
             w.focused = false
         end
     end
-    form.submit_button.focused = false
+    return form.submit_button.focused = false
 end
 
 function _form_apply_focus!(form::Form)
@@ -129,21 +129,25 @@ function handle_mouse!(form::Form, evt::MouseEvent)::Bool
             return true
         end
     end
-    false
+    return false
 end
 
 # ── Validation helpers ──
 
-function form_values(form::Form)::Dict{String, Any}
-    d = Dict{String, Any}()
+function form_values(form::Form)::Dict{String,Any}
+    d = Dict{String,Any}()
     for f in form.fields
         d[f.label] = _field_value(f.widget)
     end
-    d
+    return d
 end
 
 function _field_value(w)
-    try value(w) catch; nothing end
+    try
+        value(w)
+    catch
+        nothing
+    end
 end
 
 # ── Render ──
@@ -170,7 +174,7 @@ function render(form::Form, rect::Rect, buf::Buffer)
     else
         rect
     end
-    (content_area.width < 8 || content_area.height < 2) && return
+    (content_area.width < 8 || content_area.height < 2) && return nothing
 
     lw = min(form.label_width, content_area.width ÷ 2)
 
@@ -185,7 +189,7 @@ function render(form::Form, rect::Rect, buf::Buffer)
         end
     end
 
-    regular_fields = @view form.fields[1:first_btn_field-1]
+    regular_fields = @view form.fields[1:(first_btn_field - 1)]
     button_fields = @view form.fields[first_btn_field:end]
 
     # Build vertical constraints: regular fields + one button row
@@ -204,7 +208,7 @@ function render(form::Form, rect::Rect, buf::Buffer)
     areas = split_layout(layout, content_area)
 
     label_style = tstyle(:text_dim)
-    focused_label_style = tstyle(:accent, bold=true)
+    focused_label_style = tstyle(:accent; bold=true)
     cur_widget = current(form.focus)
 
     # Render regular (non-button) fields with label + widget
@@ -219,11 +223,9 @@ function render(form::Form, rect::Rect, buf::Buffer)
             label_text = string(label_text, "*")
         end
         ls = is_focused ? focused_label_style : label_style
-        set_string!(buf, field_area.x, field_area.y, label_text, ls;
-                    max_x=field_area.x + lw - 1)
+        set_string!(buf, field_area.x, field_area.y, label_text, ls; max_x=field_area.x + lw - 1)
 
-        w_rect = Rect(field_area.x + lw, field_area.y,
-                      field_area.width - lw, field_area.height)
+        w_rect = Rect(field_area.x + lw, field_area.y, field_area.width - lw, field_area.height)
         render(field.widget, w_rect, buf)
     end
 

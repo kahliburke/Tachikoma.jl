@@ -68,9 +68,7 @@
     # Pane focus zoom (0 = none, 1 = sparklines, 2 = particles, 3 = pixel)
     focused_pane::Int = 0
     pane_springs::Vector{Spring} = [
-        Spring(1.0; stiffness=200.0),
-        Spring(1.0; stiffness=200.0),
-        Spring(1.0; stiffness=200.0),
+        Spring(1.0; stiffness=200.0), Spring(1.0; stiffness=200.0), Spring(1.0; stiffness=200.0)
     ]
 
     # Per-frame timing breakdown
@@ -169,7 +167,7 @@ function _fps_resize_particles!(m::FPSModel, canvas_w::Int, canvas_h::Int)
         resize!(m.particles_y, new_n)
         resize!(m.particles_vx, new_n)
         resize!(m.particles_vy, new_n)
-        for i in (old_n+1):new_n
+        for i in (old_n + 1):new_n
             m.particles_x[i] = rand() * dot_w
             m.particles_y[i] = rand() * dot_h
             m.particles_vx[i] = (rand() - 0.5) * 4.0
@@ -214,7 +212,7 @@ function update!(m::FPSModel, evt::KeyEvent)
     # FPS target modal consumes all keys when open
     if m.show_fps_modal
         _fps_modal_handle_key!(m, evt)
-        return
+        return nothing
     end
 
     @match (evt.key, evt.char) begin
@@ -223,7 +221,7 @@ function update!(m::FPSModel, evt::KeyEvent)
         (:char, 's') => (m.enable_sixel = !m.enable_sixel)
         (:char, 'f') => _fps_modal_open!(m)
         (:char, 'z') || (:tab, _) => _fps_cycle_focus!(m)
-        (:char, c) where '1' <= c <= '5' => (m.animation_complexity = Int(c) - Int('0'))
+        (:char, c) where {'1' <= c <= '5'} => (m.animation_complexity = Int(c) - Int('0'))
         (:up, _) => (m.num_sparklines = min(8, m.num_sparklines + 1))
         (:down, _) => (m.num_sparklines = max(1, m.num_sparklines - 1))
         (:right, _) => (m.num_particles = min(2000, m.num_particles + 50))
@@ -234,7 +232,7 @@ end
 
 function _fps_cycle_focus!(m::FPSModel)
     m.focused_pane = m.focused_pane >= 3 ? 0 : m.focused_pane + 1
-    _fps_update_pane_targets!(m)
+    return _fps_update_pane_targets!(m)
 end
 
 function _fps_update_pane_targets!(m::FPSModel)
@@ -272,7 +270,7 @@ function _fps_modal_confirm!(m::FPSModel)
     else
         # Custom input
         v = tryparse(Int, text(m.fps_modal_input))
-        (v === nothing || v < 1 || v > 999) && return
+        (v === nothing || v < 1 || v > 999) && return nothing
         new_fps = v
     end
     m.show_fps_modal = false
@@ -287,7 +285,7 @@ function _fps_modal_handle_key!(m::FPSModel, evt::KeyEvent)
     total = n + 1  # presets + custom
 
     # Escape always closes
-    evt.key == :escape && (m.show_fps_modal = false; return)
+    evt.key == :escape && (m.show_fps_modal=false; return nothing)
 
     # If text input is focused, delegate most keys there
     if m.fps_modal_custom && m.fps_modal_input.focused
@@ -305,7 +303,7 @@ function _fps_modal_handle_key!(m::FPSModel, evt::KeyEvent)
             end
             _ => handle_key!(m.fps_modal_input, evt)
         end
-        return
+        return nothing
     end
 
     # Navigate presets
@@ -348,7 +346,7 @@ function _fps_sparkline_data(tick::Int, idx::Int, complexity::Int, width::Int)
         end
         data[i] = (val + 2.0) / 4.0  # normalize to roughly [0, 1]
     end
-    data
+    return data
 end
 
 # ── View ─────────────────────────────────────────────────────────────
@@ -384,23 +382,21 @@ function view(m::FPSModel, f::Frame)
     # ── Outer frame ──
     t_render_start = time()
 
-    outer = Block(
-        title="FPS Stress Test",
-        border_style=tstyle(:border),
-        title_style=tstyle(:title, bold=true),
+    outer = Block(;
+        title="FPS Stress Test", border_style=tstyle(:border), title_style=tstyle(:title; bold=true)
     )
     main = render(outer, f.area, buf)
-    main.width < 20 || main.height < 15 && return
+    main.width < 20 || main.height < 15 && return nothing
 
     # ── Five-row layout ──
     rows = split_layout(Layout(Vertical, [
-            Fixed(7),   # header: BigText FPS + stats
-            Fixed(5),   # FPS/frame-time sparklines
-            Fill(),     # stress area: sparklines + particles
-            Fixed(3),   # timing breakdown
-            Fixed(1),   # footer
-        ]), main)
-    length(rows) < 5 && return
+        Fixed(7),   # header: BigText FPS + stats
+        Fixed(5),   # FPS/frame-time sparklines
+        Fill(),     # stress area: sparklines + particles
+        Fixed(3),   # timing breakdown
+        Fixed(1),   # footer
+    ]), main)
+    length(rows) < 5 && return nothing
 
     header_area = rows[1]
     graph_area = rows[2]
@@ -422,19 +418,28 @@ function view(m::FPSModel, f::Frame)
     _fps_draw_timing(m, buf, timing_area)
 
     # ── Row 5: Footer ──
-    render(StatusBar(
-            left=[Span(" [↑↓]sparklines [←→]particles [1-5]complexity [t]tokenizer [s]pixel [z/Tab]zoom [f]fps [q]quit ", tstyle(:text_dim))],
+    render(
+        StatusBar(;
+            left=[
+                Span(
+                    " [↑↓]sparklines [←→]particles [1-5]complexity [t]tokenizer [s]pixel [z/Tab]zoom [f]fps [q]quit ",
+                    tstyle(:text_dim),
+                ),
+            ],
             right=[Span("tick $(m.tick) ", tstyle(:text_dim))],
-        ), footer_area, buf)
+        ),
+        footer_area,
+        buf,
+    )
 
     # ── FPS target modal overlay ──
-    m.show_fps_modal && _fps_draw_modal(m, buf, main)
+    return m.show_fps_modal && _fps_draw_modal(m, buf, main)
 end
 
 # ── Header panel: BigText FPS + statistics ───────────────────────────
 
 function _fps_draw_header(m::FPSModel, buf::Buffer, area::Rect, fps::Float64, delta::Float64)
-    area.height < 5 && return
+    area.height < 5 && return nothing
 
     # Update displayed FPS 4 times per second.
     now_t = time()
@@ -446,7 +451,8 @@ function _fps_draw_header(m::FPSModel, buf::Buffer, area::Rect, fps::Float64, de
             n_avg += 1
             window >= 1.0 && break
         end
-        m.display_fps = n_avg > 0 && window > 0.0 ? round(Int, Float64(n_avg) / window) : round(Int, fps)
+        m.display_fps =
+            n_avg > 0 && window > 0.0 ? round(Int, Float64(n_avg) / window) : round(Int, fps)
         m.display_update_time = now_t
     end
 
@@ -454,14 +460,14 @@ function _fps_draw_header(m::FPSModel, buf::Buffer, area::Rect, fps::Float64, de
     bt_text = string(m.display_fps)
     bt_w = intrinsic_size(BigText(bt_text))[1] + 2
     cols = split_layout(Layout(Horizontal, [Fixed(bt_w), Fill()]), area)
-    length(cols) < 2 && return
+    length(cols) < 2 && return nothing
 
     # BigText FPS number
-    render(BigText(bt_text; style=tstyle(:primary, bold=true)), cols[1], buf)
+    render(BigText(bt_text; style=tstyle(:primary; bold=true)), cols[1], buf)
 
     # Stats column
     stats_area = cols[2]
-    stats_area.width < 10 && return
+    stats_area.width < 10 && return nothing
     sx, sy = stats_area.x + 1, stats_area.y
 
     if !isempty(m.fps_history)
@@ -471,24 +477,36 @@ function _fps_draw_header(m::FPSModel, buf::Buffer, area::Rect, fps::Float64, de
         fps_p99 = sorted[min(n, round(Int, n * 0.99))]
         fps_avg = sum(m.fps_history) / n
 
-        set_string!(buf, sx, sy, "FPS (target: $(m.target_fps))", tstyle(:accent, bold=true))
+        set_string!(buf, sx, sy, "FPS (target: $(m.target_fps))", tstyle(:accent; bold=true))
         sy += 1
-        set_string!(buf, sx, sy,
+        set_string!(
+            buf,
+            sx,
+            sy,
             "p1: $(round(fps_p1; digits=1))  avg: $(round(fps_avg; digits=1))  p99: $(round(fps_p99; digits=1))",
-            tstyle(:text_dim))
+            tstyle(:text_dim),
+        )
         sy += 1
         frame_ms = delta * 1000.0
         update_ms = m.update_us / 1000.0
         render_ms = m.render_us / 1000.0
-        set_string!(buf, sx, sy,
+        set_string!(
+            buf,
+            sx,
+            sy,
             "frame: $(round(frame_ms; digits=1))ms  update: $(round(update_ms; digits=1))ms  render: $(round(render_ms; digits=1))ms",
-            tstyle(:text_dim))
+            tstyle(:text_dim),
+        )
         sy += 1
         tok_str = m.enable_tokenizer ? "ON" : "off"
         six_str = m.enable_sixel ? "ON" : "off"
-        set_string!(buf, sx, sy,
+        set_string!(
+            buf,
+            sx,
+            sy,
             "particles: $(m.num_particles)  sparklines: $(m.num_sparklines)  complexity: $(m.animation_complexity)  tokenizer: $(tok_str)  pixel: $(six_str)",
-            tstyle(:text_dim))
+            tstyle(:text_dim),
+        )
     end
 end
 
@@ -496,21 +514,21 @@ end
 
 function _fps_draw_graphs(m::FPSModel, buf::Buffer, area::Rect)
     cols = split_layout(Layout(Horizontal, [Percent(50), Fill()]), area)
-    length(cols) < 2 && return
+    length(cols) < 2 && return nothing
 
     # FPS history sparkline
-    fps_block = Block(title="FPS History",
-        border_style=tstyle(:border),
-        title_style=tstyle(:text_dim))
+    fps_block = Block(;
+        title="FPS History", border_style=tstyle(:border), title_style=tstyle(:text_dim)
+    )
     fps_inner = render(fps_block, cols[1], buf)
     if fps_inner.height >= 1 && fps_inner.width >= 4 && !isempty(m.fps_history)
         render(Sparkline(m.fps_history; style=tstyle(:primary)), fps_inner, buf)
     end
 
     # Frame time (ms) sparkline
-    ft_block = Block(title="Frame Time (ms)",
-        border_style=tstyle(:border),
-        title_style=tstyle(:text_dim))
+    ft_block = Block(;
+        title="Frame Time (ms)", border_style=tstyle(:border), title_style=tstyle(:text_dim)
+    )
     ft_inner = render(ft_block, cols[2], buf)
     if ft_inner.height >= 1 && ft_inner.width >= 4 && !isempty(m.frame_times)
         ft_ms = m.frame_times .* 1000.0
@@ -521,7 +539,7 @@ end
 # ── Stress area: sparklines + particle canvas ────────────────────────
 
 function _fps_draw_stress(m::FPSModel, f::Frame, area::Rect)
-    area.height < 3 && return
+    area.height < 3 && return nothing
     buf = f.buffer
 
     # Advance pane zoom springs
@@ -539,7 +557,7 @@ function _fps_draw_stress(m::FPSModel, f::Frame, area::Rect)
     p2 = round(Int, w2 / total * 100)
 
     cols = split_layout(Layout(Horizontal, [Percent(p1), Percent(p2), Fill()]), area)
-    length(cols) < 3 && return
+    length(cols) < 3 && return nothing
 
     # Left: stacked stress sparklines
     _fps_draw_stress_sparklines(m, buf, cols[1])
@@ -548,18 +566,16 @@ function _fps_draw_stress(m::FPSModel, f::Frame, area::Rect)
     _fps_draw_particles(m, buf, cols[2])
 
     # Right: sixel stress
-    _fps_draw_sixel_stress(m, f, cols[3])
+    return _fps_draw_sixel_stress(m, f, cols[3])
 end
 
 function _fps_draw_stress_sparklines(m::FPSModel, buf::Buffer, area::Rect)
     focused = m.focused_pane == 1
-    bs = focused ? tstyle(:accent, bold=true) : tstyle(:border)
-    ts = focused ? tstyle(:accent, bold=true) : tstyle(:text_dim)
-    blk = Block(title="Stress Sparklines ($(m.num_sparklines))",
-        border_style=bs,
-        title_style=ts)
+    bs = focused ? tstyle(:accent; bold=true) : tstyle(:border)
+    ts = focused ? tstyle(:accent; bold=true) : tstyle(:text_dim)
+    blk = Block(; title="Stress Sparklines ($(m.num_sparklines))", border_style=bs, title_style=ts)
     inner = render(blk, area, buf)
-    inner.width < 4 || inner.height < 1 && return
+    inner.width < 4 || inner.height < 1 && return nothing
 
     n = m.num_sparklines
     # Divide inner area evenly among sparklines
@@ -579,13 +595,11 @@ end
 
 function _fps_draw_particles(m::FPSModel, buf::Buffer, area::Rect)
     focused = m.focused_pane == 2
-    bs = focused ? tstyle(:accent, bold=true) : tstyle(:border)
-    ts = focused ? tstyle(:accent, bold=true) : tstyle(:text_dim)
-    blk = Block(title="Particles ($(m.num_particles))",
-        border_style=bs,
-        title_style=ts)
+    bs = focused ? tstyle(:accent; bold=true) : tstyle(:border)
+    ts = focused ? tstyle(:accent; bold=true) : tstyle(:text_dim)
+    blk = Block(; title="Particles ($(m.num_particles))", border_style=bs, title_style=ts)
     inner = render(blk, area, buf)
-    inner.width < 2 || inner.height < 2 && return
+    inner.width < 2 || inner.height < 2 && return nothing
 
     cw, ch = inner.width, inner.height
 
@@ -608,21 +622,19 @@ function _fps_draw_particles(m::FPSModel, buf::Buffer, area::Rect)
         dy = round(Int, m.particles_y[i])
         set_point!(canvas, dx, dy)
     end
-    render(canvas, inner, buf)
+    return render(canvas, inner, buf)
 end
 
 # ── Sixel stress pane ────────────────────────────────────────────────
 
 function _fps_draw_sixel_stress(m::FPSModel, f::Frame, area::Rect)
     focused = m.focused_pane == 3
-    bs = focused ? tstyle(:accent, bold=true) : tstyle(:border)
-    ts = focused ? tstyle(:accent, bold=true) : tstyle(:text_dim)
+    bs = focused ? tstyle(:accent; bold=true) : tstyle(:border)
+    ts = focused ? tstyle(:accent; bold=true) : tstyle(:text_dim)
     sixel_label = m.enable_sixel ? " Pixel " : " Half-Block "
-    blk = Block(title=sixel_label,
-        border_style=bs,
-        title_style=ts)
+    blk = Block(; title=sixel_label, border_style=bs, title_style=ts)
     inner = render(blk, area, f.buffer)
-    inner.width < 2 || inner.height < 2 && return
+    inner.width < 2 || inner.height < 2 && return nothing
 
     if m.enable_sixel
         _fps_draw_noise_sixel(m, f, inner)
@@ -660,13 +672,13 @@ function _fps_draw_noise_sixel(m::FPSModel, f::Frame, inner::Rect)
     # This avoids allocating a new Matrix{ColorRGB} every frame (tens of MB/sec
     # of GC pressure at 60fps for a large pixel buffer).
     if m.pixel_img === nothing ||
-       m.pixel_img.cells_w != inner.width ||
-       m.pixel_img.cells_h != inner.height
+        m.pixel_img.cells_w != inner.width ||
+        m.pixel_img.cells_h != inner.height
         m.pixel_img = PixelImage(inner.width, inner.height; style=tstyle(:accent))
     end
     img = m.pixel_img
     pw, ph = img.pixel_w, img.pixel_h
-    (pw < 2 || ph < 2) && return
+    (pw < 2 || ph < 2) && return nothing
 
     t = m.tick * 0.04
     complexity = m.animation_complexity
@@ -677,7 +689,7 @@ function _fps_draw_noise_sixel(m::FPSModel, f::Frame, inner::Rect)
             img.pixels[py, px] = _fps_noise_color(_fps_noise_val(nx, ny, t, complexity))
         end
     end
-    render(img, inner, f; tick=m.tick)
+    return render(img, inner, f; tick=m.tick)
 end
 
 function _fps_draw_noise_halfblock(m::FPSModel, buf::Buffer, inner::Rect)
@@ -688,17 +700,16 @@ function _fps_draw_noise_halfblock(m::FPSModel, buf::Buffer, inner::Rect)
     cw, ch = inner.width, inner.height
     # Total virtual rows: 2 per cell row
     vh = ch * 2
-    @inbounds for row in 0:(ch-1)
+    @inbounds for row in 0:(ch - 1)
         y_top = row * 2
         y_bot = row * 2 + 1
         ny_top = y_top / vh
         ny_bot = y_bot / vh
-        for col in 0:(cw-1)
+        for col in 0:(cw - 1)
             nx = col / cw
             fg = _fps_noise_color(_fps_noise_val(nx, ny_top, t, complexity))
             bg = _fps_noise_color(_fps_noise_val(nx, ny_bot, t, complexity))
-            set_char!(buf, inner.x + col, inner.y + row, '▀',
-                Style(fg=fg, bg=bg))
+            set_char!(buf, inner.x + col, inner.y + row, '▀', Style(fg=fg, bg=bg))
         end
     end
 end
@@ -707,7 +718,7 @@ end
 
 function _fps_draw_timing(m::FPSModel, buf::Buffer, area::Rect)
     cols = split_layout(Layout(Horizontal, [Percent(50), Fill()]), area)
-    length(cols) < 2 && return
+    length(cols) < 2 && return nothing
 
     # Left: bar chart of update vs render time
     bc_area = cols[1]
@@ -717,8 +728,7 @@ function _fps_draw_timing(m::FPSModel, buf::Buffer, area::Rect)
             BarEntry("render", m.render_us; style=tstyle(:warning)),
         ]
         max_us = max(m.update_us, m.render_us, 1000.0)
-        render(BarChart(entries; max_val=max_us, show_values=true,
-                label_width=8), bc_area, buf)
+        render(BarChart(entries; max_val=max_us, show_values=true, label_width=8), bc_area, buf)
     end
 
     # Right: load gauges
@@ -731,21 +741,36 @@ function _fps_draw_timing(m::FPSModel, buf::Buffer, area::Rect)
         load_ratio = clamp(total_us / budget_us, 0.0, 1.0)
 
         gauge_rows = split_layout(Layout(Vertical, [Fixed(1), Fixed(1), Fill()]), gauge_area)
-        length(gauge_rows) < 2 && return
+        length(gauge_rows) < 2 && return nothing
 
         # Label
         load_pct = round(Int, load_ratio * 100)
-        set_string!(buf, gauge_rows[1].x, gauge_rows[1].y,
+        set_string!(
+            buf,
+            gauge_rows[1].x,
+            gauge_rows[1].y,
             " Load: $(load_pct)% of $(budget_ms)ms budget ($(m.target_fps)fps)",
-            load_ratio > 0.8 ? tstyle(:error, bold=true) : tstyle(:text_dim))
+            load_ratio > 0.8 ? tstyle(:error; bold=true) : tstyle(:text_dim),
+        )
 
         # Gauge bar
-        color = load_ratio > 0.8 ? :error : load_ratio > 0.5 ? :warning : :primary
-        render(Gauge(load_ratio;
+        color = if load_ratio > 0.8
+            :error
+        elseif load_ratio > 0.5
+            :warning
+        else
+            :primary
+        end
+        render(
+            Gauge(
+                load_ratio;
                 filled_style=tstyle(color),
-                empty_style=tstyle(:text_dim, dim=true),
-                tick=m.tick),
-            gauge_rows[2], buf)
+                empty_style=tstyle(:text_dim; dim=true),
+                tick=m.tick,
+            ),
+            gauge_rows[2],
+            buf,
+        )
     end
 end
 
@@ -760,19 +785,21 @@ function _fps_draw_modal(m::FPSModel, buf::Buffer, area::Rect)
     modal_rect = Rect(mx, my, min(modal_w, area.width), min(modal_h, area.height))
 
     # Dim background
-    dim_s = tstyle(:text_dim, dim=true)
-    for cy in area.y:(area.y+area.height-1)
-        for cx in area.x:(area.x+area.width-1)
+    dim_s = tstyle(:text_dim; dim=true)
+    for cy in area.y:(area.y + area.height - 1)
+        for cx in area.x:(area.x + area.width - 1)
             set_char!(buf, cx, cy, ' ', dim_s)
         end
     end
 
     # Modal border
-    blk = Block(title="FPS Target",
-        border_style=tstyle(:accent, bold=true),
-        title_style=tstyle(:accent, bold=true))
+    blk = Block(;
+        title="FPS Target",
+        border_style=tstyle(:accent; bold=true),
+        title_style=tstyle(:accent; bold=true),
+    )
     inner = render(blk, modal_rect, buf)
-    inner.width < 10 || inner.height < 4 && return
+    inner.width < 10 || inner.height < 4 && return nothing
 
     y = inner.y
     sel = m.fps_modal_selected
@@ -782,7 +809,7 @@ function _fps_draw_modal(m::FPSModel, buf::Buffer, area::Rect)
         label = "  $(lpad(_FPS_PRESETS[i], 3)) fps"
         if i == sel
             marker_str = string(MARKER, label)
-            set_string!(buf, inner.x, y, marker_str, tstyle(:accent, bold=true))
+            set_string!(buf, inner.x, y, marker_str, tstyle(:accent; bold=true))
         else
             set_string!(buf, inner.x + 1, y, label, tstyle(:text))
         end
@@ -790,7 +817,7 @@ function _fps_draw_modal(m::FPSModel, buf::Buffer, area::Rect)
     end
 
     # Separator
-    for cx in inner.x:(inner.x+inner.width-1)
+    for cx in inner.x:(inner.x + inner.width - 1)
         set_char!(buf, cx, y, '─', tstyle(:border))
     end
     y += 1
@@ -798,7 +825,7 @@ function _fps_draw_modal(m::FPSModel, buf::Buffer, area::Rect)
     # Custom input row
     custom_selected = sel > n
     if custom_selected
-        set_string!(buf, inner.x, y, string(MARKER), tstyle(:accent, bold=true))
+        set_string!(buf, inner.x, y, string(MARKER), tstyle(:accent; bold=true))
     end
     m.fps_modal_input.tick = m.tick
     input_rect = Rect(inner.x + 2, y, inner.width - 2, 1)
@@ -817,7 +844,7 @@ function update!(m::FPSModel, ::MouseEvent) end
 
 function fps_demo(; theme_name=nothing, fps=60)
     theme_name !== nothing && set_theme!(theme_name)
-    model = FPSModel(target_fps=fps)
+    model = FPSModel(; target_fps=fps)
     while true
         model.restart = false
         model.quit = false

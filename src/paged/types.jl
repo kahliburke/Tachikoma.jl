@@ -36,15 +36,15 @@ FilterCapabilities() = FilterCapabilities(DEFAULT_TEXT_OPS, DEFAULT_NUMERIC_OPS)
 
 function filter_op_label(op::FilterOp)
     op == filter_contains && return "contains"
-    op == filter_eq       && return "="
-    op == filter_neq      && return "≠"
-    op == filter_gt       && return ">"
-    op == filter_gte      && return "≥"
-    op == filter_lt       && return "<"
-    op == filter_lte      && return "≤"
-    op == filter_regex    && return "regex"
+    op == filter_eq && return "="
+    op == filter_neq && return "≠"
+    op == filter_gt && return ">"
+    op == filter_gte && return "≥"
+    op == filter_lt && return "<"
+    op == filter_lte && return "≤"
+    op == filter_regex && return "regex"
     op == filter_wildcard && return "wildcard"
-    string(op)
+    return string(op)
 end
 
 # ── Column & request types ───────────────────────────────────────────
@@ -53,21 +53,22 @@ struct PagedColumn
     name::String
     width::Int                          # 0 = auto
     align::ColumnAlign                  # reuse existing enum
-    format::Union{Function, Nothing}    # value -> String
+    format::Union{Function,Nothing}    # value -> String
     filterable::Bool
     sortable::Bool
     col_type::Symbol                    # :numeric, :text
 end
 
-function PagedColumn(name::String;
+function PagedColumn(
+    name::String;
     width::Int=0,
     align::ColumnAlign=col_left,
-    format::Union{Function, Nothing}=nothing,
+    format::Union{Function,Nothing}=nothing,
     filterable::Bool=true,
     sortable::Bool=true,
     col_type::Symbol=:text,
 )
-    PagedColumn(name, width, align, format, filterable, sortable, col_type)
+    return PagedColumn(name, width, align, format, filterable, sortable, col_type)
 end
 
 struct PageRequest
@@ -109,7 +110,7 @@ filter_capabilities(::PagedDataProvider) = FilterCapabilities()
 
 # SQLite extension hook — set by TachikomaSQLiteExt.__init__
 # Signature: (db, table_name; kwargs...) -> PagedDataProvider
-const _create_sqlite_provider = Ref{Union{Function, Nothing}}(nothing)
+const _create_sqlite_provider = Ref{Union{Function,Nothing}}(nothing)
 
 """
     create_sqlite_provider(db, table_name; kwargs...) -> PagedDataProvider
@@ -119,8 +120,9 @@ Create a SQLite-backed paged data provider. Requires the SQLite extension to be 
 """
 function create_sqlite_provider(db, table_name::String; kwargs...)
     fn = _create_sqlite_provider[]
-    fn === nothing && error("SQLite extension not loaded. Call `using SQLite` or `enable_sqlite()` first.")
-    fn(db, table_name; kwargs...)
+    fn === nothing &&
+        error("SQLite extension not loaded. Call `using SQLite` or `enable_sqlite()` first.")
+    return fn(db, table_name; kwargs...)
 end
 
 # ── Filter application helper ─────────────────────────────────────────
@@ -131,20 +133,20 @@ function apply_filter(op::FilterOp, filter_val::String, cell_val, col_type::Symb
         num === nothing && return true  # invalid → don't exclude
         cell_num = cell_val isa Number ? Float64(cell_val) : tryparse(Float64, string(cell_val))
         cell_num === nothing && return false
-        op == filter_eq  && return cell_num == num
+        op == filter_eq && return cell_num == num
         op == filter_neq && return cell_num != num
-        op == filter_gt  && return cell_num > num
+        op == filter_gt && return cell_num > num
         op == filter_gte && return cell_num >= num
-        op == filter_lt  && return cell_num < num
+        op == filter_lt && return cell_num < num
         op == filter_lte && return cell_num <= num
         return true
     else  # :text
         s = lowercase(string(cell_val))
         q = lowercase(filter_val)
         op == filter_contains && return occursin(q, s)
-        op == filter_eq       && return s == q
-        op == filter_neq      && return s != q
-        op == filter_regex    && return occursin(Regex(filter_val, "i"), string(cell_val))
+        op == filter_eq && return s == q
+        op == filter_neq && return s != q
+        op == filter_regex && return occursin(Regex(filter_val, "i"), string(cell_val))
         return occursin(q, s)
     end
 end
@@ -160,4 +162,6 @@ mutable struct FilterModalState
     value_input::TextInput
 end
 
-FilterModalState() = FilterModalState(false, 1, 1, 1, FilterOp[], TextInput(; label="Value: ", focused=true))
+function FilterModalState()
+    return FilterModalState(false, 1, 1, 1, FilterOp[], TextInput(; label="Value: ", focused=true))
+end

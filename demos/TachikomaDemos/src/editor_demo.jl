@@ -59,9 +59,7 @@ end
     tick::Int = 0
     editor::CodeEditor = CodeEditor(;
         text=_SAMPLE_CODE,
-        block=Block(title="CodeEditor",
-                    border_style=tstyle(:border),
-                    title_style=tstyle(:title)),
+        block=Block(title="CodeEditor", border_style=tstyle(:border), title_style=tstyle(:title)),
         focused=true,
         tick=0,
     )
@@ -83,15 +81,15 @@ function view(m::EditorModel, f::Frame)
     buf = f.buffer
 
     rows = split_layout(Layout(Vertical, [Fixed(1), Fill(), Fixed(1)]), f.area)
-    length(rows) < 3 && return
+    length(rows) < 3 && return nothing
     header_area = rows[1]
-    body_area   = rows[2]
+    body_area = rows[2]
     footer_area = rows[3]
 
     # Header
     title = "Code Editor Demo"
     hx = header_area.x + max(0, (header_area.width - length(title)) ÷ 2)
-    set_string!(buf, hx, header_area.y, title, tstyle(:title, bold=true))
+    set_string!(buf, hx, header_area.y, title, tstyle(:title; bold=true))
 
     # Editor
     render(m.editor, body_area, buf)
@@ -99,25 +97,31 @@ function view(m::EditorModel, f::Frame)
     # Mode indicator + footer
     mode = editor_mode(m.editor)
     mode_span = if mode == :normal
-        Span(" NORMAL ", tstyle(:accent, bold=true))
+        Span(" NORMAL ", tstyle(:accent; bold=true))
     elseif mode == :search
-        Span(" SEARCH ", tstyle(:warning, bold=true))
+        Span(" SEARCH ", tstyle(:warning; bold=true))
     elseif mode == :command
-        Span(" COMMAND ", tstyle(:warning, bold=true))
+        Span(" COMMAND ", tstyle(:warning; bold=true))
     else
-        Span(" INSERT ", tstyle(:success, bold=true))
+        Span(" INSERT ", tstyle(:success; bold=true))
     end
 
     ln = m.editor.cursor_row
     col = m.editor.cursor_col + 1
     pos = "Ln $(ln), Col $(col)"
-    render(StatusBar(
-        left=[mode_span, Span("  [i]insert [Esc]normal [/]search [:q]quit ", tstyle(:text_dim))],
-        right=[Span("$(pos) ", tstyle(:text_dim))],
-    ), footer_area, buf)
+    return render(
+        StatusBar(;
+            left=[
+                mode_span, Span("  [i]insert [Esc]normal [/]search [:q]quit ", tstyle(:text_dim))
+            ],
+            right=[Span("$(pos) ", tstyle(:text_dim))],
+        ),
+        footer_area,
+        buf,
+    )
 end
 
 function editor_demo(; theme_name=nothing)
     theme_name !== nothing && set_theme!(theme_name)
-    app(EditorModel(); fps=30)
+    return app(EditorModel(); fps=30)
 end

@@ -56,13 +56,14 @@ function Tachikoma.update!(m::SinkModel, evt::KeyEvent)
     pushfirst!(m.keys, label)
     length(m.keys) > 8 && pop!(m.keys)
     evt.key == :escape && (m.quit = true)
-    evt.key == :char && evt.char == 'q' && (m.quit = true)
+    return evt.key == :char && evt.char == 'q' && (m.quit = true)
 end
 
 function Tachikoma.view(m::SinkModel, f::Frame)
     m.tick += 1
-    outer = Block(title = " rendering into a socket ", box = BOX_ROUNDED,
-                  border_style = tstyle(:border_focus))
+    outer = Block(;
+        title=" rendering into a socket ", box=BOX_ROUNDED, border_style=tstyle(:border_focus)
+    )
     inner = render(outer, f.area, f.buffer)
 
     lines = [
@@ -78,7 +79,7 @@ function Tachikoma.view(m::SinkModel, f::Frame)
         "",
         "q or Esc to quit.",
     ]
-    render(Paragraph(join(lines, "\n"), style = tstyle(:text)), inner, f.buffer)
+    return render(Paragraph(join(lines, "\n"); style=tstyle(:text)), inner, f.buffer)
 end
 
 """
@@ -88,7 +89,7 @@ Wait for a display client on `port`, then run the app with its frames and
 input bound to that socket. Resize messages ("<rows> <cols>\\n") are read
 from `port + 1`.
 """
-function serve(; port::Int = 9000, rows::Int = 24, cols::Int = 80)
+function serve(; port::Int=9000, rows::Int=24, cols::Int=80)
     server = listen(port)
     ctl_server = listen(port + 1)
     @info "io_sink_demo: waiting for a display client" connect = "stty raw -echo; nc localhost $port; stty sane" resize = "echo \"30 100\" | nc localhost $(port + 1)"
@@ -103,7 +104,11 @@ function serve(; port::Int = 9000, rows::Int = 24, cols::Int = 80)
     # exactly what set_size! exists for.
     ctl = @async begin
         while !model.quit
-            c = try accept(ctl_server) catch; break end
+            c = try
+                accept(ctl_server)
+            catch
+                break
+            end
             @async begin
                 for line in eachline(c)
                     parts = split(strip(line))
@@ -112,7 +117,7 @@ function serve(; port::Int = 9000, rows::Int = 24, cols::Int = 80)
                     (r === nothing || cl === nothing) && continue
                     t = term[]
                     t === nothing && continue
-                    if Tachikoma.set_size!(t, (rows = r, cols = cl))
+                    if Tachikoma.set_size!(t, (rows=r, cols=cl))
                         model.resizes += 1
                         model.size_note = "← last: $(r)×$(cl)"
                     end
@@ -123,16 +128,21 @@ function serve(; port::Int = 9000, rows::Int = 24, cols::Int = 80)
     end
 
     try
-        app(model;
-            io = sock,                       # frames go here
-            input = sock,                    # ...and keystrokes come back off it
-            tty_size = (rows = rows, cols = cols),
-            on_terminal = t -> (term[] = t), # the handle set_size! needs
-            fps = 30)
+        app(
+            model;
+            io=sock,                       # frames go here
+            input=sock,                    # ...and keystrokes come back off it
+            tty_size=(rows=rows, cols=cols),
+            on_terminal=t -> (term[] = t), # the handle set_size! needs
+            fps=30,
+        )
     finally
         model.quit = true
         for s in (sock, server, ctl_server)
-            try close(s) catch end
+            try
+                close(s)
+            catch
+            end
         end
     end
     @info "io_sink_demo: app exited" frames = model.tick resizes = model.resizes

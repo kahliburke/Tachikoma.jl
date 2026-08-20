@@ -33,11 +33,11 @@ mutable struct TermScreen
     saved_style::Style
     # Alternate screen buffer (DECSET 1049 / 47 / 1047)
     alt_active::Bool
-    saved_cells::Union{Matrix{Cell}, Nothing}
+    saved_cells::Union{Matrix{Cell},Nothing}
     saved_main_cursor_row::Int
     saved_main_cursor_col::Int
     saved_main_style::Style
-    saved_scrollback::Union{Vector{Vector{Cell}}, Nothing}
+    saved_scrollback::Union{Vector{Vector{Cell}},Nothing}
     # Mouse reporting modes (DECSET 1000/1002/1006)
     mouse_reporting::Bool
     mouse_sgr::Bool
@@ -45,15 +45,35 @@ end
 
 function TermScreen(rows::Int, cols::Int; scrollback_limit::Int=1000, onlcr::Bool=false)
     cells = fill(Cell(), rows, cols)
-    TermScreen(cells, rows, cols, 1, 1, true,
-               RESET, 1, rows,
-               Vector{Cell}[], scrollback_limit,
-               true, false, onlcr,
-               1, 1, RESET,
-               # alternate screen buffer
-               false, nothing, 1, 1, RESET, nothing,
-               # mouse reporting
-               false, false)
+    return TermScreen(
+        cells,
+        rows,
+        cols,
+        1,
+        1,
+        true,
+        RESET,
+        1,
+        rows,
+        Vector{Cell}[],
+        scrollback_limit,
+        true,
+        false,
+        onlcr,
+        1,
+        1,
+        RESET,
+        # alternate screen buffer
+        false,
+        nothing,
+        1,
+        1,
+        RESET,
+        nothing,
+        # mouse reporting
+        false,
+        false,
+    )
 end
 
 # ── Screen Buffer Operations ────────────────────────────────────────
@@ -96,7 +116,7 @@ end
 
 function _screen_append_zero_width!(s::TermScreen, ch::Char)
     row = s.cursor_row
-    (row < 1 || row > s.rows) && return
+    (row < 1 || row > s.rows) && return nothing
 
     # Attach combining marks to the previously written display cell.
     col = clamp(s.cursor_col - 1, 1, s.cols)
@@ -105,16 +125,16 @@ function _screen_append_zero_width!(s::TermScreen, ch::Char)
         col -= 1
         cell = s.cells[row, col]
     end
-    (cell.char == WIDE_CHAR_PAD || cell.char == EMPTY_CHAR) && return
+    (cell.char == WIDE_CHAR_PAD || cell.char == EMPTY_CHAR) && return nothing
 
-    s.cells[row, col] = Cell(cell.char, cell.style, string(cell.suffix, ch))
+    return s.cells[row, col] = Cell(cell.char, cell.style, string(cell.suffix, ch))
 end
 
 function _screen_putchar!(s::TermScreen, ch::Char)
     w = textwidth(ch)
     if w <= 0
         _screen_append_zero_width!(s, ch)
-        return
+        return nothing
     end
 
     # Handle autowrap: if cursor is past the right margin
@@ -132,13 +152,12 @@ function _screen_putchar!(s::TermScreen, ch::Char)
     end
 
     # Write character at cursor
-    if s.cursor_row >= 1 && s.cursor_row <= s.rows &&
-       s.cursor_col >= 1 && s.cursor_col <= s.cols
+    if s.cursor_row >= 1 && s.cursor_row <= s.rows && s.cursor_col >= 1 && s.cursor_col <= s.cols
         old = s.cells[s.cursor_row, s.cursor_col]
         # Keep wide-cell state consistent when writing over lead/pad cells.
         if old.char != WIDE_CHAR_PAD && cell_width(old) == 2
             if s.cursor_col < s.cols &&
-               s.cells[s.cursor_row, s.cursor_col + 1].char == WIDE_CHAR_PAD
+                s.cells[s.cursor_row, s.cursor_col + 1].char == WIDE_CHAR_PAD
                 s.cells[s.cursor_row, s.cursor_col + 1] = Cell()
             end
         elseif old.char == WIDE_CHAR_PAD
@@ -153,12 +172,12 @@ function _screen_putchar!(s::TermScreen, ch::Char)
         end
     end
 
-    s.cursor_col += w
+    return s.cursor_col += w
 end
 
 function _screen_erase_line!(s::TermScreen, mode::Int)
     row = s.cursor_row
-    (row < 1 || row > s.rows) && return
+    (row < 1 || row > s.rows) && return nothing
     if mode == 0       # cursor to end
         for col in s.cursor_col:s.cols
             s.cells[row, col] = Cell()
@@ -201,7 +220,7 @@ end
 
 function _screen_erase_chars!(s::TermScreen, n::Int)
     row = s.cursor_row
-    (row < 1 || row > s.rows) && return
+    (row < 1 || row > s.rows) && return nothing
     for col in s.cursor_col:min(s.cursor_col + n - 1, s.cols)
         s.cells[row, col] = Cell()
     end
@@ -239,7 +258,7 @@ end
 
 function _screen_insert_chars!(s::TermScreen, n::Int)
     row = s.cursor_row
-    (row < 1 || row > s.rows) && return
+    (row < 1 || row > s.rows) && return nothing
     for col in s.cols:-1:(s.cursor_col + n)
         s.cells[row, col] = s.cells[row, col - n]
     end
@@ -250,7 +269,7 @@ end
 
 function _screen_delete_chars!(s::TermScreen, n::Int)
     row = s.cursor_row
-    (row < 1 || row > s.rows) && return
+    (row < 1 || row > s.rows) && return nothing
     for col in s.cursor_col:(s.cols - n)
         s.cells[row, col] = s.cells[row, col + n]
     end
@@ -261,13 +280,13 @@ end
 
 function _screen_move_cursor!(s::TermScreen, row::Int, col::Int)
     s.cursor_row = clamp(row, 1, s.rows)
-    s.cursor_col = clamp(col, 1, s.cols)
+    return s.cursor_col = clamp(col, 1, s.cols)
 end
 
 function _screen_resize!(s::TermScreen, rows::Int, cols::Int)
     rows < 1 && (rows = 1)
     cols < 1 && (cols = 1)
-    (rows == s.rows && cols == s.cols) && return
+    (rows == s.rows && cols == s.cols) && return nothing
 
     new_cells = fill(Cell(), rows, cols)
     # Copy existing content
@@ -282,13 +301,13 @@ function _screen_resize!(s::TermScreen, rows::Int, cols::Int)
     s.cursor_row = clamp(s.cursor_row, 1, rows)
     s.cursor_col = clamp(s.cursor_col, 1, cols)
     s.scroll_top = 1
-    s.scroll_bottom = rows
+    return s.scroll_bottom = rows
 end
 
 # ── Alternate Screen Buffer ─────────────────────────────────────────
 
 function _enter_alt_screen!(s::TermScreen, save_cursor::Bool)
-    s.alt_active && return  # already in alt screen
+    s.alt_active && return nothing  # already in alt screen
     # Save main buffer state
     s.saved_cells = copy(s.cells)
     s.saved_scrollback = copy(s.scrollback)
@@ -305,11 +324,11 @@ function _enter_alt_screen!(s::TermScreen, save_cursor::Bool)
     s.cursor_row = 1
     s.cursor_col = 1
     s.scroll_top = 1
-    s.scroll_bottom = s.rows
+    return s.scroll_bottom = s.rows
 end
 
 function _leave_alt_screen!(s::TermScreen, restore_cursor::Bool)
-    s.alt_active || return  # not in alt screen
+    s.alt_active || return nothing  # not in alt screen
     s.alt_active = false
     # Restore main buffer
     if s.saved_cells !== nothing
@@ -326,13 +345,13 @@ function _leave_alt_screen!(s::TermScreen, restore_cursor::Bool)
         s.current_style = s.saved_main_style
     end
     s.scroll_top = 1
-    s.scroll_bottom = s.rows
+    return s.scroll_bottom = s.rows
 end
 
 # ── SGR Parser ───────────────────────────────────────────────────────
 
 function _parse_sgr!(s::TermScreen, params::Vector{Int})
-    isempty(params) && (s.current_style = RESET; return)
+    isempty(params) && (s.current_style=RESET; return nothing)
     i = 1
     st = s.current_style
     fg = st.fg
@@ -345,51 +364,71 @@ function _parse_sgr!(s::TermScreen, params::Vector{Int})
     while i <= length(params)
         p = params[i]
         if p == 0
-            fg = NoColor(); bg = NoColor()
-            bold = false; dim = false; italic = false; underline = false
+            fg = NoColor()
+            bg = NoColor()
+            bold = false
+            dim = false
+            italic = false
+            underline = false
             strikethrough = false
-        elseif p == 1;  bold = true
-        elseif p == 2;  dim = true
-        elseif p == 3;  italic = true
-        elseif p == 4;  underline = true
+        elseif p == 1
+            bold = true
+        elseif p == 2
+            dim = true
+        elseif p == 3
+            italic = true
+        elseif p == 4
+            underline = true
         elseif p == 7   # reverse video — swap fg/bg
             fg, bg = bg, fg
-        elseif p == 9;  strikethrough = true
-        elseif p == 22; bold = false; dim = false
-        elseif p == 23; italic = false
-        elseif p == 24; underline = false
+        elseif p == 9
+            strikethrough = true
+        elseif p == 22
+            bold = false
+            dim = false
+        elseif p == 23
+            italic = false
+        elseif p == 24
+            underline = false
         elseif p == 27  # reverse off — ignore (would need tracking)
-        elseif p == 29; strikethrough = false
+        elseif p == 29
+            strikethrough = false
         elseif p >= 30 && p <= 37
             fg = Color256(p - 30)
         elseif p == 38  # extended fg
             if i + 1 <= length(params)
-                if params[i+1] == 5 && i + 2 <= length(params)
-                    fg = Color256(params[i+2])
+                if params[i + 1] == 5 && i + 2 <= length(params)
+                    fg = Color256(params[i + 2])
                     i += 2
-                elseif params[i+1] == 2 && i + 4 <= length(params)
-                    fg = ColorRGB(UInt8(clamp(params[i+2], 0, 255)),
-                                  UInt8(clamp(params[i+3], 0, 255)),
-                                  UInt8(clamp(params[i+4], 0, 255)))
+                elseif params[i + 1] == 2 && i + 4 <= length(params)
+                    fg = ColorRGB(
+                        UInt8(clamp(params[i + 2], 0, 255)),
+                        UInt8(clamp(params[i + 3], 0, 255)),
+                        UInt8(clamp(params[i + 4], 0, 255)),
+                    )
                     i += 4
                 end
             end
-        elseif p == 39; fg = NoColor()
+        elseif p == 39
+            fg = NoColor()
         elseif p >= 40 && p <= 47
             bg = Color256(p - 40)
         elseif p == 48  # extended bg
             if i + 1 <= length(params)
-                if params[i+1] == 5 && i + 2 <= length(params)
-                    bg = Color256(params[i+2])
+                if params[i + 1] == 5 && i + 2 <= length(params)
+                    bg = Color256(params[i + 2])
                     i += 2
-                elseif params[i+1] == 2 && i + 4 <= length(params)
-                    bg = ColorRGB(UInt8(clamp(params[i+2], 0, 255)),
-                                  UInt8(clamp(params[i+3], 0, 255)),
-                                  UInt8(clamp(params[i+4], 0, 255)))
+                elseif params[i + 1] == 2 && i + 4 <= length(params)
+                    bg = ColorRGB(
+                        UInt8(clamp(params[i + 2], 0, 255)),
+                        UInt8(clamp(params[i + 3], 0, 255)),
+                        UInt8(clamp(params[i + 4], 0, 255)),
+                    )
                     i += 4
                 end
             end
-        elseif p == 49; bg = NoColor()
+        elseif p == 49
+            bg = NoColor()
         elseif p >= 90 && p <= 97
             fg = Color256(p - 90 + 8)
         elseif p >= 100 && p <= 107
@@ -397,9 +436,15 @@ function _parse_sgr!(s::TermScreen, params::Vector{Int})
         end
         i += 1
     end
-    s.current_style = Style(fg=fg, bg=bg, bold=bold, dim=dim,
-                            italic=italic, underline=underline,
-                            strikethrough=strikethrough)
+    return s.current_style = Style(;
+        fg=fg,
+        bg=bg,
+        bold=bold,
+        dim=dim,
+        italic=italic,
+        underline=underline,
+        strikethrough=strikethrough,
+    )
 end
 
 # ── CSI Dispatch ─────────────────────────────────────────────────────
@@ -432,7 +477,7 @@ function _parse_csi_params(raw::Vector{UInt8})
         end
     end
     push!(params, has_digit ? current : 0)
-    (private, params)
+    return (private, params)
 end
 
 function _dispatch_csi!(s::TermScreen, param_buf::Vector{UInt8}, final::UInt8, title_callback)
@@ -445,8 +490,8 @@ function _dispatch_csi!(s::TermScreen, param_buf::Vector{UInt8}, final::UInt8, t
         if final == UInt8('h')       # set
             for p in params
                 p == 25 && (s.cursor_visible = true)
-                p == 7  && (s.autowrap = true)
-                p == 6  && (s.origin_mode = true)
+                p == 7 && (s.autowrap = true)
+                p == 6 && (s.origin_mode = true)
                 # Alternate screen buffer
                 if p == 1049 || p == 47 || p == 1047
                     _enter_alt_screen!(s, p == 1049)
@@ -458,8 +503,8 @@ function _dispatch_csi!(s::TermScreen, param_buf::Vector{UInt8}, final::UInt8, t
         elseif final == UInt8('l')   # reset
             for p in params
                 p == 25 && (s.cursor_visible = false)
-                p == 7  && (s.autowrap = false)
-                p == 6  && (s.origin_mode = false)
+                p == 7 && (s.autowrap = false)
+                p == 6 && (s.origin_mode = false)
                 # Alternate screen buffer
                 if p == 1049 || p == 47 || p == 1047
                     _leave_alt_screen!(s, p == 1049)
@@ -469,7 +514,7 @@ function _dispatch_csi!(s::TermScreen, param_buf::Vector{UInt8}, final::UInt8, t
                 p == 1006 && (s.mouse_sgr = false)
             end
         end
-        return
+        return nothing
     end
 
     n = max(1, p1)  # default to 1 for most movement commands
@@ -527,9 +572,9 @@ function _dispatch_csi!(s::TermScreen, param_buf::Vector{UInt8}, final::UInt8, t
         s.cursor_col = s.saved_cursor_col
         s.current_style = s.saved_style
     elseif final == UInt8('b')   # REP — repeat previous char
-        # Not commonly used, skip for now
+    # Not commonly used, skip for now
     elseif final == UInt8('n')   # DSR — device status report
-        # Would need to write response to PTY; ignore
+    # Would need to write response to PTY; ignore
     elseif final == UInt8('t')   # window manipulation — ignore
     elseif final == UInt8('h') || final == UInt8('l')
         # SM/RM mode set/reset (non-private) — ignore
@@ -561,7 +606,7 @@ function _vt_feed!(tw, data::AbstractVector{UInt8})
                 elseif b < 0xe0
                     # 2-byte sequence
                     if i + 1 <= length(data)
-                        cp = (UInt32(b & 0x1f) << 6) | UInt32(data[i+1] & 0x3f)
+                        cp = (UInt32(b & 0x1f) << 6) | UInt32(data[i + 1] & 0x3f)
                         ch = Char(cp)
                         _screen_putchar!(screen, ch)
                         tw.vt_prev_char = ch
@@ -569,36 +614,35 @@ function _vt_feed!(tw, data::AbstractVector{UInt8})
                     else
                         # Incomplete — carry remaining bytes to next chunk
                         append!(tw.vt_utf8_carry, @view data[i:end])
-                        return
+                        return nothing
                     end
                 elseif b < 0xf0
                     # 3-byte sequence
                     if i + 2 <= length(data)
-                        cp = (UInt32(b & 0x0f) << 12) |
-                             (UInt32(data[i+1] & 0x3f) << 6) |
-                              UInt32(data[i+2] & 0x3f)
+                        cp =
+                            (UInt32(b & 0x0f) << 12) | (UInt32(data[i + 1] & 0x3f) << 6) |
+                            UInt32(data[i + 2] & 0x3f)
                         ch = Char(cp)
                         _screen_putchar!(screen, ch)
                         tw.vt_prev_char = ch
                         i += 2
                     else
                         append!(tw.vt_utf8_carry, @view data[i:end])
-                        return
+                        return nothing
                     end
                 else
                     # 4-byte sequence
                     if i + 3 <= length(data)
-                        cp = (UInt32(b & 0x07) << 18) |
-                             (UInt32(data[i+1] & 0x3f) << 12) |
-                             (UInt32(data[i+2] & 0x3f) << 6) |
-                              UInt32(data[i+3] & 0x3f)
+                        cp =
+                            (UInt32(b & 0x07) << 18) | (UInt32(data[i + 1] & 0x3f) << 12) |
+                            (UInt32(data[i + 2] & 0x3f) << 6) | UInt32(data[i + 3] & 0x3f)
                         ch = Char(cp)
                         _screen_putchar!(screen, ch)
                         tw.vt_prev_char = ch
                         i += 3
                     else
                         append!(tw.vt_utf8_carry, @view data[i:end])
-                        return
+                        return nothing
                     end
                 end
             elseif b == 0x1b  # ESC
@@ -723,22 +767,29 @@ function _vt_feed!(tw, data::AbstractVector{UInt8})
 end
 
 function _handle_osc!(tw)
-    isempty(tw.vt_osc_buf) && return
+    isempty(tw.vt_osc_buf) && return nothing
     s = String(copy(tw.vt_osc_buf))
     # OSC 0;title / OSC 1;title / OSC 2;title — set window title
     m = match(r"^[012];(.+)$", s)
     if m !== nothing && tw.title_callback !== nothing
         tw.title_callback(m.captures[1])
-        return
+        return nothing
     end
     # OSC 8 — hyperlink: "8;params;URL" (params typically empty or "id=...")
     m = match(r"^8;([^;]*);(.*)$", s)
     if m !== nothing
         url = m.captures[2]
         st = tw.screen.current_style
-        tw.screen.current_style = Style(fg=st.fg, bg=st.bg, bold=st.bold,
-            dim=st.dim, italic=st.italic, underline=st.underline,
-            strikethrough=st.strikethrough, hyperlink=url)
+        tw.screen.current_style = Style(;
+            fg=st.fg,
+            bg=st.bg,
+            bold=st.bold,
+            dim=st.dim,
+            italic=st.italic,
+            underline=st.underline,
+            strikethrough=st.strikethrough,
+            hyperlink=url,
+        )
     end
 end
 
@@ -746,34 +797,34 @@ end
 
 function _encode_key(evt::KeyEvent; enter_as_lf::Bool=false)::Vector{UInt8}
     k = evt.key
-    k == :enter     && return enter_as_lf ? UInt8[0x0a] : UInt8[0x0d]
+    k == :enter && return enter_as_lf ? UInt8[0x0a] : UInt8[0x0d]
     k == :backspace && return UInt8[0x7f]
-    k == :tab       && return UInt8[0x09]
-    k == :escape    && return UInt8[0x1b]
-    k == :up        && return Vector{UInt8}(codeunits("\e[A"))
-    k == :down      && return Vector{UInt8}(codeunits("\e[B"))
-    k == :right     && return Vector{UInt8}(codeunits("\e[C"))
-    k == :left      && return Vector{UInt8}(codeunits("\e[D"))
-    k == :home      && return Vector{UInt8}(codeunits("\e[H"))
-    k == :end_key   && return Vector{UInt8}(codeunits("\e[F"))
-    k == :insert    && return Vector{UInt8}(codeunits("\e[2~"))
-    k == :delete    && return Vector{UInt8}(codeunits("\e[3~"))
-    k == :pageup    && return Vector{UInt8}(codeunits("\e[5~"))
-    k == :pagedown  && return Vector{UInt8}(codeunits("\e[6~"))
-    k == :backtab   && return Vector{UInt8}(codeunits("\e[Z"))
-    k == :f1        && return Vector{UInt8}(codeunits("\eOP"))
-    k == :f2        && return Vector{UInt8}(codeunits("\eOQ"))
-    k == :f3        && return Vector{UInt8}(codeunits("\eOR"))
-    k == :f4        && return Vector{UInt8}(codeunits("\eOS"))
-    k == :f5        && return Vector{UInt8}(codeunits("\e[15~"))
-    k == :f6        && return Vector{UInt8}(codeunits("\e[17~"))
-    k == :f7        && return Vector{UInt8}(codeunits("\e[18~"))
-    k == :f8        && return Vector{UInt8}(codeunits("\e[19~"))
-    k == :f9        && return Vector{UInt8}(codeunits("\e[20~"))
-    k == :f10       && return Vector{UInt8}(codeunits("\e[21~"))
-    k == :f11       && return Vector{UInt8}(codeunits("\e[23~"))
-    k == :f12       && return Vector{UInt8}(codeunits("\e[24~"))
-    k == :ctrl_c    && return UInt8[0x03]
+    k == :tab && return UInt8[0x09]
+    k == :escape && return UInt8[0x1b]
+    k == :up && return Vector{UInt8}(codeunits("\e[A"))
+    k == :down && return Vector{UInt8}(codeunits("\e[B"))
+    k == :right && return Vector{UInt8}(codeunits("\e[C"))
+    k == :left && return Vector{UInt8}(codeunits("\e[D"))
+    k == :home && return Vector{UInt8}(codeunits("\e[H"))
+    k == :end_key && return Vector{UInt8}(codeunits("\e[F"))
+    k == :insert && return Vector{UInt8}(codeunits("\e[2~"))
+    k == :delete && return Vector{UInt8}(codeunits("\e[3~"))
+    k == :pageup && return Vector{UInt8}(codeunits("\e[5~"))
+    k == :pagedown && return Vector{UInt8}(codeunits("\e[6~"))
+    k == :backtab && return Vector{UInt8}(codeunits("\e[Z"))
+    k == :f1 && return Vector{UInt8}(codeunits("\eOP"))
+    k == :f2 && return Vector{UInt8}(codeunits("\eOQ"))
+    k == :f3 && return Vector{UInt8}(codeunits("\eOR"))
+    k == :f4 && return Vector{UInt8}(codeunits("\eOS"))
+    k == :f5 && return Vector{UInt8}(codeunits("\e[15~"))
+    k == :f6 && return Vector{UInt8}(codeunits("\e[17~"))
+    k == :f7 && return Vector{UInt8}(codeunits("\e[18~"))
+    k == :f8 && return Vector{UInt8}(codeunits("\e[19~"))
+    k == :f9 && return Vector{UInt8}(codeunits("\e[20~"))
+    k == :f10 && return Vector{UInt8}(codeunits("\e[21~"))
+    k == :f11 && return Vector{UInt8}(codeunits("\e[23~"))
+    k == :f12 && return Vector{UInt8}(codeunits("\e[24~"))
+    k == :ctrl_c && return UInt8[0x03]
     if k == :ctrl && evt.char != '\0'
         # Ctrl+letter: the events.jl parser maps control bytes via +0x60,
         # so we reverse: byte = lowercase(char) - 0x60
@@ -793,7 +844,7 @@ function _encode_key(evt::KeyEvent; enter_as_lf::Bool=false)::Vector{UInt8}
     if k == :char
         return Vector{UInt8}(codeunits(string(evt.char)))
     end
-    UInt8[]  # unknown key
+    return UInt8[]  # unknown key
 end
 
 # ── SGR Mouse Encoding ──────────────────────────────────────────────
@@ -801,15 +852,24 @@ end
 function _encode_mouse_sgr(evt::MouseEvent, cx::Int, cy::Int)::Vector{UInt8}
     # SGR encoding: \e[<Cb;Cx;CyM (press/drag) or \e[<Cb;Cx;Cym (release)
     # Cb: 0=left, 1=middle, 2=right, 32+btn=drag, 64=scroll-up, 65=scroll-down
-    cb = if evt.button == mouse_left;          0
-    elseif evt.button == mouse_middle;         1
-    elseif evt.button == mouse_right;          2
-    elseif evt.button == mouse_none;           35  # move (no button)
-    elseif evt.button == mouse_scroll_up;      64
-    elseif evt.button == mouse_scroll_down;    65
-    elseif evt.button == mouse_scroll_left;    66
-    elseif evt.button == mouse_scroll_right;   67
-    else;                                      0
+    cb = if evt.button == mouse_left
+        0
+    elseif evt.button == mouse_middle
+        1
+    elseif evt.button == mouse_right
+        2
+    elseif evt.button == mouse_none
+        35  # move (no button)
+    elseif evt.button == mouse_scroll_up
+        64
+    elseif evt.button == mouse_scroll_down
+        65
+    elseif evt.button == mouse_scroll_left
+        66
+    elseif evt.button == mouse_scroll_right
+        67
+    else
+        0
     end
 
     if evt.action == mouse_drag
@@ -818,11 +878,11 @@ function _encode_mouse_sgr(evt::MouseEvent, cx::Int, cy::Int)::Vector{UInt8}
 
     # Modifier bits
     evt.shift && (cb |= 4)
-    evt.alt   && (cb |= 8)
-    evt.ctrl  && (cb |= 16)
+    evt.alt && (cb |= 8)
+    evt.ctrl && (cb |= 16)
 
     suffix = evt.action == mouse_release ? 'm' : 'M'
-    Vector{UInt8}(codeunits("\e[<$(cb);$(cx);$(cy)$(suffix)"))
+    return Vector{UInt8}(codeunits("\e[<$(cb);$(cx);$(cy)$(suffix)"))
 end
 
 # ── TerminalWidget ───────────────────────────────────────────────────
@@ -864,42 +924,60 @@ mutable struct TerminalWidget
     last_area::Rect
     show_scrollbar::Bool
     focused::Bool
-    title_callback::Union{Function, Nothing}
+    title_callback::Union{Function,Nothing}
     # Exit lifecycle
     exited::Bool
-    on_exit::Union{Function, Nothing}
+    on_exit::Union{Function,Nothing}
     # Internal
     _last_cols::Int
     _last_rows::Int
     _sb_state::ScrollbarState
-    _wake_fn::Union{Function, Nothing}   # called after data is VT-processed
+    _wake_fn::Union{Function,Nothing}   # called after data is VT-processed
     enter_as_lf::Bool                    # send LF (not CR) for Enter — for in-process REPLs
 end
 
-function TerminalWidget(cmd::Vector{String};
-        rows::Int=24, cols::Int=80,
-        show_scrollbar::Bool=true,
-        focused::Bool=true,
-        title_callback::Union{Function, Nothing}=nothing,
-        scrollback_limit::Int=1000,
-        on_exit::Union{Function, Nothing}=nothing,
-        env::Union{Dict{String,String}, Nothing}=nothing,
-        dir::Union{AbstractString, Nothing}=nothing)
+function TerminalWidget(
+    cmd::Vector{String};
+    rows::Int=24,
+    cols::Int=80,
+    show_scrollbar::Bool=true,
+    focused::Bool=true,
+    title_callback::Union{Function,Nothing}=nothing,
+    scrollback_limit::Int=1000,
+    on_exit::Union{Function,Nothing}=nothing,
+    env::Union{Dict{String,String},Nothing}=nothing,
+    dir::Union{AbstractString,Nothing}=nothing,
+)
     pty = pty_spawn(cmd; rows, cols, env, dir)
     screen = TermScreen(rows, cols; scrollback_limit)
-    tw = TerminalWidget(pty, screen,
-                   _vt_ground, UInt8[], UInt8[], ' ', UInt8[],
-                   0,
-                   Rect(), show_scrollbar, focused, title_callback,
-                   false, on_exit,
-                   cols, rows, ScrollbarState(), nothing, false)
+    tw = TerminalWidget(
+        pty,
+        screen,
+        _vt_ground,
+        UInt8[],
+        UInt8[],
+        ' ',
+        UInt8[],
+        0,
+        Rect(),
+        show_scrollbar,
+        focused,
+        title_callback,
+        false,
+        on_exit,
+        cols,
+        rows,
+        ScrollbarState(),
+        nothing,
+        false,
+    )
     _wire_push_data!(tw)
-    tw
+    return tw
 end
 
-function TerminalWidget(; on_exit::Union{Function, Nothing}=nothing, kwargs...)
+function TerminalWidget(; on_exit::Union{Function,Nothing}=nothing, kwargs...)
     julia_exe = first(Base.julia_cmd().exec)
-    TerminalWidget([julia_exe, "--banner=no"]; on_exit, kwargs...)
+    return TerminalWidget([julia_exe, "--banner=no"]; on_exit, kwargs...)
 end
 
 """
@@ -908,23 +986,40 @@ end
 Create a TerminalWidget from a pre-existing PTY (e.g., from `pty_pair`).
 Used by `REPLWidget` for in-process REPL rendering.
 """
-function TerminalWidget(pty::PTY;
-        show_scrollbar::Bool=true,
-        focused::Bool=true,
-        title_callback::Union{Function, Nothing}=nothing,
-        scrollback_limit::Int=1000,
-        onlcr::Bool=false,
-        enter_as_lf::Bool=false,
-        on_exit::Union{Function, Nothing}=nothing)
+function TerminalWidget(
+    pty::PTY;
+    show_scrollbar::Bool=true,
+    focused::Bool=true,
+    title_callback::Union{Function,Nothing}=nothing,
+    scrollback_limit::Int=1000,
+    onlcr::Bool=false,
+    enter_as_lf::Bool=false,
+    on_exit::Union{Function,Nothing}=nothing,
+)
     screen = TermScreen(pty.rows, pty.cols; scrollback_limit, onlcr)
-    tw = TerminalWidget(pty, screen,
-                   _vt_ground, UInt8[], UInt8[], ' ', UInt8[],
-                   0,
-                   Rect(), show_scrollbar, focused, title_callback,
-                   false, on_exit,
-                   pty.cols, pty.rows, ScrollbarState(), nothing, enter_as_lf)
+    tw = TerminalWidget(
+        pty,
+        screen,
+        _vt_ground,
+        UInt8[],
+        UInt8[],
+        ' ',
+        UInt8[],
+        0,
+        Rect(),
+        show_scrollbar,
+        focused,
+        title_callback,
+        false,
+        on_exit,
+        pty.cols,
+        pty.rows,
+        ScrollbarState(),
+        nothing,
+        enter_as_lf,
+    )
     _wire_push_data!(tw)
-    tw
+    return tw
 end
 
 """
@@ -935,11 +1030,15 @@ into the VT parser. This eliminates the pull-based delay where data sat in
 the channel until the next `render()` → `drain!()` cycle.
 """
 function _wire_push_data!(tw::TerminalWidget)
-    tw.pty.on_data = let tw = tw
+    return tw.pty.on_data = let tw = tw
         () -> begin
             # Drain all available chunks from the channel right now
             while isready(tw.pty.output)
-                data = try take!(tw.pty.output) catch; break end
+                data = try
+                    take!(tw.pty.output)
+                catch
+                    break
+                end
                 _vt_feed!(tw, data)
             end
             # Signal the app loop to render the updated screen
@@ -954,7 +1053,7 @@ end
 Store the app-loop wake function. Called by model-level `set_wake!`.
 """
 function set_wake!(tw::TerminalWidget, notify::Function)
-    tw._wake_fn = notify
+    return tw._wake_fn = notify
 end
 
 focusable(::TerminalWidget) = true
@@ -989,11 +1088,11 @@ function drain!(tw::TerminalWidget)::Bool
         tw.on_exit !== nothing && tw.on_exit()
         return true
     end
-    total > 0
+    return total > 0
 end
 
 function render(tw::TerminalWidget, rect::Rect, buf::Buffer)
-    (rect.width < 1 || rect.height < 1) && return
+    (rect.width < 1 || rect.height < 1) && return nothing
 
     text_width = tw.show_scrollbar ? rect.width - 1 : rect.width
     text_height = rect.height
@@ -1021,9 +1120,12 @@ function render(tw::TerminalWidget, rect::Rect, buf::Buffer)
             end
         end
         # Draw cursor
-        if tw.focused && screen.cursor_visible &&
-           screen.cursor_row >= 1 && screen.cursor_row <= text_height &&
-           screen.cursor_col >= 1 && screen.cursor_col <= text_width
+        if tw.focused &&
+            screen.cursor_visible &&
+            screen.cursor_row >= 1 &&
+            screen.cursor_row <= text_height &&
+            screen.cursor_col >= 1 &&
+            screen.cursor_col <= text_width
             cx = rect.x + screen.cursor_col - 1
             cy = rect.y + screen.cursor_row - 1
             existing = screen.cells[screen.cursor_row, screen.cursor_col]
@@ -1032,10 +1134,24 @@ function render(tw::TerminalWidget, rect::Rect, buf::Buffer)
             t = theme()
             cursor_fg = existing.style.bg isa NoColor ? t.bg : existing.style.bg
             cursor_bg = existing.style.fg isa NoColor ? t.text : existing.style.fg
-            set!(buf, cx, cy, Cell(existing.char, Style(fg=cursor_fg, bg=cursor_bg,
-                bold=existing.style.bold, dim=existing.style.dim,
-                italic=existing.style.italic, underline=existing.style.underline,
-                strikethrough=existing.style.strikethrough), existing.suffix))
+            set!(
+                buf,
+                cx,
+                cy,
+                Cell(
+                    existing.char,
+                    Style(;
+                        fg=cursor_fg,
+                        bg=cursor_bg,
+                        bold=existing.style.bold,
+                        dim=existing.style.dim,
+                        italic=existing.style.italic,
+                        underline=existing.style.underline,
+                        strikethrough=existing.style.strikethrough,
+                    ),
+                    existing.suffix,
+                ),
+            )
         end
     else
         # Scrollback view
@@ -1057,8 +1173,12 @@ function render(tw::TerminalWidget, rect::Rect, buf::Buffer)
                 screen_row = source_line - sb_len
                 if screen_row >= 1 && screen_row <= screen.rows
                     for col in 1:min(screen.cols, text_width)
-                        set!(buf, rect.x + col - 1, rect.y + display_row - 1,
-                             screen.cells[screen_row, col])
+                        set!(
+                            buf,
+                            rect.x + col - 1,
+                            rect.y + display_row - 1,
+                            screen.cells[screen_row, col],
+                        )
                     end
                 end
             end
@@ -1076,7 +1196,6 @@ function render(tw::TerminalWidget, rect::Rect, buf::Buffer)
     else
         tw._sb_state.rect = Rect()
     end
-
 end
 
 function handle_key!(tw::TerminalWidget, evt::KeyEvent)::Bool
@@ -1085,16 +1204,30 @@ function handle_key!(tw::TerminalWidget, evt::KeyEvent)::Bool
     # Scrollback navigation
     if tw.scroll_offset > 0
         if evt.key == :pageup
-            tw.scroll_offset = min(tw.scroll_offset + tw.last_area.height,
-                                    length(tw.screen.scrollback))
+            tw.scroll_offset = min(
+                tw.scroll_offset + tw.last_area.height, length(tw.screen.scrollback)
+            )
             return true
         elseif evt.key == :pagedown
             tw.scroll_offset = max(0, tw.scroll_offset - tw.last_area.height)
             return true
-        elseif evt.key in (:left_shift, :right_shift, :left_ctrl, :right_ctrl,
-                           :left_alt, :right_alt, :left_super, :right_super,
-                           :left_hyper, :right_hyper, :left_meta, :right_meta,
-                           :caps_lock, :scroll_lock, :num_lock)
+        elseif evt.key in (
+            :left_shift,
+            :right_shift,
+            :left_ctrl,
+            :right_ctrl,
+            :left_alt,
+            :right_alt,
+            :left_super,
+            :right_super,
+            :left_hyper,
+            :right_hyper,
+            :left_meta,
+            :right_meta,
+            :caps_lock,
+            :scroll_lock,
+            :num_lock,
+        )
             # Modifier-only keys: stay in scrollback (allows copy/paste)
             return false
         else
@@ -1103,8 +1236,7 @@ function handle_key!(tw::TerminalWidget, evt::KeyEvent)::Bool
         end
     elseif evt.key == :pageup
         # Enter scrollback from live view
-        tw.scroll_offset = min(tw.last_area.height,
-                                length(tw.screen.scrollback))
+        tw.scroll_offset = min(tw.last_area.height, length(tw.screen.scrollback))
         tw.scroll_offset > 0 && return true
     end
 
@@ -1115,7 +1247,7 @@ function handle_key!(tw::TerminalWidget, evt::KeyEvent)::Bool
         pty_write(tw.pty, encoded)
         return true
     end
-    false
+    return false
 end
 
 function handle_mouse!(tw::TerminalWidget, evt::MouseEvent)::Bool
@@ -1156,7 +1288,7 @@ function handle_mouse!(tw::TerminalWidget, evt::MouseEvent)::Bool
         tw.scroll_offset = max(0, tw.scroll_offset - 3)
         return true
     end
-    false
+    return false
 end
 
 """
@@ -1166,5 +1298,5 @@ Close the PTY and terminate the child process. Call this in your
 model's cleanup.
 """
 function close!(tw::TerminalWidget)
-    pty_close!(tw.pty)
+    return pty_close!(tw.pty)
 end

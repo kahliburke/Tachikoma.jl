@@ -52,8 +52,13 @@ function _make_get_events(model)
         for rec in recent
             evt = rec.event
             detail = if evt isa Tachikoma.KeyEvent
-                action_str = evt.action == Tachikoma.key_press ? "press" :
-                             evt.action == Tachikoma.key_repeat ? "repeat" : "release"
+                action_str = if evt.action == Tachikoma.key_press
+                    "press"
+                elseif evt.action == Tachikoma.key_repeat
+                    "repeat"
+                else
+                    "release"
+                end
                 if evt.key == :char
                     "#$(rec.count) KEY '$(evt.char)' $(action_str)"
                 elseif evt.key == :ctrl
@@ -86,14 +91,18 @@ function _make_get_event_detail(model)
     """Get full details for a specific event by its count number."""
     function get_event_detail(event_number::Int)
         idx = findfirst(r -> r.count == event_number, model.events)
-        idx === nothing && return "Event #$(event_number) not found (may have been scrolled out of history)."
+        idx === nothing &&
+            return "Event #$(event_number) not found (may have been scrolled out of history)."
         rec = model.events[idx]
         evt = rec.event
         lines = String["Event #$(rec.count):", "  summary: $(rec.summary)"]
         if evt isa Tachikoma.KeyEvent
             push!(lines, "  type: KeyEvent")
             push!(lines, "  key: :$(evt.key)")
-            push!(lines, "  char: '$(evt.char)' (code=$(Int(evt.char)), hex=0x$(string(Int(evt.char), base=16)))")
+            push!(
+                lines,
+                "  char: '$(evt.char)' (code=$(Int(evt.char)), hex=0x$(string(Int(evt.char), base=16)))",
+            )
             push!(lines, "  action: $(evt.action)")
         elseif evt isa Tachikoma.MouseEvent
             push!(lines, "  type: MouseEvent")

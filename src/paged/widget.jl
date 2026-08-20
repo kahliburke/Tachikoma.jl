@@ -42,19 +42,19 @@ mutable struct PagedDataTable
     col_offset::Int                     # horizontal scroll
 
     # Detail view
-    detail_fn::Union{Function, Nothing} # (columns, row_data) -> Vector{Pair}
+    detail_fn::Union{Function,Nothing} # (columns, row_data) -> Vector{Pair}
     show_detail::Bool
     detail_row::Int                     # index within page
     detail_scroll::Int
 
     # Styling
-    block::Union{Block, Nothing}
+    block::Union{Block,Nothing}
     style::Style
     header_style::Style
     selected_style::Style
     alt_style::Style
     footer_style::Style
-    tick::Union{Int, Nothing}
+    tick::Union{Int,Nothing}
 
     # Cached hit rects
     last_content_area::Rect
@@ -71,54 +71,89 @@ mutable struct PagedDataTable
 
     # Async hook: when set, called instead of pdt_fetch!() for data refreshes.
     # Signature: () -> nothing. The callback should call pdt_fetch_async!.
-    on_fetch::Union{Function, Nothing}
+    on_fetch::Union{Function,Nothing}
 end
 
-function PagedDataTable(provider::PagedDataProvider;
+function PagedDataTable(
+    provider::PagedDataProvider;
     page::Int=1,
     page_size::Int=50,
     page_sizes::Vector{Int}=Int[25, 50, 100],
     selected::Int=1,
-    block::Union{Block, Nothing}=nothing,
+    block::Union{Block,Nothing}=nothing,
     style::Style=tstyle(:text),
-    header_style::Style=tstyle(:title, bold=true),
-    selected_style::Style=tstyle(:accent, bold=true),
-    alt_style::Style=tstyle(:text, dim=true),
+    header_style::Style=tstyle(:title; bold=true),
+    selected_style::Style=tstyle(:accent; bold=true),
+    alt_style::Style=tstyle(:text; dim=true),
     footer_style::Style=tstyle(:text_dim),
-    tick::Union{Int, Nothing}=nothing,
-    detail_fn::Union{Function, Nothing}=nothing,
-    on_fetch::Union{Function, Nothing}=nothing,
+    tick::Union{Int,Nothing}=nothing,
+    detail_fn::Union{Function,Nothing}=nothing,
+    on_fetch::Union{Function,Nothing}=nothing,
 )
     cols = column_defs(provider)
     search_input = TextInput(; label="Search: ", focused=true)
     goto_input = TextInput(; label="Go to page: ", focused=true)
 
     pdt = PagedDataTable(
-        provider, cols,
-        page, page_size, page_sizes, 0, Vector{Any}[],  # page state
-        selected, 0,                                      # selection
-        0, sort_none,                                     # sort
-        Dict{Int,ColumnFilter}(), FilterModalState(),     # filters
-        "", search_input, false,                           # search
-        goto_input, false,                                 # goto
-        Int[], 0, 0, 0, 0, 0,                             # col resize + h-scroll
-        detail_fn, false, 0, 0,                            # detail
-        block, style, header_style, selected_style, alt_style, footer_style, tick,
-        Rect(), Tuple{Int,Int}[], Int[], Rect(), Rect(), Rect(), Tuple{Rect,Int}[],
-        false, "",                                         # loading/error
+        provider,
+        cols,
+        page,
+        page_size,
+        page_sizes,
+        0,
+        Vector{Any}[],  # page state
+        selected,
+        0,                                      # selection
+        0,
+        sort_none,                                     # sort
+        Dict{Int,ColumnFilter}(),
+        FilterModalState(),     # filters
+        "",
+        search_input,
+        false,                           # search
+        goto_input,
+        false,                                 # goto
+        Int[],
+        0,
+        0,
+        0,
+        0,
+        0,                             # col resize + h-scroll
+        detail_fn,
+        false,
+        0,
+        0,                            # detail
+        block,
+        style,
+        header_style,
+        selected_style,
+        alt_style,
+        footer_style,
+        tick,
+        Rect(),
+        Tuple{Int,Int}[],
+        Int[],
+        Rect(),
+        Rect(),
+        Rect(),
+        Tuple{Rect,Int}[],
+        false,
+        "",                                         # loading/error
         on_fetch,                                          # async hook
     )
     pdt_fetch!(pdt)  # sync initial load
-    pdt
+    return pdt
 end
 
 # ── Data flow ─────────────────────────────────────────────────────────
 
 """Build a PageRequest from current widget state."""
 function _pdt_build_request(pdt::PagedDataTable)
-    PageRequest(
-        pdt.page, pdt.page_size,
-        pdt.sort_col, pdt.sort_dir,
+    return PageRequest(
+        pdt.page,
+        pdt.page_size,
+        pdt.sort_col,
+        pdt.sort_dir,
         Dict{Int,ColumnFilter}(k => v for (k, v) in pdt.filters if !isempty(v.value)),
         pdt.search_query,
     )
@@ -143,14 +178,13 @@ Non-blocking fetch — spawns the provider call on a background thread.
 The result arrives as a `TaskEvent{PageResult}` or `TaskEvent{Exception}`.
 Call `pdt_receive!` from your `update!(model, ::TaskEvent)` handler.
 """
-function pdt_fetch_async!(pdt::PagedDataTable, queue::TaskQueue;
-                           task_id::Symbol=:pdt_fetch)
+function pdt_fetch_async!(pdt::PagedDataTable, queue::TaskQueue; task_id::Symbol=:pdt_fetch)
     req = _pdt_build_request(pdt)
     pdt.loading = true
     pdt.error_msg = ""
     provider = pdt.provider
     spawn_task!(queue, task_id) do
-        fetch_page(provider, req)
+        return fetch_page(provider, req)
     end
 end
 
@@ -160,7 +194,7 @@ function pdt_receive!(pdt::PagedDataTable, result::PageResult)
     pdt.total_count = result.total_count
     pdt.error_msg = ""
     pdt.loading = false
-    _pdt_clamp_state!(pdt)
+    return _pdt_clamp_state!(pdt)
 end
 
 """Apply a fetch error to the widget."""
@@ -168,7 +202,7 @@ function pdt_receive_error!(pdt::PagedDataTable, e::Exception)
     pdt.rows = Vector{Any}[]
     pdt.error_msg = sprint(showerror, e)
     pdt.loading = false
-    _pdt_clamp_state!(pdt)
+    return _pdt_clamp_state!(pdt)
 end
 
 """Clamp page/selection after data changes."""
@@ -177,7 +211,7 @@ function _pdt_clamp_state!(pdt::PagedDataTable)
     pdt.page = clamp(pdt.page, 1, max(1, max_page))
     n = length(pdt.rows)
     pdt.selected = n == 0 ? 0 : clamp(pdt.selected, 1, n)
-    pdt.row_offset = 0
+    return pdt.row_offset = 0
 end
 
 """Trigger a data refresh — uses async hook if set, otherwise sync fetch."""
@@ -196,7 +230,7 @@ _pdt_nrows(pdt::PagedDataTable) = length(pdt.rows)
 function _pdt_format_cell(col::PagedColumn, row_data::Vector{Any}, col_idx::Int)
     col_idx > length(row_data) && return ""
     v = row_data[col_idx]
-    col.format !== nothing ? col.format(v) : string(v)
+    return col.format !== nothing ? col.format(v) : string(v)
 end
 
 # ── Widget protocol ───────────────────────────────────────────────────
@@ -204,18 +238,22 @@ end
 value(pdt::PagedDataTable) = pdt.selected
 function set_value!(pdt::PagedDataTable, idx::Int)
     pdt.selected = clamp(idx, 0, _pdt_nrows(pdt))
-    nothing
+    return nothing
 end
 focusable(::PagedDataTable) = true
 
 """Default detail view: shows each column name paired with its value."""
 function _pdt_default_detail(columns::Vector{PagedColumn}, row_data::Vector{Any})
-    [col.name => (col.format !== nothing ? col.format(row_data[i]) : string(row_data[i]))
-     for (i, col) in enumerate(columns) if i <= length(row_data)]
+    return [
+        col.name => (col.format !== nothing ? col.format(row_data[i]) : string(row_data[i])) for
+        (i, col) in enumerate(columns) if i <= length(row_data)
+    ]
 end
 
 """Return the effective detail function (custom or built-in default)."""
-_pdt_detail_fn(pdt::PagedDataTable) = pdt.detail_fn !== nothing ? pdt.detail_fn : _pdt_default_detail
+function _pdt_detail_fn(pdt::PagedDataTable)
+    return pdt.detail_fn !== nothing ? pdt.detail_fn : _pdt_default_detail
+end
 
 # ── Key handling ──────────────────────────────────────────────────────
 
@@ -354,7 +392,7 @@ function handle_key!(pdt::PagedDataTable, evt::KeyEvent)::Bool
         end
     end
 
-    false
+    return false
 end
 
 function _pdt_handle_detail_key!(pdt::PagedDataTable, evt::KeyEvent)::Bool
@@ -370,7 +408,7 @@ function _pdt_handle_detail_key!(pdt::PagedDataTable, evt::KeyEvent)::Bool
         pdt.detail_scroll = min(pdt.detail_scroll + 1, max_scroll)
         return true
     end
-    true  # consume all keys while detail is open
+    return true  # consume all keys while detail is open
 end
 
 function _pdt_handle_search_key!(pdt::PagedDataTable, evt::KeyEvent)::Bool
@@ -386,7 +424,7 @@ function _pdt_handle_search_key!(pdt::PagedDataTable, evt::KeyEvent)::Bool
         return true
     end
     handle_key!(pdt.search_input, evt)
-    true
+    return true
 end
 
 function _pdt_handle_goto_key!(pdt::PagedDataTable, evt::KeyEvent)::Bool
@@ -409,7 +447,7 @@ function _pdt_handle_goto_key!(pdt::PagedDataTable, evt::KeyEvent)::Bool
         return true
     end
     handle_key!(pdt.goto_input, evt)
-    true
+    return true
 end
 
 # ── Sort ──────────────────────────────────────────────────────────────
@@ -428,13 +466,13 @@ function _pdt_sort_by!(pdt::PagedDataTable, col_idx::Int)
         pdt.sort_dir = sort_asc
     end
     pdt.page = 1
-    pdt_refresh!(pdt)
+    return pdt_refresh!(pdt)
 end
 
 # ── Page size helpers ─────────────────────────────────────────────────
 
 function _pdt_prev_page_size!(pdt::PagedDataTable)
-    isempty(pdt.page_sizes) && return
+    isempty(pdt.page_sizes) && return nothing
     idx = findfirst(==(pdt.page_size), pdt.page_sizes)
     if idx !== nothing && idx > 1
         pdt_set_page_size!(pdt, pdt.page_sizes[idx - 1])
@@ -442,7 +480,7 @@ function _pdt_prev_page_size!(pdt::PagedDataTable)
 end
 
 function _pdt_next_page_size!(pdt::PagedDataTable)
-    isempty(pdt.page_sizes) && return
+    isempty(pdt.page_sizes) && return nothing
     idx = findfirst(==(pdt.page_size), pdt.page_sizes)
     if idx !== nothing && idx < length(pdt.page_sizes)
         pdt_set_page_size!(pdt, pdt.page_sizes[idx + 1])
@@ -453,7 +491,7 @@ function pdt_set_page_size!(pdt::PagedDataTable, new_size::Int)
     old_first_row = (pdt.page - 1) * pdt.page_size + 1
     pdt.page_size = new_size
     pdt.page = max(1, cld(old_first_row, new_size))
-    pdt_refresh!(pdt)
+    return pdt_refresh!(pdt)
 end
 
 """
@@ -471,7 +509,7 @@ function pdt_set_provider!(pdt::PagedDataTable, provider::PagedDataProvider)
     pdt.search_query = ""
     pdt.sort_col = 0
     pdt.sort_dir = sort_none
-    pdt_refresh!(pdt)
+    return pdt_refresh!(pdt)
 end
 
 # ── Mouse handling ────────────────────────────────────────────────────
@@ -572,7 +610,8 @@ function handle_mouse!(pdt::PagedDataTable, evt::MouseEvent)::Bool
     end
 
     # Scroll within page — move selection and viewport together
-    if (evt.button == mouse_scroll_up || evt.button == mouse_scroll_down) && evt.action == mouse_press
+    if (evt.button == mouse_scroll_up || evt.button == mouse_scroll_down) &&
+        evt.action == mouse_press
         if Base.contains(data_area, evt.x, evt.y)
             if evt.button == mouse_scroll_up
                 if pdt.selected > 1
@@ -587,7 +626,7 @@ function handle_mouse!(pdt::PagedDataTable, evt::MouseEvent)::Bool
         end
     end
 
-    false
+    return false
 end
 
 function _pdt_handle_footer_mouse!(pdt::PagedDataTable, evt::MouseEvent)::Bool
@@ -625,7 +664,7 @@ function _pdt_handle_footer_mouse!(pdt::PagedDataTable, evt::MouseEvent)::Bool
         end
     end
 
-    false
+    return false
 end
 
 function _pdt_find_border(pdt::PagedDataTable, x::Int)
@@ -667,7 +706,7 @@ function _pdt_visible_cols(pdt::PagedDataTable, total_width::Int)
         x += w + 1
         count += 1
     end
-    count
+    return count
 end
 
 function _pdt_compute_widths(pdt::PagedDataTable, total_width::Int)
@@ -679,7 +718,7 @@ function _pdt_compute_widths(pdt::PagedDataTable, total_width::Int)
     if length(pdt.col_widths) < nc
         old_len = length(pdt.col_widths)
         resize!(pdt.col_widths, nc)
-        pdt.col_widths[old_len+1:nc] .= 0
+        pdt.col_widths[(old_len + 1):nc] .= 0
     end
 
     widths = zeros(Int, nc)
@@ -715,5 +754,5 @@ function _pdt_compute_widths(pdt::PagedDataTable, total_width::Int)
         end
     end
 
-    widths
+    return widths
 end

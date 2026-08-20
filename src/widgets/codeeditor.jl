@@ -29,12 +29,42 @@ end
 # ── Julia keyword / builtin sets ────────────────────────────────────
 
 const _JULIA_KEYWORDS = Set([
-    "function", "end", "if", "else", "elseif", "for", "while", "do",
-    "begin", "let", "try", "catch", "finally", "return", "break",
-    "continue", "struct", "mutable", "abstract", "primitive", "type",
-    "module", "baremodule", "using", "import", "export", "macro",
-    "quote", "in", "isa", "where", "const", "local", "global",
-    "outer", "new",
+    "function",
+    "end",
+    "if",
+    "else",
+    "elseif",
+    "for",
+    "while",
+    "do",
+    "begin",
+    "let",
+    "try",
+    "catch",
+    "finally",
+    "return",
+    "break",
+    "continue",
+    "struct",
+    "mutable",
+    "abstract",
+    "primitive",
+    "type",
+    "module",
+    "baremodule",
+    "using",
+    "import",
+    "export",
+    "macro",
+    "quote",
+    "in",
+    "isa",
+    "where",
+    "const",
+    "local",
+    "global",
+    "outer",
+    "new",
 ])
 
 const _JULIA_BOOLS = Set(["true", "false"])
@@ -104,11 +134,11 @@ function tokenize_line(chars::Vector{Char})::Vector{Token}
 
         # Char literal: 'x' or '\x'
         if c == '\''
-            if i + 2 <= n && chars[i+2] == '\''
+            if i + 2 <= n && chars[i + 2] == '\''
                 push!(tokens, Token(i, i+2, tok_string))
                 i += 3
                 continue
-            elseif i + 3 <= n && chars[i+1] == '\\' && chars[i+3] == '\''
+            elseif i + 3 <= n && chars[i + 1] == '\\' && chars[i + 3] == '\''
                 push!(tokens, Token(i, i+3, tok_string))
                 i += 4
                 continue
@@ -120,9 +150,10 @@ function tokenize_line(chars::Vector{Char})::Vector{Token}
         end
 
         # Macro: @identifier
-        if c == '@' && i + 1 <= n && (isletter(chars[i+1]) || chars[i+1] == '_')
+        if c == '@' && i + 1 <= n && (isletter(chars[i + 1]) || chars[i + 1] == '_')
             j = i + 1
-            while j <= n && (isletter(chars[j]) || isdigit(chars[j]) || chars[j] == '_' || chars[j] == '!')
+            while j <= n &&
+                  (isletter(chars[j]) || isdigit(chars[j]) || chars[j] == '_' || chars[j] == '!')
                 j += 1
             end
             push!(tokens, Token(i, j - 1, tok_macro))
@@ -131,8 +162,8 @@ function tokenize_line(chars::Vector{Char})::Vector{Token}
         end
 
         # Symbol: :identifier (but not ::)
-        if c == ':' && i + 1 <= n && isletter(chars[i+1])
-            if i > 1 && chars[i-1] == ':'
+        if c == ':' && i + 1 <= n && isletter(chars[i + 1])
+            if i > 1 && chars[i - 1] == ':'
                 push!(tokens, Token(i, i, tok_punctuation))
                 i += 1
                 continue
@@ -147,13 +178,16 @@ function tokenize_line(chars::Vector{Char})::Vector{Token}
         end
 
         # Number
-        if isdigit(c) || (c == '.' && i + 1 <= n && isdigit(chars[i+1]))
+        if isdigit(c) || (c == '.' && i + 1 <= n && isdigit(chars[i + 1]))
             j = i
             # Hex/oct/bin prefix
-            if c == '0' && j + 1 <= n && chars[j+1] in ('x', 'o', 'b')
+            if c == '0' && j + 1 <= n && chars[j + 1] in ('x', 'o', 'b')
                 j += 2
-                while j <= n && (isdigit(chars[j]) || chars[j] in ('a','b','c','d','e','f',
-                                                                      'A','B','C','D','E','F') || chars[j] == '_')
+                while j <= n && (
+                    isdigit(chars[j]) ||
+                    chars[j] in ('a', 'b', 'c', 'd', 'e', 'f', 'A', 'B', 'C', 'D', 'E', 'F') ||
+                    chars[j] == '_'
+                )
                     j += 1
                 end
             else
@@ -184,10 +218,11 @@ function tokenize_line(chars::Vector{Char})::Vector{Token}
         # Identifier / keyword
         if isletter(c) || c == '_'
             j = i + 1
-            while j <= n && (isletter(chars[j]) || isdigit(chars[j]) || chars[j] == '_' || chars[j] == '!')
+            while j <= n &&
+                  (isletter(chars[j]) || isdigit(chars[j]) || chars[j] == '_' || chars[j] == '!')
                 j += 1
             end
-            word = String(chars[i:j-1])
+            word = String(chars[i:(j - 1)])
             kind = if word in _JULIA_KEYWORDS
                 tok_keyword
             elseif word in _JULIA_BOOLS
@@ -207,7 +242,7 @@ function tokenize_line(chars::Vector{Char})::Vector{Token}
         # Operator
         if c in _OPERATOR_CHARS
             j = i
-            if haskey(_TWO_CHAR_OPS, c) && i + 1 <= n && chars[i+1] in _TWO_CHAR_OPS[c]
+            if haskey(_TWO_CHAR_OPS, c) && i + 1 <= n && chars[i + 1] in _TWO_CHAR_OPS[c]
                 j = i + 1
             end
             push!(tokens, Token(i, j, tok_operator))
@@ -226,14 +261,14 @@ function tokenize_line(chars::Vector{Char})::Vector{Token}
         push!(tokens, Token(i, i, tok_identifier))
         i += 1
     end
-    tokens
+    return tokens
 end
 
 # ── Style mapping ──────────────────────────────────────────────────
 
 function _token_style(kind::TokenKind)
     if kind == tok_keyword
-        tstyle(:primary, bold=true)
+        tstyle(:primary; bold=true)
     elseif kind == tok_type
         tstyle(:warning)
     elseif kind == tok_number
@@ -241,15 +276,15 @@ function _token_style(kind::TokenKind)
     elseif kind == tok_string
         tstyle(:success)
     elseif kind == tok_comment
-        tstyle(:text_dim, italic=true)
+        tstyle(:text_dim; italic=true)
     elseif kind == tok_macro
-        tstyle(:secondary, bold=true)
+        tstyle(:secondary; bold=true)
     elseif kind == tok_symbol
-        tstyle(:accent, italic=true)
+        tstyle(:accent; italic=true)
     elseif kind == tok_bool
-        tstyle(:accent, bold=true)
+        tstyle(:accent; bold=true)
     elseif kind == tok_builtin
-        tstyle(:text_dim, italic=true)
+        tstyle(:text_dim; italic=true)
     elseif kind == tok_operator
         tstyle(:text_bright)
     elseif kind == tok_punctuation
@@ -274,17 +309,17 @@ mutable struct CodeEditor
     style::Style
     gutter_style::Style
     cursor_style::Style
-    block::Union{Block, Nothing}
+    block::Union{Block,Nothing}
     focused::Bool
-    tick::Union{Int, Nothing}
+    tick::Union{Int,Nothing}
 
     # Modal editing
     mode::Symbol                          # :insert, :normal, :search, :command
-    pending_key::Union{Char, Nothing}     # multi-key: d, g, y, c, r
+    pending_key::Union{Char,Nothing}     # multi-key: d, g, y, c, r
 
     # Undo/Redo
-    undo_stack::Vector{Tuple{Vector{Vector{Char}}, Int, Int}}  # (lines, row, col)
-    redo_stack::Vector{Tuple{Vector{Vector{Char}}, Int, Int}}
+    undo_stack::Vector{Tuple{Vector{Vector{Char}},Int,Int}}  # (lines, row, col)
+    redo_stack::Vector{Tuple{Vector{Vector{Char}},Int,Int}}
     last_edit_was_char::Bool              # group consecutive char inserts
 
     # Yank buffer
@@ -293,7 +328,7 @@ mutable struct CodeEditor
 
     # Search
     search_query::Vector{Char}
-    search_matches::Vector{Tuple{Int, Int}}  # (row, col) 1-based
+    search_matches::Vector{Tuple{Int,Int}}  # (row, col) 1-based
     search_match_idx::Int
 
     # Command-line mode (:wq, :w, :q, etc.)
@@ -314,9 +349,9 @@ function CodeEditor(;
     style::Style=tstyle(:text),
     gutter_style::Style=tstyle(:text_dim),
     cursor_style::Style=Style(; fg=Color256(0), bg=tstyle(:accent).fg),
-    block::Union{Block, Nothing}=nothing,
+    block::Union{Block,Nothing}=nothing,
     focused::Bool=true,
-    tick::Union{Int, Nothing}=nothing,
+    tick::Union{Int,Nothing}=nothing,
     mode::Symbol=:insert,
 )
     ls = [collect(l) for l in Base.split(text, '\n'; keepempty=true)]
@@ -324,15 +359,35 @@ function CodeEditor(;
     row = length(ls)
     col = length(ls[end])
     cache = [tokenize_line(l) for l in ls]
-    CodeEditor(ls, row, col, 0, 0, cache, Set{Int}(), show_line_numbers,
-               tab_width, style, gutter_style, cursor_style, block, focused, tick,
-               mode, nothing,
-               Tuple{Vector{Vector{Char}}, Int, Int}[],
-               Tuple{Vector{Vector{Char}}, Int, Int}[],
-               false,
-               Vector{Char}[], false,
-               Char[], Tuple{Int, Int}[], 0,
-               Char[], "")
+    return CodeEditor(
+        ls,
+        row,
+        col,
+        0,
+        0,
+        cache,
+        Set{Int}(),
+        show_line_numbers,
+        tab_width,
+        style,
+        gutter_style,
+        cursor_style,
+        block,
+        focused,
+        tick,
+        mode,
+        nothing,
+        Tuple{Vector{Vector{Char}},Int,Int}[],
+        Tuple{Vector{Vector{Char}},Int,Int}[],
+        false,
+        Vector{Char}[],
+        false,
+        Char[],
+        Tuple{Int,Int}[],
+        0,
+        Char[],
+        "",
+    )
 end
 
 focusable(::CodeEditor) = true
@@ -347,13 +402,13 @@ Returns `""` if no command is pending. Call after `handle_key!` to dispatch comm
 function pending_command!(ce::CodeEditor)
     cmd = ce.last_command
     ce.last_command = ""
-    cmd
+    return cmd
 end
 
 # ── Helpers ────────────────────────────────────────────────────────
 
 function text(ce::CodeEditor)
-    join(String.(ce.lines), '\n')
+    return join(String.(ce.lines), '\n')
 end
 
 function clear!(ce::CodeEditor)
@@ -364,7 +419,7 @@ function clear!(ce::CodeEditor)
     ce.scroll_offset = 0
     ce.h_scroll = 0
     ce.token_cache = [Token[]]
-    empty!(ce.dirty_lines)
+    return empty!(ce.dirty_lines)
 end
 
 function set_text!(ce::CodeEditor, s::String)
@@ -375,11 +430,11 @@ function set_text!(ce::CodeEditor, s::String)
     ce.scroll_offset = 0
     ce.h_scroll = 0
     ce.token_cache = [tokenize_line(l) for l in ce.lines]
-    empty!(ce.dirty_lines)
+    return empty!(ce.dirty_lines)
 end
 
 function _mark_dirty!(ce::CodeEditor, row::Int)
-    push!(ce.dirty_lines, row)
+    return push!(ce.dirty_lines, row)
 end
 
 function _ensure_tokens!(ce::CodeEditor)
@@ -396,15 +451,31 @@ function _ensure_tokens!(ce::CodeEditor)
             ce.token_cache[row] = tokenize_line(ce.lines[row])
         end
     end
-    empty!(ce.dirty_lines)
+    return empty!(ce.dirty_lines)
 end
 
 # ── Auto-indent ────────────────────────────────────────────────────
 
 const _BLOCK_OPENERS = Set([
-    "function", "if", "for", "while", "do", "begin", "let", "try",
-    "struct", "module", "macro", "else", "elseif", "catch", "finally",
-    "quote", "baremodule", "mutable", "abstract",
+    "function",
+    "if",
+    "for",
+    "while",
+    "do",
+    "begin",
+    "let",
+    "try",
+    "struct",
+    "module",
+    "macro",
+    "else",
+    "elseif",
+    "catch",
+    "finally",
+    "quote",
+    "baremodule",
+    "mutable",
+    "abstract",
 ])
 
 const _DEDENT_KEYWORDS = Set(["end", "else", "elseif", "catch", "finally"])
@@ -414,11 +485,11 @@ function _leading_spaces(line::Vector{Char})
     for c in line
         c == ' ' ? (count += 1) : break
     end
-    count
+    return count
 end
 
 function _line_stripped(line::Vector{Char})
-    strip(String(line))
+    return strip(String(line))
 end
 
 function _should_indent(line::Vector{Char})
@@ -430,7 +501,7 @@ function _should_indent(line::Vector{Char})
     first_word = first(Base.split(s))
     # Handle "mutable struct" etc
     first_word in _BLOCK_OPENERS && return true
-    false
+    return false
 end
 
 function _compute_indent(ce::CodeEditor, row::Int)
@@ -438,7 +509,7 @@ function _compute_indent(ce::CodeEditor, row::Int)
     if _should_indent(ce.lines[row])
         indent += ce.tab_width
     end
-    indent
+    return indent
 end
 
 function _auto_dedent!(ce::CodeEditor, row::Int)
@@ -452,13 +523,13 @@ function _auto_dedent!(ce::CodeEditor, row::Int)
     deleteat!(line, 1:to_remove)
     ce.cursor_col = max(0, ce.cursor_col - to_remove)
     _mark_dirty!(ce, row)
-    true
+    return true
 end
 
 # ── Undo/Redo ─────────────────────────────────────────────────────
 
 function _snapshot(ce::CodeEditor)
-    (map(copy, ce.lines), ce.cursor_row, ce.cursor_col)
+    return (map(copy, ce.lines), ce.cursor_row, ce.cursor_col)
 end
 
 function _push_undo!(ce::CodeEditor; force::Bool=false)
@@ -470,7 +541,7 @@ function _push_undo!(ce::CodeEditor; force::Bool=false)
 end
 
 function _undo!(ce::CodeEditor)
-    isempty(ce.undo_stack) && return
+    isempty(ce.undo_stack) && return nothing
     push!(ce.redo_stack, _snapshot(ce))
     (lines, row, col) = pop!(ce.undo_stack)
     ce.lines = lines
@@ -478,11 +549,11 @@ function _undo!(ce::CodeEditor)
     ce.cursor_col = col
     ce.token_cache = [tokenize_line(l) for l in ce.lines]
     empty!(ce.dirty_lines)
-    ce.last_edit_was_char = false
+    return ce.last_edit_was_char = false
 end
 
 function _redo!(ce::CodeEditor)
-    isempty(ce.redo_stack) && return
+    isempty(ce.redo_stack) && return nothing
     push!(ce.undo_stack, _snapshot(ce))
     (lines, row, col) = pop!(ce.redo_stack)
     ce.lines = lines
@@ -490,7 +561,7 @@ function _redo!(ce::CodeEditor)
     ce.cursor_col = col
     ce.token_cache = [tokenize_line(l) for l in ce.lines]
     empty!(ce.dirty_lines)
-    ce.last_edit_was_char = false
+    return ce.last_edit_was_char = false
 end
 
 # ── Word Motion Helpers ───────────────────────────────────────────
@@ -507,19 +578,27 @@ function _next_word_start(ce::CodeEditor)
     if pos <= n
         # Skip current word class
         if _is_word_char(line[pos])
-            while pos <= n && _is_word_char(line[pos]); pos += 1; end
+            while pos <= n && _is_word_char(line[pos])
+                pos += 1
+            end
         elseif !_is_space(line[pos])
-            while pos <= n && !_is_word_char(line[pos]) && !_is_space(line[pos]); pos += 1; end
+            while pos <= n && !_is_word_char(line[pos]) && !_is_space(line[pos])
+                pos += 1
+            end
         end
         # Skip whitespace
-        while pos <= n && _is_space(line[pos]); pos += 1; end
+        while pos <= n && _is_space(line[pos])
+            pos += 1
+        end
     end
     if pos > n && row < length(ce.lines)
         # Wrap to next line, first non-space
         ce.cursor_row = row + 1
         next_line = ce.lines[ce.cursor_row]
         pos2 = 1
-        while pos2 <= length(next_line) && _is_space(next_line[pos2]); pos2 += 1; end
+        while pos2 <= length(next_line) && _is_space(next_line[pos2])
+            pos2 += 1
+        end
         ce.cursor_col = pos2 - 1
     else
         ce.cursor_col = min(pos - 1, max(n - 1, 0))
@@ -533,21 +612,27 @@ function _prev_word_start(ce::CodeEditor)
     if pos <= 0 && row > 1
         ce.cursor_row = row - 1
         ce.cursor_col = max(length(ce.lines[ce.cursor_row]) - 1, 0)
-        return
+        return nothing
     end
     # Skip whitespace backwards
-    while pos > 0 && _is_space(line[pos]); pos -= 1; end
+    while pos > 0 && _is_space(line[pos])
+        pos -= 1
+    end
     if pos <= 0
         ce.cursor_col = 0
-        return
+        return nothing
     end
     # Skip word class backwards
     if _is_word_char(line[pos])
-        while pos > 1 && _is_word_char(line[pos - 1]); pos -= 1; end
+        while pos > 1 && _is_word_char(line[pos - 1])
+            pos -= 1
+        end
     else
-        while pos > 1 && !_is_word_char(line[pos - 1]) && !_is_space(line[pos - 1]); pos -= 1; end
+        while pos > 1 && !_is_word_char(line[pos - 1]) && !_is_space(line[pos - 1])
+            pos -= 1
+        end
     end
-    ce.cursor_col = pos - 1
+    return ce.cursor_col = pos - 1
 end
 
 function _end_of_word(ce::CodeEditor)
@@ -562,16 +647,22 @@ function _end_of_word(ce::CodeEditor)
         pos = 1
     end
     # Skip whitespace
-    while pos <= n && _is_space(line[pos]); pos += 1; end
+    while pos <= n && _is_space(line[pos])
+        pos += 1
+    end
     # Skip through word class
     if pos <= n
         if _is_word_char(line[pos])
-            while pos + 1 <= n && _is_word_char(line[pos + 1]); pos += 1; end
+            while pos + 1 <= n && _is_word_char(line[pos + 1])
+                pos += 1
+            end
         else
-            while pos + 1 <= n && !_is_word_char(line[pos + 1]) && !_is_space(line[pos + 1]); pos += 1; end
+            while pos + 1 <= n && !_is_word_char(line[pos + 1]) && !_is_space(line[pos + 1])
+                pos += 1
+            end
         end
     end
-    ce.cursor_col = min(pos - 1, max(n - 1, 0))
+    return ce.cursor_col = min(pos - 1, max(n - 1, 0))
 end
 
 # ── Key handling ───────────────────────────────────────────────────
@@ -609,13 +700,12 @@ function handle_key!(ce::CodeEditor, evt::KeyEvent)::Bool
     elseif ce.mode == :command
         return _handle_command_key!(ce, evt)
     end
-    false
+    return false
 end
 
 # ── Insert mode ───────────────────────────────────────────────────
 
 function _handle_insert_key!(ce::CodeEditor, evt::KeyEvent)::Bool
-
     if evt.key == :escape
         ce.mode = :normal
         ce.last_edit_was_char = false
@@ -639,7 +729,7 @@ function _handle_insert_key!(ce::CodeEditor, evt::KeyEvent)::Bool
         ce.last_edit_was_char = false
         line = ce.lines[ce.cursor_row]
         left = line[1:ce.cursor_col]
-        right_part = line[ce.cursor_col+1:end]
+        right_part = line[(ce.cursor_col + 1):end]
         ce.lines[ce.cursor_row] = left
         _mark_dirty!(ce, ce.cursor_row)
 
@@ -763,7 +853,7 @@ function _handle_insert_key!(ce::CodeEditor, evt::KeyEvent)::Bool
         ce.cursor_col = min(ce.cursor_col, length(ce.lines[ce.cursor_row]))
         return true
     end
-    false
+    return false
 end
 
 # ── Normal mode ───────────────────────────────────────────────────
@@ -897,7 +987,7 @@ function _handle_normal_key!(ce::CodeEditor, evt::KeyEvent)::Bool
         _mark_dirty!(ce, ce.cursor_row)
         return true
 
-    # Movement
+        # Movement
     elseif c == 'h'
         ce.cursor_col = max(ce.cursor_col - 1, 0)
         return true
@@ -943,7 +1033,7 @@ function _handle_normal_key!(ce::CodeEditor, evt::KeyEvent)::Bool
         ce.cursor_col = min(ce.cursor_col, max(length(ce.lines[ce.cursor_row]) - 1, 0))
         return true
 
-    # Editing (single-key)
+        # Editing (single-key)
     elseif c == 'x'
         if line_len > 0
             _push_undo!(ce; force=true)
@@ -990,7 +1080,8 @@ function _handle_normal_key!(ce::CodeEditor, evt::KeyEvent)::Bool
             next_line = ce.lines[ce.cursor_row + 1]
             # Strip leading whitespace from next line
             stripped_start = 1
-            while stripped_start <= length(next_line) && (next_line[stripped_start] == ' ' || next_line[stripped_start] == '\t')
+            while stripped_start <= length(next_line) &&
+                  (next_line[stripped_start] == ' ' || next_line[stripped_start] == '\t')
                 stripped_start += 1
             end
             # Add a space separator if current line is non-empty
@@ -1025,7 +1116,10 @@ function _handle_normal_key!(ce::CodeEditor, evt::KeyEvent)::Bool
                     insert!(ce.lines, ce.cursor_row + i, copy(yline))
                 end
                 ce.cursor_row += 1
-                ce.cursor_col = min(_leading_spaces(ce.lines[ce.cursor_row]), max(length(ce.lines[ce.cursor_row]) - 1, 0))
+                ce.cursor_col = min(
+                    _leading_spaces(ce.lines[ce.cursor_row]),
+                    max(length(ce.lines[ce.cursor_row]) - 1, 0),
+                )
                 _ensure_tokens!(ce)
             else
                 chars = ce.yank_buffer[1]
@@ -1048,7 +1142,10 @@ function _handle_normal_key!(ce::CodeEditor, evt::KeyEvent)::Bool
                 for (i, yline) in enumerate(ce.yank_buffer)
                     insert!(ce.lines, ce.cursor_row + i - 1, copy(yline))
                 end
-                ce.cursor_col = min(_leading_spaces(ce.lines[ce.cursor_row]), max(length(ce.lines[ce.cursor_row]) - 1, 0))
+                ce.cursor_col = min(
+                    _leading_spaces(ce.lines[ce.cursor_row]),
+                    max(length(ce.lines[ce.cursor_row]) - 1, 0),
+                )
                 _ensure_tokens!(ce)
             else
                 chars = ce.yank_buffer[1]
@@ -1063,17 +1160,17 @@ function _handle_normal_key!(ce::CodeEditor, evt::KeyEvent)::Bool
         end
         return true
 
-    # Multi-key commands (set pending)
+        # Multi-key commands (set pending)
     elseif c == 'd' || c == 'y' || c == 'c' || c == 'r' || c == 'g'
         ce.pending_key = c
         return true
 
-    # Undo/Redo
+        # Undo/Redo
     elseif c == 'u'
         _undo!(ce)
         return true
 
-    # Search
+        # Search
     elseif c == '/'
         ce.mode = :search
         empty!(ce.search_query)
@@ -1081,7 +1178,7 @@ function _handle_normal_key!(ce::CodeEditor, evt::KeyEvent)::Bool
         ce.search_match_idx = 0
         return true
 
-    # Command-line mode
+        # Command-line mode
     elseif c == ':'
         ce.mode = :command
         empty!(ce.command_buffer)
@@ -1107,7 +1204,7 @@ function _handle_normal_key!(ce::CodeEditor, evt::KeyEvent)::Bool
         return true
     end
 
-    false
+    return false
 end
 
 # ── Search mode ───────────────────────────────────────────────────
@@ -1115,7 +1212,7 @@ end
 function _update_search_matches!(ce::CodeEditor)
     empty!(ce.search_matches)
     ce.search_match_idx = 0
-    isempty(ce.search_query) && return
+    isempty(ce.search_query) && return nothing
     query = ce.search_query
     qlen = length(query)
     for (ri, line) in enumerate(ce.lines)
@@ -1171,7 +1268,7 @@ function _handle_search_key!(ce::CodeEditor, evt::KeyEvent)::Bool
         _update_search_matches!(ce)
         return true
     end
-    false
+    return false
 end
 
 # ── Command-line mode (:wq, :w, :q, etc.) ────────────────────────
@@ -1197,7 +1294,7 @@ function _handle_command_key!(ce::CodeEditor, evt::KeyEvent)::Bool
         push!(ce.command_buffer, evt.char)
         return true
     end
-    false
+    return false
 end
 
 function _in_search_match(ce::CodeEditor, row::Int, col::Int)
@@ -1206,14 +1303,14 @@ function _in_search_match(ce::CodeEditor, row::Int, col::Int)
     for (mr, mc) in ce.search_matches
         mr == row && col >= mc && col < mc + qlen && return true
     end
-    false
+    return false
 end
 
 # ── Render ─────────────────────────────────────────────────────────
 
 function _gutter_width(ce::CodeEditor, line_count::Int)
     ce.show_line_numbers || return 0
-    ndigits(max(line_count, 1)) + 1  # +1 for │ separator
+    return ndigits(max(line_count, 1)) + 1  # +1 for │ separator
 end
 
 function _token_at(tokens::Vector{Token}, col::Int)
@@ -1222,7 +1319,7 @@ function _token_at(tokens::Vector{Token}, col::Int)
             return tok
         end
     end
-    nothing
+    return nothing
 end
 
 function render(ce::CodeEditor, rect::Rect, buf::Buffer)
@@ -1232,14 +1329,14 @@ function render(ce::CodeEditor, rect::Rect, buf::Buffer)
     else
         rect
     end
-    (area.width < 1 || area.height < 1) && return
+    (area.width < 1 || area.height < 1) && return nothing
 
     _ensure_tokens!(ce)
 
     line_count = length(ce.lines)
     gw = _gutter_width(ce, line_count)
     code_width = area.width - gw
-    code_width < 1 && return
+    code_width < 1 && return nothing
 
     # Reserve bottom row for search/command bar
     bottom_bar = (ce.mode == :search || ce.mode == :command) && area.height >= 2
@@ -1265,7 +1362,7 @@ function render(ce::CodeEditor, rect::Rect, buf::Buffer)
         base_bg = to_rgb(cur_style.bg)
         br = breathe(ce.tick; period=70)
         cur_bg = brighten(base_bg, br * 0.25)
-        cur_style = Style(fg=cur_style.fg, bg=cur_bg)
+        cur_style = Style(; fg=cur_style.fg, bg=cur_bg)
     end
 
     # Search highlight style (yellow bg, black fg)
@@ -1310,8 +1407,7 @@ function render(ce::CodeEditor, rect::Rect, buf::Buffer)
             x = code_x + ci - 1
             x > right(area) && break
 
-            is_cursor = ce.focused && li == ce.cursor_row &&
-                        char_idx == ce.cursor_col + 1
+            is_cursor = ce.focused && li == ce.cursor_row && char_idx == ce.cursor_col + 1
 
             if char_idx >= 1 && char_idx <= length(line)
                 ch = line[char_idx]

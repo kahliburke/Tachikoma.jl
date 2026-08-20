@@ -66,7 +66,7 @@ function _track_key_state!(evt::KeyEvent)
 end
 
 function reset_key_state!()
-    empty!(_KEYS_DOWN)
+    return empty!(_KEYS_DOWN)
 end
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -94,9 +94,9 @@ _input_io() = something(INPUT_IO[], stdin)
 # event, so callers can inspect what the terminal actually sent (independent
 # of how it was decoded). Off by default with zero overhead — a single Ref
 # check per consumed byte. See `last_event_raw`.
-const _CAPTURE_RAW     = Ref(false)
-const _RAW_ACC         = UInt8[]                  # bytes of the in-progress event
-const _LAST_EVENT_RAW  = Ref{Vector{UInt8}}(UInt8[])
+const _CAPTURE_RAW = Ref(false)
+const _RAW_ACC = UInt8[]                  # bytes of the in-progress event
+const _LAST_EVENT_RAW = Ref{Vector{UInt8}}(UInt8[])
 
 """
     enable_raw_capture!()
@@ -106,17 +106,17 @@ each event, retrievable via [`last_event_raw`](@ref). Off by default, with a sin
 `Ref` check per byte when disabled. Useful for debugging keyboard handling across
 layouts and terminals. Turn off with [`disable_raw_capture!`](@ref).
 """
-enable_raw_capture!()  = (_CAPTURE_RAW[] = true; nothing)
+enable_raw_capture!() = (_CAPTURE_RAW[]=true; nothing)
 
 """    disable_raw_capture!()
 
 Disable raw-input capture (see [`enable_raw_capture!`](@ref))."""
-disable_raw_capture!() = (_CAPTURE_RAW[] = false; nothing)
+disable_raw_capture!() = (_CAPTURE_RAW[]=false; nothing)
 
 """    raw_capture_enabled() -> Bool
 
 Whether raw-input capture is currently enabled (see [`enable_raw_capture!`](@ref))."""
-raw_capture_enabled()  = _CAPTURE_RAW[]
+raw_capture_enabled() = _CAPTURE_RAW[]
 
 """
     last_event_raw() -> Vector{UInt8}
@@ -142,7 +142,7 @@ function start_input!()
     if io isa Base.LibuvStream
         Base.start_reading(io)
     end
-    nothing
+    return nothing
 end
 
 function stop_input!()
@@ -153,13 +153,16 @@ function stop_input!()
     end
     io = _input_io()
     if io isa Base.LibuvStream
-        try Base.stop_reading(io) catch end
+        try
+            Base.stop_reading(io)
+        catch
+        end
     end
     # Drain any stale bytes left in the input buffer
     while bytesavailable(io) > 0
         read(io, UInt8)
     end
-    nothing
+    return nothing
 end
 
 # ── Input-source abstraction (stdin bytes vs Windows console records) ────
@@ -167,8 +170,9 @@ end
 # scattering `_win_console_input()` branches through the hot path.
 
 """True when at least one input event is ready to read."""
-_input_available() = _win_console_input() ? (_win_events_pending() > 0) :
-                     (bytesavailable(_input_io()) > 0)
+function _input_available()
+    return _win_console_input() ? (_win_events_pending() > 0) : (bytesavailable(_input_io()) > 0)
+end
 
 """Read and decode the next input event, applying key-repeat tracking. Returns
 `nothing` for records that don't map to a Tachikoma event (key-up, resize, no-op
@@ -248,8 +252,8 @@ function _read_event_impl()
     byte == 0x08 && return KeyEvent(:backspace)
     byte == 0x09 && return KeyEvent(:tab)
     byte == 0x03 && return KeyEvent(:ctrl_c)
-    byte < 0x20  && return KeyEvent(:ctrl, Char(byte + 0x60))
-    byte < 0x80  && return KeyEvent(Char(byte))
+    byte < 0x20 && return KeyEvent(:ctrl, Char(byte + 0x60))
+    byte < 0x80 && return KeyEvent(Char(byte))
     # Byte ≥ 0x80 is a UTF-8 multibyte lead: gather continuation bytes so
     # non-ASCII characters (accents, symbols, any layout) decode correctly
     # instead of mojibaking into a single Latin-1 char.
@@ -260,7 +264,17 @@ end
 # bytes. Legacy terminals (no Kitty keyboard protocol) deliver characters as
 # raw UTF-8; reading a single byte would corrupt anything outside ASCII.
 function _read_utf8_char(lead::UInt8)
-    n = lead < 0xC0 ? 0 : lead < 0xE0 ? 1 : lead < 0xF0 ? 2 : lead < 0xF8 ? 3 : 0
+    n = if lead < 0xC0
+        0
+    elseif lead < 0xE0
+        1
+    elseif lead < 0xF0
+        2
+    elseif lead < 0xF8
+        3
+    else
+        0
+    end
     n == 0 && return KeyEvent(:unknown)          # stray continuation / invalid lead
     bytes = UInt8[lead]
     for _ in 1:n
@@ -269,7 +283,7 @@ function _read_utf8_char(lead::UInt8)
         push!(bytes, b)
     end
     s = String(bytes)
-    (isvalid(s) && length(s) == 1) ? KeyEvent(first(s)) : KeyEvent(:unknown)
+    return (isvalid(s) && length(s) == 1) ? KeyEvent(first(s)) : KeyEvent(:unknown)
 end
 
 function read_escape()
@@ -302,12 +316,12 @@ end
 function _consume_until_st()
     while true
         b = read_byte(0.05)
-        b === nothing && return
-        b == 0x07 && return          # BEL — OSC terminator
+        b === nothing && return nothing
+        b == 0x07 && return nothing          # BEL — OSC terminator
         b == 0x1b || continue
         b2 = read_byte(0.05)         # expect \ (ST)
-        b2 === nothing && return
-        b2 == UInt8('\\') && return
+        b2 === nothing && return nothing
+        b2 == UInt8('\\') && return nothing
     end
 end
 
@@ -362,10 +376,10 @@ function csi_to_key(params::Vector{UInt8}, final::Char)
     final == 'S' && return KeyEvent(:f4, action)
     if final == '~' && !isempty(params)
         n = parse_csi_num(params)
-        n == 2  && return KeyEvent(:insert, action)
-        n == 3  && return KeyEvent(:delete, action)
-        n == 5  && return KeyEvent(:pageup, action)
-        n == 6  && return KeyEvent(:pagedown, action)
+        n == 2 && return KeyEvent(:insert, action)
+        n == 3 && return KeyEvent(:delete, action)
+        n == 5 && return KeyEvent(:pageup, action)
+        n == 6 && return KeyEvent(:pagedown, action)
         n == 11 && return KeyEvent(:f1, action)
         n == 12 && return KeyEvent(:f2, action)
         n == 13 && return KeyEvent(:f3, action)
@@ -389,7 +403,7 @@ const _UNKNOWN_CSI_LOG = Vector{String}()
 function _log_unknown_csi(params::Vector{UInt8}, final::Char)
     entry = "CSI $(join(string.(params), ",")) $(final) (params_str=$(repr(String(copy(params)))))"
     push!(_UNKNOWN_CSI_LOG, entry)
-    length(_UNKNOWN_CSI_LOG) > 20 && popfirst!(_UNKNOWN_CSI_LOG)
+    return length(_UNKNOWN_CSI_LOG) > 20 && popfirst!(_UNKNOWN_CSI_LOG)
 end
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -408,8 +422,8 @@ function parse_sgr_mouse(params::Vector{UInt8}, final::Char)
 
     # Decode modifiers from bits 2,3,4 of Cb
     shift = (cb & 4) != 0
-    alt   = (cb & 8) != 0
-    ctrl  = (cb & 16) != 0
+    alt = (cb & 8) != 0
+    ctrl = (cb & 16) != 0
 
     # Strip modifier bits for button decoding
     base = cb & ~(4 | 8 | 16)
@@ -419,11 +433,23 @@ function parse_sgr_mouse(params::Vector{UInt8}, final::Char)
 
     if base in (0, 1, 2)
         # Normal press: 0=left, 1=middle, 2=right
-        btn = base == 0 ? mouse_left : base == 1 ? mouse_middle : mouse_right
+        btn = if base == 0
+            mouse_left
+        elseif base == 1
+            mouse_middle
+        else
+            mouse_right
+        end
         action = is_release ? mouse_release : mouse_press
     elseif base in (32, 33, 34)
         # Drag: 32=left, 33=middle, 34=right (base + 32)
-        btn = base == 32 ? mouse_left : base == 33 ? mouse_middle : mouse_right
+        btn = if base == 32
+            mouse_left
+        elseif base == 33
+            mouse_middle
+        else
+            mouse_right
+        end
         action = mouse_drag
     elseif base == 64
         btn = mouse_scroll_up
@@ -444,7 +470,7 @@ function parse_sgr_mouse(params::Vector{UInt8}, final::Char)
         return KeyEvent(:unknown)
     end
 
-    MouseEvent(cx, cy, btn, action, shift, alt, ctrl)
+    return MouseEvent(cx, cy, btn, action, shift, alt, ctrl)
 end
 
 function parse_csi_num(params::Vector{UInt8})
@@ -455,7 +481,11 @@ function parse_csi_num(params::Vector{UInt8})
         push!(digits, p)
     end
     isempty(digits) && return 0
-    try parse(Int, String(digits)) catch; 0 end
+    try
+        parse(Int, String(digits))
+    catch
+        0
+    end
 end
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -463,68 +493,160 @@ end
 # ═══════════════════════════════════════════════════════════════════════
 
 # Functional keycodes from the Kitty spec (57344+)
-const KITTY_FUNCTIONAL_KEYS = Dict{Int, Symbol}(
-    57344 => :escape,     57345 => :enter,      57346 => :tab,
-    57347 => :backspace,  57348 => :insert,      57349 => :delete,
-    57350 => :left,       57351 => :right,       57352 => :up,
-    57353 => :down,       57354 => :pageup,      57355 => :pagedown,
-    57356 => :home,       57357 => :end_key,
-    57358 => :caps_lock,  57359 => :scroll_lock, 57360 => :num_lock,
-    57361 => :print_screen, 57362 => :pause,     57363 => :menu,
+const KITTY_FUNCTIONAL_KEYS = Dict{Int,Symbol}(
+    57344 => :escape,
+    57345 => :enter,
+    57346 => :tab,
+    57347 => :backspace,
+    57348 => :insert,
+    57349 => :delete,
+    57350 => :left,
+    57351 => :right,
+    57352 => :up,
+    57353 => :down,
+    57354 => :pageup,
+    57355 => :pagedown,
+    57356 => :home,
+    57357 => :end_key,
+    57358 => :caps_lock,
+    57359 => :scroll_lock,
+    57360 => :num_lock,
+    57361 => :print_screen,
+    57362 => :pause,
+    57363 => :menu,
     # F1-F12
-    57364 => :f1,  57365 => :f2,  57366 => :f3,  57367 => :f4,
-    57368 => :f5,  57369 => :f6,  57370 => :f7,  57371 => :f8,
-    57372 => :f9,  57373 => :f10, 57374 => :f11, 57375 => :f12,
+    57364 => :f1,
+    57365 => :f2,
+    57366 => :f3,
+    57367 => :f4,
+    57368 => :f5,
+    57369 => :f6,
+    57370 => :f7,
+    57371 => :f8,
+    57372 => :f9,
+    57373 => :f10,
+    57374 => :f11,
+    57375 => :f12,
     # F13-F35
-    57376 => :f13, 57377 => :f14, 57378 => :f15, 57379 => :f16,
-    57380 => :f17, 57381 => :f18, 57382 => :f19, 57383 => :f20,
-    57384 => :f21, 57385 => :f22, 57386 => :f23, 57387 => :f24,
-    57388 => :f25, 57389 => :f26, 57390 => :f27, 57391 => :f28,
-    57392 => :f29, 57393 => :f30, 57394 => :f31, 57395 => :f32,
-    57396 => :f33, 57397 => :f34, 57398 => :f35,
+    57376 => :f13,
+    57377 => :f14,
+    57378 => :f15,
+    57379 => :f16,
+    57380 => :f17,
+    57381 => :f18,
+    57382 => :f19,
+    57383 => :f20,
+    57384 => :f21,
+    57385 => :f22,
+    57386 => :f23,
+    57387 => :f24,
+    57388 => :f25,
+    57389 => :f26,
+    57390 => :f27,
+    57391 => :f28,
+    57392 => :f29,
+    57393 => :f30,
+    57394 => :f31,
+    57395 => :f32,
+    57396 => :f33,
+    57397 => :f34,
+    57398 => :f35,
     # Keypad
-    57399 => :kp_0, 57400 => :kp_1, 57401 => :kp_2, 57402 => :kp_3,
-    57403 => :kp_4, 57404 => :kp_5, 57405 => :kp_6, 57406 => :kp_7,
-    57407 => :kp_8, 57408 => :kp_9, 57409 => :kp_decimal,
-    57410 => :kp_divide, 57411 => :kp_multiply, 57412 => :kp_subtract,
-    57413 => :kp_add, 57414 => :kp_enter, 57415 => :kp_equal,
-    57416 => :kp_separator, 57417 => :kp_left, 57418 => :kp_right,
-    57419 => :kp_up, 57420 => :kp_down, 57421 => :kp_pageup,
-    57422 => :kp_pagedown, 57423 => :kp_home, 57424 => :kp_end,
-    57425 => :kp_insert, 57426 => :kp_delete, 57427 => :kp_begin,
+    57399 => :kp_0,
+    57400 => :kp_1,
+    57401 => :kp_2,
+    57402 => :kp_3,
+    57403 => :kp_4,
+    57404 => :kp_5,
+    57405 => :kp_6,
+    57406 => :kp_7,
+    57407 => :kp_8,
+    57408 => :kp_9,
+    57409 => :kp_decimal,
+    57410 => :kp_divide,
+    57411 => :kp_multiply,
+    57412 => :kp_subtract,
+    57413 => :kp_add,
+    57414 => :kp_enter,
+    57415 => :kp_equal,
+    57416 => :kp_separator,
+    57417 => :kp_left,
+    57418 => :kp_right,
+    57419 => :kp_up,
+    57420 => :kp_down,
+    57421 => :kp_pageup,
+    57422 => :kp_pagedown,
+    57423 => :kp_home,
+    57424 => :kp_end,
+    57425 => :kp_insert,
+    57426 => :kp_delete,
+    57427 => :kp_begin,
     # Media keys
-    57428 => :media_play, 57429 => :media_pause, 57430 => :media_play_pause,
-    57431 => :media_reverse, 57432 => :media_stop, 57433 => :media_fast_forward,
-    57434 => :media_rewind, 57435 => :media_next, 57436 => :media_prev,
-    57437 => :media_record, 57438 => :media_vol_down, 57439 => :media_vol_up,
+    57428 => :media_play,
+    57429 => :media_pause,
+    57430 => :media_play_pause,
+    57431 => :media_reverse,
+    57432 => :media_stop,
+    57433 => :media_fast_forward,
+    57434 => :media_rewind,
+    57435 => :media_next,
+    57436 => :media_prev,
+    57437 => :media_record,
+    57438 => :media_vol_down,
+    57439 => :media_vol_up,
     57440 => :media_mute,
     # Modifier keys (pressed alone)
-    57441 => :left_shift, 57442 => :left_ctrl, 57443 => :left_alt,
-    57444 => :left_super, 57445 => :left_hyper, 57446 => :left_meta,
-    57447 => :right_shift, 57448 => :right_ctrl, 57449 => :right_alt,
-    57450 => :right_super, 57451 => :right_hyper, 57452 => :right_meta,
+    57441 => :left_shift,
+    57442 => :left_ctrl,
+    57443 => :left_alt,
+    57444 => :left_super,
+    57445 => :left_hyper,
+    57446 => :left_meta,
+    57447 => :right_shift,
+    57448 => :right_ctrl,
+    57449 => :right_alt,
+    57450 => :right_super,
+    57451 => :right_hyper,
+    57452 => :right_meta,
 )
 
 # US keyboard shift+symbol map: base char → shifted char.
 # Used as a fallback when the terminal doesn't supply the shifted codepoint.
 const _SHIFT_SYMBOL_MAP = Dict{Char,Char}(
-    '`'  => '~', '1' => '!', '2' => '@', '3' => '#', '4' => '$', '5' => '%',
-    '6'  => '^', '7' => '&', '8' => '*', '9' => '(', '0' => ')',
-    '-'  => '_', '=' => '+', '[' => '{', ']' => '}', '\\' => '|',
-    ';'  => ':', '\'' => '"', ',' => '<', '.' => '>', '/' => '?',
+    '`' => '~',
+    '1' => '!',
+    '2' => '@',
+    '3' => '#',
+    '4' => '$',
+    '5' => '%',
+    '6' => '^',
+    '7' => '&',
+    '8' => '*',
+    '9' => '(',
+    '0' => ')',
+    '-' => '_',
+    '=' => '+',
+    '[' => '{',
+    ']' => '}',
+    '\\' => '|',
+    ';' => ':',
+    '\'' => '"',
+    ',' => '<',
+    '.' => '>',
+    '/' => '?',
 )
 
 # Legacy control byte mapping for Ctrl+non-letter keys.
 # Maps keycode → control byte that legacy terminals actually send.
 # Most follow keycode & 0x1f, but some (like /) are terminal conventions.
-const _CTRL_KEYCODE_TO_BYTE = Dict{Int, UInt8}(
-    Int('@')  => 0x00,  # Ctrl+@ → NUL
-    Int('[')  => 0x1b,  # Ctrl+[ → ESC
+const _CTRL_KEYCODE_TO_BYTE = Dict{Int,UInt8}(
+    Int('@') => 0x00,  # Ctrl+@ → NUL
+    Int('[') => 0x1b,  # Ctrl+[ → ESC
     Int('\\') => 0x1c,  # Ctrl+\ → FS
-    Int(']')  => 0x1d,  # Ctrl+] → GS
-    Int('^')  => 0x1e,  # Ctrl+^ → RS
-    Int('_')  => 0x1f,  # Ctrl+_ → US
-    Int('/')  => 0x1f,  # Ctrl+/ → US (terminal convention, same as Ctrl+_)
+    Int(']') => 0x1d,  # Ctrl+] → GS
+    Int('^') => 0x1e,  # Ctrl+^ → RS
+    Int('_') => 0x1f,  # Ctrl+_ → US
+    Int('/') => 0x1f,  # Ctrl+/ → US (terminal convention, same as Ctrl+_)
 )
 
 """
@@ -576,16 +698,28 @@ function parse_kitty_key(params::Vector{UInt8})
     # Decode modifiers (subtract 1 from 1-based value, then bitmask)
     mod_bits = raw_mod - 1
     shift = (mod_bits & 1) != 0
-    alt   = (mod_bits & 2) != 0
-    ctrl  = (mod_bits & 4) != 0
-    action = event_type == 2 ? key_repeat : event_type == 3 ? key_release : key_press
+    alt = (mod_bits & 2) != 0
+    ctrl = (mod_bits & 4) != 0
+    action = if event_type == 2
+        key_repeat
+    elseif event_type == 3
+        key_release
+    else
+        key_press
+    end
 
     return _kitty_keycode_to_event(keycode, shifted, text, shift, alt, ctrl, action)
 end
 
-function _kitty_keycode_to_event(keycode::Int, shifted::Union{Int,Nothing},
-                                 text::AbstractString, shift::Bool, alt::Bool,
-                                 ctrl::Bool, action::KeyAction)
+function _kitty_keycode_to_event(
+    keycode::Int,
+    shifted::Union{Int,Nothing},
+    text::AbstractString,
+    shift::Bool,
+    alt::Bool,
+    ctrl::Bool,
+    action::KeyAction,
+)
     # Ctrl combinations → replicate legacy terminal behavior. Control chords
     # carry no meaningful associated text, so resolve them from the key code.
     if ctrl && !alt
@@ -613,9 +747,9 @@ function _kitty_keycode_to_event(keycode::Int, shifted::Union{Int,Nothing},
     # Functional keycodes (57344+) and standard control keys
     sym = get(KITTY_FUNCTIONAL_KEYS, keycode, nothing)
     sym !== nothing && return KeyEvent(sym, action)
-    keycode == 27  && return KeyEvent(:escape, action)
-    keycode == 13  && return KeyEvent(:enter, action)
-    keycode == 9   && return KeyEvent(:tab, action)
+    keycode == 27 && return KeyEvent(:escape, action)
+    keycode == 13 && return KeyEvent(:enter, action)
+    keycode == 9 && return KeyEvent(:tab, action)
     keycode == 127 && return KeyEvent(:backspace, action)
 
     # Character output, most-authoritative source first:
@@ -670,5 +804,11 @@ function _extract_action_from_params(params::Vector{UInt8})
     length(colon_parts) < 2 && return key_press
     et = tryparse(Int, colon_parts[2])
     et === nothing && return key_press
-    return et == 2 ? key_repeat : et == 3 ? key_release : key_press
+    return if et == 2
+        key_repeat
+    elseif et == 3
+        key_release
+    else
+        key_press
+    end
 end

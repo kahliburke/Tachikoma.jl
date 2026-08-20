@@ -101,60 +101,79 @@ struct _MDStylePreset
 end
 
 const _MD_PRESETS = [
-    _MDStylePreset("Default",
-        Style(fg=SKY.c400, bold=true),
-        Style(fg=SKY.c500, bold=true),
-        Style(fg=SKY.c600, bold=true),
-        Style(bold=true),
-        Style(dim=true),
-        Style(fg=GREEN.c400, bg=SLATE.c800),
-        Style(fg=BLUE.c400),
-        Style(fg=SLATE.c400),
-        Style(fg=SLATE.c200),
-        Style(fg=SLATE.c600)),
-    _MDStylePreset("Warm",
-        Style(fg=AMBER.c400, bold=true),
-        Style(fg=ORANGE.c400, bold=true),
-        Style(fg=ORANGE.c500, bold=true),
-        Style(bold=true),
-        Style(dim=true),
-        Style(fg=YELLOW.c400, bg=STONE.c800),
-        Style(fg=ROSE.c400),
-        Style(fg=STONE.c400),
-        Style(fg=STONE.c200),
-        Style(fg=STONE.c600)),
-    _MDStylePreset("Ocean",
-        Style(fg=TEAL.c400, bold=true),
-        Style(fg=CYAN.c400, bold=true),
-        Style(fg=CYAN.c500, bold=true),
-        Style(bold=true),
-        Style(dim=true),
-        Style(fg=EMERALD.c400, bg=SLATE.c800),
-        Style(fg=CYAN.c300),
-        Style(fg=SLATE.c400),
-        Style(fg=SLATE.c200),
-        Style(fg=SLATE.c600)),
-    _MDStylePreset("Monochrome",
-        Style(fg=SLATE.c200, bold=true),
-        Style(fg=SLATE.c300, bold=true),
-        Style(fg=SLATE.c400, bold=true),
-        Style(bold=true),
-        Style(dim=true),
-        Style(fg=SLATE.c300, bg=SLATE.c800),
-        Style(fg=SLATE.c300),
-        Style(fg=SLATE.c500),
-        Style(fg=SLATE.c300),
-        Style(fg=SLATE.c600)),
+    _MDStylePreset(
+        "Default",
+        Style(; fg=SKY.c400, bold=true),
+        Style(; fg=SKY.c500, bold=true),
+        Style(; fg=SKY.c600, bold=true),
+        Style(; bold=true),
+        Style(; dim=true),
+        Style(; fg=GREEN.c400, bg=SLATE.c800),
+        Style(; fg=BLUE.c400),
+        Style(; fg=SLATE.c400),
+        Style(; fg=SLATE.c200),
+        Style(; fg=SLATE.c600),
+    ),
+    _MDStylePreset(
+        "Warm",
+        Style(; fg=AMBER.c400, bold=true),
+        Style(; fg=ORANGE.c400, bold=true),
+        Style(; fg=ORANGE.c500, bold=true),
+        Style(; bold=true),
+        Style(; dim=true),
+        Style(; fg=YELLOW.c400, bg=STONE.c800),
+        Style(; fg=ROSE.c400),
+        Style(; fg=STONE.c400),
+        Style(; fg=STONE.c200),
+        Style(; fg=STONE.c600),
+    ),
+    _MDStylePreset(
+        "Ocean",
+        Style(; fg=TEAL.c400, bold=true),
+        Style(; fg=CYAN.c400, bold=true),
+        Style(; fg=CYAN.c500, bold=true),
+        Style(; bold=true),
+        Style(; dim=true),
+        Style(; fg=EMERALD.c400, bg=SLATE.c800),
+        Style(; fg=CYAN.c300),
+        Style(; fg=SLATE.c400),
+        Style(; fg=SLATE.c200),
+        Style(; fg=SLATE.c600),
+    ),
+    _MDStylePreset(
+        "Monochrome",
+        Style(; fg=SLATE.c200, bold=true),
+        Style(; fg=SLATE.c300, bold=true),
+        Style(; fg=SLATE.c400, bold=true),
+        Style(; bold=true),
+        Style(; dim=true),
+        Style(; fg=SLATE.c300, bg=SLATE.c800),
+        Style(; fg=SLATE.c300),
+        Style(; fg=SLATE.c500),
+        Style(; fg=SLATE.c300),
+        Style(; fg=SLATE.c600),
+    ),
 ]
 
-function _apply_preset(source::String, preset::_MDStylePreset; width=80, block=nothing, tick=nothing)
-    MarkdownPane(source;
-        width, block, tick,
-        h1_style=preset.h1, h2_style=preset.h2, h3_style=preset.h3,
-        bold_style=preset.bold, emph_style=preset.emph,
-        code_style=preset.code, link_style=preset.link,
-        quote_style=preset.quote_s, text_style=preset.text,
-        hr_style=preset.hr)
+function _apply_preset(
+    source::String, preset::_MDStylePreset; width=80, block=nothing, tick=nothing
+)
+    return MarkdownPane(
+        source;
+        width,
+        block,
+        tick,
+        h1_style=preset.h1,
+        h2_style=preset.h2,
+        h3_style=preset.h3,
+        bold_style=preset.bold,
+        emph_style=preset.emph,
+        code_style=preset.code,
+        link_style=preset.link,
+        quote_style=preset.quote_s,
+        text_style=preset.text,
+        hr_style=preset.hr,
+    )
 end
 
 # ── Model ───────────────────────────────────────────────────────────
@@ -165,31 +184,37 @@ end
     mode::Int = 1                          # 1=readme, 2=editor, 3=styles
 
     # Mode 1: README viewer
-    md_pane::MarkdownPane = MarkdownPane(_MD_SAMPLE;
-        block=Block(title="Markdown Viewer",
-                    border_style=tstyle(:border),
-                    title_style=tstyle(:title)),
-        tick=0)
+    md_pane::MarkdownPane = MarkdownPane(
+        _MD_SAMPLE;
+        block=Block(
+            title="Markdown Viewer", border_style=tstyle(:border), title_style=tstyle(:title)
+        ),
+        tick=0,
+    )
 
     # Mode 2: Live editor
     editor::TextArea = TextArea(;
         text="# Live Preview\n\nType **markdown** here and see it rendered on the right.\n\n- Item one\n- Item two\n\n> A blockquote\n\n`inline code`",
-        focused=true, tick=0)
+        focused=true,
+        tick=0,
+    )
     preview_pane::MarkdownPane = MarkdownPane(
         "# Live Preview\n\nType **markdown** here and see it rendered on the right.\n\n- Item one\n- Item two\n\n> A blockquote\n\n`inline code`";
-        block=Block(title="Preview",
-                    border_style=tstyle(:border),
-                    title_style=tstyle(:title)),
-        tick=0)
+        block=Block(title="Preview", border_style=tstyle(:border), title_style=tstyle(:title)),
+        tick=0,
+    )
     focus::Int = 1                         # 1=editor, 2=preview
 
     # Mode 3: Style picker
     style_idx::Int = 1
-    style_pane::MarkdownPane = _apply_preset(_MD_SAMPLE, _MD_PRESETS[1];
-        block=Block(title="Style: Default",
-                    border_style=tstyle(:border),
-                    title_style=tstyle(:title)),
-        tick=0)
+    style_pane::MarkdownPane = _apply_preset(
+        _MD_SAMPLE,
+        _MD_PRESETS[1];
+        block=Block(
+            title="Style: Default", border_style=tstyle(:border), title_style=tstyle(:title)
+        ),
+        tick=0,
+    )
 end
 
 should_quit(m::MarkdownDemoModel) = m.quit
@@ -197,16 +222,16 @@ should_quit(m::MarkdownDemoModel) = m.quit
 # ── Update ──────────────────────────────────────────────────────────
 
 function update!(m::MarkdownDemoModel, evt::KeyEvent)
-    evt.key == :escape && (m.quit = true; return)
+    evt.key == :escape && (m.quit=true; return nothing)
 
     # Mode switching
     handled = @match evt.key begin
-        :ctrl_m || :f1 => (m.mode = 1; true)
-        :f2            => (m.mode = 2; true)
-        :f3            => (m.mode = 3; true)
-        _              => false
+        :ctrl_m || :f1 => (m.mode=1; true)
+        :f2 => (m.mode=2; true)
+        :f3 => (m.mode=3; true)
+        _ => false
     end
-    handled && return
+    handled && return nothing
 
     # Mode-specific handling
     @match m.mode begin
@@ -217,14 +242,14 @@ function update!(m::MarkdownDemoModel, evt::KeyEvent)
 end
 
 function _update_readme!(m::MarkdownDemoModel, evt::KeyEvent)
-    handle_key!(m.md_pane, evt)
+    return handle_key!(m.md_pane, evt)
 end
 
 function _update_editor!(m::MarkdownDemoModel, evt::KeyEvent)
     if evt.key == :tab
         m.focus = m.focus == 1 ? 2 : 1
         m.editor.focused = (m.focus == 1)
-        return
+        return nothing
     end
 
     if m.focus == 1
@@ -236,16 +261,21 @@ end
 
 function _update_styles!(m::MarkdownDemoModel, evt::KeyEvent)
     @match (evt.key, evt.char) begin
-        (:char, c) where '1' <= c <= '4' => begin
+        (:char, c) where {'1' <= c <= '4'} => begin
             idx = Int(c) - Int('0')
             if idx != m.style_idx
                 m.style_idx = idx
                 preset = _MD_PRESETS[idx]
-                m.style_pane = _apply_preset(_MD_SAMPLE, preset;
-                    block=Block(title="Style: $(preset.name)",
-                                border_style=tstyle(:border),
-                                title_style=tstyle(:title)),
-                    tick=m.tick)
+                m.style_pane = _apply_preset(
+                    _MD_SAMPLE,
+                    preset;
+                    block=Block(
+                        title="Style: $(preset.name)",
+                        border_style=tstyle(:border),
+                        title_style=tstyle(:title),
+                    ),
+                    tick=m.tick,
+                )
             end
         end
         _ => handle_key!(m.style_pane, evt)
@@ -272,9 +302,9 @@ function view(m::MarkdownDemoModel, f::Frame)
     buf = f.buffer
 
     rows = split_layout(Layout(Vertical, [Fixed(1), Fill(), Fixed(1)]), f.area)
-    length(rows) < 3 && return
+    length(rows) < 3 && return nothing
     header_area = rows[1]
-    body_area   = rows[2]
+    body_area = rows[2]
     footer_area = rows[3]
 
     # Header: mode tabs
@@ -293,10 +323,14 @@ function view(m::MarkdownDemoModel, f::Frame)
         2 => "  [Tab]focus [↑↓]scroll/edit [Ctrl+M/F1-F3]mode [Esc]quit "
         _ => "  [1-4]preset [↑↓/PgUp/PgDn]scroll [Ctrl+M/F1-F3]mode [Esc]quit "
     end
-    render(StatusBar(
-        left=[Span(footer_text, tstyle(:text_dim))],
-        right=[Span("mode $(m.mode) ", tstyle(:text_dim))],
-    ), footer_area, buf)
+    return render(
+        StatusBar(;
+            left=[Span(footer_text, tstyle(:text_dim))],
+            right=[Span("mode $(m.mode) ", tstyle(:text_dim))],
+        ),
+        footer_area,
+        buf,
+    )
 end
 
 function _render_mode_tabs!(buf, area, active, tick)
@@ -304,7 +338,7 @@ function _render_mode_tabs!(buf, area, active, tick)
     col = area.x + 1
     for (i, label) in enumerate(modes)
         style = if i == active
-            tstyle(:accent, bold=true)
+            tstyle(:accent; bold=true)
         else
             tstyle(:text_dim)
         end
@@ -315,18 +349,19 @@ function _render_mode_tabs!(buf, area, active, tick)
 end
 
 function _render_readme!(m::MarkdownDemoModel, area, buf)
-    render(m.md_pane, area, buf)
+    return render(m.md_pane, area, buf)
 end
 
 function _render_editor_mode!(m::MarkdownDemoModel, area, buf)
     cols = split_layout(Layout(Horizontal, [Percent(50), Fill()]), area)
-    length(cols) < 2 && return
+    length(cols) < 2 && return nothing
 
     # Editor (left)
-    editor_block = Block(
+    editor_block = Block(;
         title=m.focus == 1 ? "● Editor" : "○ Editor",
         border_style=m.focus == 1 ? tstyle(:accent) : tstyle(:border),
-        title_style=m.focus == 1 ? tstyle(:accent, bold=true) : tstyle(:title))
+        title_style=m.focus == 1 ? tstyle(:accent; bold=true) : tstyle(:title),
+    )
     editor_inner = render(editor_block, cols[1], buf)
     render(m.editor, editor_inner, buf)
 
@@ -336,22 +371,22 @@ function _render_editor_mode!(m::MarkdownDemoModel, area, buf)
         set_markdown!(m.preview_pane, editor_text)
     end
 
-    m.preview_pane.pane.block = Block(
+    m.preview_pane.pane.block = Block(;
         title=m.focus == 2 ? "● Preview" : "○ Preview",
         border_style=m.focus == 2 ? tstyle(:accent) : tstyle(:border),
-        title_style=m.focus == 2 ? tstyle(:accent, bold=true) : tstyle(:title))
-    render(m.preview_pane, cols[2], buf)
+        title_style=m.focus == 2 ? tstyle(:accent; bold=true) : tstyle(:title),
+    )
+    return render(m.preview_pane, cols[2], buf)
 end
 
 function _render_style_mode!(m::MarkdownDemoModel, area, buf)
     cols = split_layout(Layout(Horizontal, [Fixed(22), Fill()]), area)
-    length(cols) < 2 && return
+    length(cols) < 2 && return nothing
 
     # Sidebar: preset list
-    sidebar_block = Block(
-        title="Presets",
-        border_style=tstyle(:border),
-        title_style=tstyle(:title))
+    sidebar_block = Block(;
+        title="Presets", border_style=tstyle(:border), title_style=tstyle(:title)
+    )
     sidebar_inner = render(sidebar_block, cols[1], buf)
 
     for (i, preset) in enumerate(_MD_PRESETS)
@@ -359,13 +394,12 @@ function _render_style_mode!(m::MarkdownDemoModel, area, buf)
         y > bottom(sidebar_inner) && break
         marker = i == m.style_idx ? "▸ " : "  "
         label = "$(i). $(preset.name)"
-        style = i == m.style_idx ? tstyle(:accent, bold=true) : tstyle(:text)
-        set_string!(buf, sidebar_inner.x, y, marker * label, style;
-                    max_x=right(sidebar_inner))
+        style = i == m.style_idx ? tstyle(:accent; bold=true) : tstyle(:text)
+        set_string!(buf, sidebar_inner.x, y, marker * label, style; max_x=right(sidebar_inner))
     end
 
     # Main pane
-    render(m.style_pane, cols[2], buf)
+    return render(m.style_pane, cols[2], buf)
 end
 
 # ── Entry point ─────────────────────────────────────────────────────
@@ -374,5 +408,5 @@ function markdown_demo(; theme_name=nothing)
     theme_name !== nothing && set_theme!(theme_name)
     enable_markdown()
     model = MarkdownDemoModel()
-    app(model; fps=30)
+    return app(model; fps=30)
 end

@@ -4,18 +4,18 @@
 # ═══════════════════════════════════════════════════════════════════════
 
 mutable struct ScrollPane
-    content::Union{Vector{String}, Vector{Vector{Span}}, Tuple{Function,Int}}
+    content::Union{Vector{String},Vector{Vector{Span}},Tuple{Function,Int}}
     offset::Int              # 0-based scroll offset
     following::Bool          # auto-scroll to newest content
     reverse::Bool            # newest-at-top mode
-    block::Union{Block, Nothing}
+    block::Union{Block,Nothing}
     show_scrollbar::Bool
     scrollbar_style::Style
     scrollbar_thumb_style::Style
     text_style::Style        # default style for String lines
     last_total::Int          # cached line count for auto-follow detection
     last_area::Rect          # cached content area for mouse hit testing
-    tick::Union{Int, Nothing}
+    tick::Union{Int,Nothing}
     word_wrap::Bool          # wrap long lines at content width
     ansi::Bool               # parse ANSI escape sequences in String lines
     _visual_total::Int       # cached visual line count (after word wrap)
@@ -24,49 +24,107 @@ end
 
 # ── Constructors ─────────────────────────────────────────────────────
 
-function ScrollPane(lines::Vector{String};
-    offset=0, following=true, reverse=false, block=nothing,
+function ScrollPane(
+    lines::Vector{String};
+    offset=0,
+    following=true,
+    reverse=false,
+    block=nothing,
     show_scrollbar=true,
-    scrollbar_style=tstyle(:text_dim, dim=true),
+    scrollbar_style=tstyle(:text_dim; dim=true),
     scrollbar_thumb_style=tstyle(:primary),
     text_style=tstyle(:text),
     tick=nothing,
     word_wrap=false,
     ansi=ansi_enabled(),
 )
-    ScrollPane(lines, offset, following, reverse, block,
-               show_scrollbar, scrollbar_style, scrollbar_thumb_style,
-               text_style, 0, Rect(), tick, word_wrap, ansi, 0, ScrollbarState())
+    return ScrollPane(
+        lines,
+        offset,
+        following,
+        reverse,
+        block,
+        show_scrollbar,
+        scrollbar_style,
+        scrollbar_thumb_style,
+        text_style,
+        0,
+        Rect(),
+        tick,
+        word_wrap,
+        ansi,
+        0,
+        ScrollbarState(),
+    )
 end
 
-function ScrollPane(lines::Vector{Vector{Span}};
-    offset=0, following=true, reverse=false, block=nothing,
+function ScrollPane(
+    lines::Vector{Vector{Span}};
+    offset=0,
+    following=true,
+    reverse=false,
+    block=nothing,
     show_scrollbar=true,
-    scrollbar_style=tstyle(:text_dim, dim=true),
+    scrollbar_style=tstyle(:text_dim; dim=true),
     scrollbar_thumb_style=tstyle(:primary),
     text_style=tstyle(:text),
     tick=nothing,
     word_wrap=false,
     ansi=false,
 )
-    ScrollPane(lines, offset, following, reverse, block,
-               show_scrollbar, scrollbar_style, scrollbar_thumb_style,
-               text_style, 0, Rect(), tick, word_wrap, ansi, 0, ScrollbarState())
+    return ScrollPane(
+        lines,
+        offset,
+        following,
+        reverse,
+        block,
+        show_scrollbar,
+        scrollbar_style,
+        scrollbar_thumb_style,
+        text_style,
+        0,
+        Rect(),
+        tick,
+        word_wrap,
+        ansi,
+        0,
+        ScrollbarState(),
+    )
 end
 
-function ScrollPane(render_fn::Function, total_lines::Int;
-    offset=0, following=false, reverse=false, block=nothing,
+function ScrollPane(
+    render_fn::Function,
+    total_lines::Int;
+    offset=0,
+    following=false,
+    reverse=false,
+    block=nothing,
     show_scrollbar=true,
-    scrollbar_style=tstyle(:text_dim, dim=true),
+    scrollbar_style=tstyle(:text_dim; dim=true),
     scrollbar_thumb_style=tstyle(:primary),
     text_style=tstyle(:text),
     tick=nothing,
     word_wrap=false,
     ansi=false,
 )
-    ScrollPane((render_fn, total_lines), offset, following, reverse, block,
-               show_scrollbar, scrollbar_style, scrollbar_thumb_style,
-               text_style, 0, Rect(), tick, word_wrap, ansi, 0, ScrollbarState())
+    return ScrollPane(
+        (render_fn, total_lines),
+        offset,
+        following,
+        reverse,
+        block,
+        show_scrollbar,
+        scrollbar_style,
+        scrollbar_thumb_style,
+        text_style,
+        0,
+        Rect(),
+        tick,
+        word_wrap,
+        ansi,
+        0,
+        ScrollbarState(),
+    )
 end
 
 focusable(::ScrollPane) = true
@@ -79,16 +137,16 @@ function _total_lines(sp::ScrollPane)
         return sp._visual_total
     end
     c = sp.content
-    c isa Vector{String}        && return length(c)
-    c isa Vector{Vector{Span}}  && return length(c)
-    c isa Tuple{Function,Int}   && return c[2]
+    c isa Vector{String} && return length(c)
+    c isa Vector{Vector{Span}} && return length(c)
+    c isa Tuple{Function,Int} && return c[2]
     return 0
 end
 
 _max_offset(sp::ScrollPane, visible_h::Int) = max(0, _total_lines(sp) - visible_h)
 
 function _clamp_offset!(sp::ScrollPane, visible_h::Int)
-    sp.offset = clamp(sp.offset, 0, _max_offset(sp, visible_h))
+    return sp.offset = clamp(sp.offset, 0, _max_offset(sp, visible_h))
 end
 
 # ── Auto-follow logic ────────────────────────────────────────────────
@@ -104,7 +162,7 @@ function _update_follow!(sp::ScrollPane, visible_h::Int)
         end
     end
     sp.last_total = total
-    _clamp_offset!(sp, visible_h)
+    return _clamp_offset!(sp, visible_h)
 end
 
 function _check_reattach!(sp::ScrollPane, visible_h::Int)
@@ -122,7 +180,7 @@ function push_line!(sp::ScrollPane, line::String)
     if c isa Vector{String}
         push!(c, line)
     end
-    nothing
+    return nothing
 end
 
 function push_line!(sp::ScrollPane, line::Vector{Span})
@@ -130,17 +188,17 @@ function push_line!(sp::ScrollPane, line::Vector{Span})
     if c isa Vector{Vector{Span}}
         push!(c, line)
     end
-    nothing
+    return nothing
 end
 
 function set_content!(sp::ScrollPane, lines::Vector{String})
     sp.content = lines
-    nothing
+    return nothing
 end
 
 function set_content!(sp::ScrollPane, lines::Vector{Vector{Span}})
     sp.content = lines
-    nothing
+    return nothing
 end
 
 function set_total!(sp::ScrollPane, n::Int)
@@ -148,7 +206,7 @@ function set_total!(sp::ScrollPane, n::Int)
     if c isa Tuple{Function,Int}
         sp.content = (c[1], n)
     end
-    nothing
+    return nothing
 end
 
 # ── Render ───────────────────────────────────────────────────────────
@@ -160,7 +218,7 @@ function render(sp::ScrollPane, rect::Rect, buf::Buffer)
     else
         rect
     end
-    (content_area.width < 1 || content_area.height < 1) && return
+    (content_area.width < 1 || content_area.height < 1) && return nothing
 
     visible_h = content_area.height
 
@@ -179,8 +237,7 @@ function render(sp::ScrollPane, rect::Rect, buf::Buffer)
 
         needs_scrollbar = sp.show_scrollbar && total > visible_h
         text_area = if needs_scrollbar && content_area.width > 1
-            Rect(content_area.x, content_area.y,
-                 content_area.width - 1, content_area.height)
+            Rect(content_area.x, content_area.y, content_area.width - 1, content_area.height)
         else
             content_area
         end
@@ -197,17 +254,20 @@ function render(sp::ScrollPane, rect::Rect, buf::Buffer)
         _render_visual_lines!(sp, visual, text_area, buf, visible_h, total)
 
         if needs_scrollbar && content_area.width > 1
-            sb_rect = Rect(right(content_area), content_area.y,
-                           1, content_area.height)
+            sb_rect = Rect(right(content_area), content_area.y, 1, content_area.height)
             sp._sb_state.rect = sb_rect
-            sb = Scrollbar(total, visible_h, sp.offset;
-                           style=sp.scrollbar_style,
-                           thumb_style=sp.scrollbar_thumb_style)
+            sb = Scrollbar(
+                total,
+                visible_h,
+                sp.offset;
+                style=sp.scrollbar_style,
+                thumb_style=sp.scrollbar_thumb_style,
+            )
             render(sb, sb_rect, buf)
         else
             sp._sb_state.rect = Rect()
         end
-        return
+        return nothing
     end
 
     # Non-wrap path (original)
@@ -215,8 +275,7 @@ function render(sp::ScrollPane, rect::Rect, buf::Buffer)
 
     needs_scrollbar = sp.show_scrollbar && total > visible_h
     text_area = if needs_scrollbar && content_area.width > 1
-        Rect(content_area.x, content_area.y,
-             content_area.width - 1, content_area.height)
+        Rect(content_area.x, content_area.y, content_area.width - 1, content_area.height)
     else
         content_area
     end
@@ -236,12 +295,15 @@ function render(sp::ScrollPane, rect::Rect, buf::Buffer)
 
     # 6. Scrollbar
     if needs_scrollbar && content_area.width > 1
-        sb_rect = Rect(right(content_area), content_area.y,
-                       1, content_area.height)
+        sb_rect = Rect(right(content_area), content_area.y, 1, content_area.height)
         sp._sb_state.rect = sb_rect
-        sb = Scrollbar(total, visible_h, sp.offset;
-                       style=sp.scrollbar_style,
-                       thumb_style=sp.scrollbar_thumb_style)
+        sb = Scrollbar(
+            total,
+            visible_h,
+            sp.offset;
+            style=sp.scrollbar_style,
+            thumb_style=sp.scrollbar_thumb_style,
+        )
         render(sb, sb_rect, buf)
     else
         sp._sb_state.rect = Rect()
@@ -257,7 +319,7 @@ function _update_follow_total!(sp::ScrollPane, total::Int, visible_h::Int)
         sp.offset = sp.reverse ? 0 : max_off
     end
     sp.last_total = total
-    sp.offset = clamp(sp.offset, 0, max_off)
+    return sp.offset = clamp(sp.offset, 0, max_off)
 end
 
 """Wrap String content into visual lines."""
@@ -270,7 +332,7 @@ function _wrap_content(lines::Vector{String}, width::Int)
             _char_wrap_string!(visual, line, width)
         end
     end
-    visual
+    return visual
 end
 
 """Wrap Span content into visual lines."""
@@ -284,7 +346,7 @@ function _wrap_content(lines::Vector{Vector{Span}}, width::Int)
             _char_wrap_spans!(visual, spans, width)
         end
     end
-    visual
+    return visual
 end
 
 """Char-wrap a plain string into visual lines."""
@@ -349,25 +411,31 @@ function _char_wrap_spans!(out::Vector{Vector{Span}}, spans::Vector{Span}, width
             end
         end
     end
-    isempty(current_line) || push!(out, current_line)
+    return isempty(current_line) || push!(out, current_line)
 end
 
 """Render pre-wrapped visual String lines."""
-function _render_visual_lines!(sp::ScrollPane, lines::Vector{String},
-                               text_area::Rect, buf::Buffer, visible_h::Int, total::Int)
+function _render_visual_lines!(
+    sp::ScrollPane, lines::Vector{String}, text_area::Rect, buf::Buffer, visible_h::Int, total::Int
+)
     n = length(lines)
     for i in 1:visible_h
         idx = sp.reverse ? n - sp.offset - i + 1 : sp.offset + i
         (idx < 1 || idx > n) && continue
         y = text_area.y + i - 1
-        set_string!(buf, text_area.x, y, lines[idx], sp.text_style;
-                    max_x=right(text_area))
+        set_string!(buf, text_area.x, y, lines[idx], sp.text_style; max_x=right(text_area))
     end
 end
 
 """Render pre-wrapped visual Span lines."""
-function _render_visual_lines!(sp::ScrollPane, lines::Vector{Vector{Span}},
-                               text_area::Rect, buf::Buffer, visible_h::Int, total::Int)
+function _render_visual_lines!(
+    sp::ScrollPane,
+    lines::Vector{Vector{Span}},
+    text_area::Rect,
+    buf::Buffer,
+    visible_h::Int,
+    total::Int,
+)
     n = length(lines)
     for i in 1:visible_h
         idx = sp.reverse ? n - sp.offset - i + 1 : sp.offset + i
@@ -376,14 +444,14 @@ function _render_visual_lines!(sp::ScrollPane, lines::Vector{Vector{Span}},
         col = text_area.x
         for span in lines[idx]
             col > right(text_area) && break
-            col = set_string!(buf, col, y, span.content, span.style;
-                              max_x=right(text_area))
+            col = set_string!(buf, col, y, span.content, span.style; max_x=right(text_area))
         end
     end
 end
 
-function _render_lines!(sp::ScrollPane, lines::Vector{String},
-                        text_area::Rect, buf::Buffer, visible_h::Int)
+function _render_lines!(
+    sp::ScrollPane, lines::Vector{String}, text_area::Rect, buf::Buffer, visible_h::Int
+)
     n = length(lines)
     for i in 1:visible_h
         idx = if sp.reverse
@@ -398,18 +466,17 @@ function _render_lines!(sp::ScrollPane, lines::Vector{String},
             col = text_area.x
             for span in parse_ansi(line)
                 col > right(text_area) && break
-                col = set_string!(buf, col, y, span.content, span.style;
-                                  max_x=right(text_area))
+                col = set_string!(buf, col, y, span.content, span.style; max_x=right(text_area))
             end
         else
-            set_string!(buf, text_area.x, y, line, sp.text_style;
-                        max_x=right(text_area))
+            set_string!(buf, text_area.x, y, line, sp.text_style; max_x=right(text_area))
         end
     end
 end
 
-function _render_lines!(sp::ScrollPane, lines::Vector{Vector{Span}},
-                        text_area::Rect, buf::Buffer, visible_h::Int)
+function _render_lines!(
+    sp::ScrollPane, lines::Vector{Vector{Span}}, text_area::Rect, buf::Buffer, visible_h::Int
+)
     n = length(lines)
     for i in 1:visible_h
         idx = if sp.reverse
@@ -422,8 +489,7 @@ function _render_lines!(sp::ScrollPane, lines::Vector{Vector{Span}},
         col = text_area.x
         for span in lines[idx]
             col > right(text_area) && break
-            col = set_string!(buf, col, y, span.content, span.style;
-                              max_x=right(text_area))
+            col = set_string!(buf, col, y, span.content, span.style; max_x=right(text_area))
         end
     end
 end
@@ -468,7 +534,7 @@ function handle_key!(sp::ScrollPane, evt)
         _clamp_offset!(sp, visible_h)
         _check_reattach!(sp, visible_h)
     end
-    handled
+    return handled
 end
 
 # ── Mouse handling ───────────────────────────────────────────────────
@@ -504,5 +570,5 @@ function handle_mouse!(sp::ScrollPane, evt::MouseEvent)
         _check_reattach!(sp, visible_h)
         return true
     end
-    false
+    return false
 end

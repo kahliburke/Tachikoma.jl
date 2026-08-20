@@ -16,11 +16,12 @@ struct GraphicsRegion
 end
 
 # Convenience constructor (defaults to sixel format)
-GraphicsRegion(row, col, width, height, data) =
-    GraphicsRegion(row, col, width, height, data, gfx_fmt_sixel)
+function GraphicsRegion(row, col, width, height, data)
+    return GraphicsRegion(row, col, width, height, data, gfx_fmt_sixel)
+end
 
 # Pixel snapshot for raster export: (row, col, pixel_matrix)
-const PixelSnapshot = Tuple{Int, Int, Matrix{ColorRGBA}}
+const PixelSnapshot = Tuple{Int,Int,Matrix{ColorRGBA}}
 
 mutable struct CastRecorder
     active::Bool
@@ -34,5 +35,8 @@ mutable struct CastRecorder
     countdown::Float64                               # seconds remaining before capture begins (0 = capturing)
 end
 
-CastRecorder() = CastRecorder(false, Float64[], Vector{Cell}[], Vector{PixelSnapshot}[],
-                               0, 0, 0.0, "", 0.0)
+function CastRecorder()
+    return CastRecorder(
+        false, Float64[], Vector{Cell}[], Vector{PixelSnapshot}[], 0, 0, 0.0, "", 0.0
+    )
+end

@@ -57,7 +57,9 @@ function cleanup_tach_shm(; max_pid::Int=99999, gap::Int=200, dry_run::Bool=fals
         end
         if pid_count > 0
             action = dry_run ? "found" : "unlinked"
-            println("  PID $(lpad(pid, 5)): $(pid_count) segments $(action) (scanned to idx $(idx - gap))")
+            println(
+                "  PID $(lpad(pid, 5)): $(pid_count) segments $(action) (scanned to idx $(idx - gap))",
+            )
             total += pid_count
         end
     end
@@ -84,7 +86,9 @@ function cleanup_tach_shm(; max_pid::Int=99999, gap::Int=200, dry_run::Bool=fals
     elapsed = time() - t0
     println()
     if total == 0
-        println("✓ No leaked Tachikoma shm segments found (scanned PIDs 1–$(max_pid) in $(round(elapsed; digits=1))s)")
+        println(
+            "✓ No leaked Tachikoma shm segments found (scanned PIDs 1–$(max_pid) in $(round(elapsed; digits=1))s)",
+        )
     else
         action = dry_run ? "found (dry run — not unlinked)" : "cleaned up"
         println("$(total) segments $(action) in $(round(elapsed; digits=1))s")

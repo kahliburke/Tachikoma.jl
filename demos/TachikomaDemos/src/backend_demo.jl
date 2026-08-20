@@ -23,10 +23,9 @@ end
     phase::Float64 = 0.0
     speed::Float64 = 0.03
     trail_length::Int = 600
-    particles::Vector{Particle} = [Particle(rand(), rand(),
-                                            (rand() - 0.5) * 0.02,
-                                            (rand() - 0.5) * 0.02)
-                                   for _ in 1:80]
+    particles::Vector{Particle} = [
+        Particle(rand(), rand(), (rand() - 0.5) * 0.02, (rand() - 0.5) * 0.02) for _ in 1:80
+    ]
     # Sixel pixel scale (for empirical tuning)
     scale_w::Float64 = 1.0
     scale_h::Float64 = 1.0
@@ -44,11 +43,11 @@ function update!(m::BackendDemoModel, evt::KeyEvent)
         evt.char == '4' && (m.pattern = demo_particles)
     end
     # Arrow keys: adjust sixel pixel scale
-    evt.key == :up    && (m.scale_h = round(m.scale_h + 0.05; digits=2))
-    evt.key == :down  && (m.scale_h = round(max(0.1, m.scale_h - 0.05); digits=2))
+    evt.key == :up && (m.scale_h = round(m.scale_h + 0.05; digits=2))
+    evt.key == :down && (m.scale_h = round(max(0.1, m.scale_h - 0.05); digits=2))
     evt.key == :right && (m.scale_w = round(m.scale_w + 0.05; digits=2))
-    evt.key == :left  && (m.scale_w = round(max(0.1, m.scale_w - 0.05); digits=2))
-    evt.key == :escape && (m.quit = true)
+    evt.key == :left && (m.scale_w = round(max(0.1, m.scale_w - 0.05); digits=2))
+    return evt.key == :escape && (m.quit = true)
 end
 
 # ── Pattern drawing (works with any canvas via set_point!/line!) ─────
@@ -78,7 +77,8 @@ function _draw_compare_pattern!(canvas, m::BackendDemoModel, dw::Int, dh::Int)
             prev_dy = -1
             for px in 0:(dw - 1)
                 t = m.phase + px * 0.05
-                y = sin(t + wave * 0.3) * 0.3 +
+                y =
+                    sin(t + wave * 0.3) * 0.3 +
                     sin(2t + wave * 0.7) * 0.2 +
                     sin(3t + wave * 1.1) * 0.1
                 dy = round(Int, (y + 0.5) / 1.0 * (dh - 1))
@@ -124,8 +124,8 @@ end
 
 const PATTERN_NAMES = Dict(
     demo_lissajous => "Lissajous",
-    demo_spiral    => "Spiral",
-    demo_sine      => "Sine Waves",
+    demo_spiral => "Spiral",
+    demo_sine => "Sine Waves",
     demo_particles => "Particles",
 )
 
@@ -139,7 +139,7 @@ function view(m::BackendDemoModel, f::Frame)
 
     # Layout: header | [left | center | right] | footer
     rows = split_layout(Layout(Vertical, [Fixed(1), Fill(), Fixed(1)]), f.area)
-    length(rows) < 3 && return
+    length(rows) < 3 && return nothing
     header = rows[1]
     content = rows[2]
     footer = rows[3]
@@ -147,26 +147,29 @@ function view(m::BackendDemoModel, f::Frame)
     # Header
     si = mod1(m.tick ÷ 3, length(SPINNER_BRAILLE))
     set_char!(buf, header.x, header.y, SPINNER_BRAILLE[si], tstyle(:accent))
-    set_string!(buf, header.x + 2, header.y,
-                "Backend Compare", tstyle(:primary, bold=true))
+    set_string!(buf, header.x + 2, header.y, "Backend Compare", tstyle(:primary; bold=true))
     pname = PATTERN_NAMES[m.pattern]
     cpx = cell_pixels()
     sap = sixel_area_pixels()
     tap = text_area_pixels()
     sixel_info = sap.w > 0 ? "sixel=$(sap.w)x$(sap.h)" : "sixel=n/a"
-    set_string!(buf, header.x + 18, header.y,
-                " $(DOT) $(pname) $(DOT) px=$(cpx.w)x$(cpx.h) text=$(tap.w)x$(tap.h) $(sixel_info)",
-                tstyle(:text_dim))
+    set_string!(
+        buf,
+        header.x + 18,
+        header.y,
+        " $(DOT) $(pname) $(DOT) px=$(cpx.w)x$(cpx.h) text=$(tap.w)x$(tap.h) $(sixel_info)",
+        tstyle(:text_dim),
+    )
 
     # Split into three panels — stack vertically when narrow
     dir = content.width >= 80 ? Horizontal : Vertical
     panels = split_layout(Layout(dir, [Percent(33), Percent(34), Fill()]), content)
-    length(panels) < 3 && return
+    length(panels) < 3 && return nothing
 
     # ── Left panel: Braille (2×4 dots per cell) ──
-    left_block = Block(title="Braille 2×4",
-                       border_style=tstyle(:border),
-                       title_style=tstyle(:title))
+    left_block = Block(;
+        title="Braille 2×4", border_style=tstyle(:border), title_style=tstyle(:title)
+    )
     left_inner = render(left_block, panels[1], buf)
 
     cw = left_inner.width
@@ -180,9 +183,7 @@ function view(m::BackendDemoModel, f::Frame)
     end
 
     # ── Center panel: Block / Quadrant (2×2 dots per cell) ──
-    mid_block = Block(title="Block 2×2",
-                      border_style=tstyle(:border),
-                      title_style=tstyle(:title))
+    mid_block = Block(; title="Block 2×2", border_style=tstyle(:border), title_style=tstyle(:title))
     mid_inner = render(mid_block, panels[2], buf)
 
     cw_m = mid_inner.width
@@ -196,9 +197,9 @@ function view(m::BackendDemoModel, f::Frame)
     end
 
     # ── Right panel: PixelImage (pixel-native) ──
-    right_block = Block(title="PixelImage",
-                        border_style=tstyle(:border),
-                        title_style=tstyle(:title))
+    right_block = Block(;
+        title="PixelImage", border_style=tstyle(:border), title_style=tstyle(:title)
+    )
     right_inner = render(right_block, panels[3], buf)
 
     cw2 = right_inner.width
@@ -235,7 +236,8 @@ function view(m::BackendDemoModel, f::Frame)
                 prev_py = -1
                 for col in 1:pw
                     t = m.phase + (col - 1) * (0.05 * cw2 * 2 / pw)
-                    y = sin(t + wave * 0.3) * 0.3 +
+                    y =
+                        sin(t + wave * 0.3) * 0.3 +
                         sin(2t + wave * 0.7) * 0.2 +
                         sin(3t + wave * 1.1) * 0.1
                     py = round(Int, (y + 0.5) / 1.0 * (ph - 1)) + 1
@@ -262,14 +264,17 @@ function view(m::BackendDemoModel, f::Frame)
     end
 
     # Footer
-    render(StatusBar(
-        left=[Span("  [1-4]pattern [p]ause [↑↓]scaleH [←→]scaleW ",
-                    tstyle(:text_dim))],
-        right=[Span("[q/Esc]quit ", tstyle(:text_dim))],
-    ), footer, buf)
+    return render(
+        StatusBar(;
+            left=[Span("  [1-4]pattern [p]ause [↑↓]scaleH [←→]scaleW ", tstyle(:text_dim))],
+            right=[Span("[q/Esc]quit ", tstyle(:text_dim))],
+        ),
+        footer,
+        buf,
+    )
 end
 
 function backend_demo(; theme_name=nothing)
     theme_name !== nothing && set_theme!(theme_name)
-    app(BackendDemoModel(); fps=30)
+    return app(BackendDemoModel(); fps=30)
 end

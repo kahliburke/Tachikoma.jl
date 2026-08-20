@@ -27,7 +27,7 @@ function update!(m::SixelDemoModel, evt::KeyEvent)
         evt.char == '3' && (m.scene = sixel_mandelbrot)
         evt.char == '4' && (m.scene = sixel_rings)
     end
-    evt.key == :escape && (m.quit = true)
+    return evt.key == :escape && (m.quit = true)
 end
 
 # Consume mouse events so they don't propagate and cause terminal artifacts
@@ -37,7 +37,7 @@ function update!(::SixelDemoModel, ::MouseEvent) end
 # ── Adaptive step size: larger canvas → coarser computation ──────────
 # Returns a step size so we compute ~200×150 samples max, then fill blocks.
 function _sixel_step(pw::Int, ph::Int)
-    max(1, max(pw ÷ 200, ph ÷ 150))
+    return max(1, max(pw ÷ 200, ph ÷ 150))
 end
 
 # ── Plasma: layered sine plasma with smooth color cycling ────────────
@@ -54,7 +54,7 @@ function _draw_plasma!(img::PixelImage, tick::Int)
         for px in 1:step:pw
             nx = Float64(px) * inv_pw
 
-            v  = sin(nx * 8.0 + t)
+            v = sin(nx * 8.0 + t)
             v += sin(ny * 6.0 - t * 0.7)
             v += sin((nx + ny) * 5.0 + t * 0.5)
             v += sin(sqrt(nx * nx + ny * ny) * 10.0 - t * 1.2)
@@ -88,8 +88,9 @@ function _draw_terrain!(img::PixelImage, tick::Int)
             elev = clamp((elev + 0.5) * 0.8, 0.0, 1.0)
 
             # Slope-based shading (approximate gradient via noise offset)
-            dx_elev = fbm((nx + 0.003) * 3.0 + t, ny * 3.0; octaves=2, gain=0.45) -
-                      fbm((nx - 0.003) * 3.0 + t, ny * 3.0; octaves=2, gain=0.45)
+            dx_elev =
+                fbm((nx + 0.003) * 3.0 + t, ny * 3.0; octaves=2, gain=0.45) -
+                fbm((nx - 0.003) * 3.0 + t, ny * 3.0; octaves=2, gain=0.45)
             light = clamp(0.5 + dx_elev * 8.0, 0.2, 1.0)
 
             # Color by elevation band
@@ -97,19 +98,25 @@ function _draw_terrain!(img::PixelImage, tick::Int)
                 _scale_rgb(0x0a, 0x1a, 0x50, 0.5 + elev * 2.0)
             elseif elev < 0.4
                 frac = (elev - 0.25) / 0.15
-                (UInt8(round(0x0a + frac * (0x1a - 0x0a))),
-                 UInt8(round(0x3a + frac * (0x6a - 0x3a))),
-                 UInt8(round(0x70 + frac * (0x40 - 0x70))))
+                (
+                    UInt8(round(0x0a + frac * (0x1a - 0x0a))),
+                    UInt8(round(0x3a + frac * (0x6a - 0x3a))),
+                    UInt8(round(0x70 + frac * (0x40 - 0x70))),
+                )
             elseif elev < 0.55
                 frac = (elev - 0.4) / 0.15
-                (UInt8(round(0x1a + frac * 0x10)),
-                 UInt8(round(0x5a + frac * 0x20)),
-                 UInt8(round(0x1a + frac * 0x05)))
+                (
+                    UInt8(round(0x1a + frac * 0x10)),
+                    UInt8(round(0x5a + frac * 0x20)),
+                    UInt8(round(0x1a + frac * 0x05)),
+                )
             elseif elev < 0.7
                 frac = (elev - 0.55) / 0.15
-                (UInt8(round(0x4a + frac * 0x20)),
-                 UInt8(round(0x3a + frac * 0x10)),
-                 UInt8(round(0x1a + frac * 0x05)))
+                (
+                    UInt8(round(0x4a + frac * 0x20)),
+                    UInt8(round(0x3a + frac * 0x10)),
+                    UInt8(round(0x1a + frac * 0x05)),
+                )
             else
                 frac = (elev - 0.7) / 0.3
                 v = UInt8(clamp(round(Int, 0x80 + frac * 0x7f), 0, 255))
@@ -197,9 +204,9 @@ function _draw_rings!(img::PixelImage, tick::Int)
             d1 = sqrt((nx - s1x)^2 + (ny - s1y)^2)
             d2 = sqrt((nx - s2x)^2 + (ny - s2y)^2)
             d3 = sqrt((nx - s3x)^2 + (ny - s3y)^2)
-            v = (sin(d1 * 30.0 - t * 2.0) +
-                 sin(d2 * 30.0 - t * 2.0) +
-                 sin(d3 * 30.0 - t * 2.0)) / 6.0 + 0.5
+            v =
+                (sin(d1 * 30.0 - t * 2.0) + sin(d2 * 30.0 - t * 2.0) + sin(d3 * 30.0 - t * 2.0)) /
+                6.0 + 0.5
 
             fg = if v < 0.5
                 color_lerp(c1, c2, v * 2.0)
@@ -232,13 +239,13 @@ function _hsv_to_rgb(h::Float64, s::Float64, v::Float64)
     else
         (c, 0.0, x)
     end
-    UInt8(clamp(round(Int, (r1 + m) * 255), 0, 255)),
+    return UInt8(clamp(round(Int, (r1 + m) * 255), 0, 255)),
     UInt8(clamp(round(Int, (g1 + m) * 255), 0, 255)),
     UInt8(clamp(round(Int, (b1 + m) * 255), 0, 255))
 end
 
 function _scale_rgb(r::Int, g::Int, b::Int, s::Float64)
-    UInt8(clamp(round(Int, r * s), 0, 255)),
+    return UInt8(clamp(round(Int, r * s), 0, 255)),
     UInt8(clamp(round(Int, g * s), 0, 255)),
     UInt8(clamp(round(Int, b * s), 0, 255))
 end
@@ -246,10 +253,10 @@ end
 # ── Scene names ─────────────────────────────────────────────────────
 
 const SIXEL_SCENE_NAMES = Dict(
-    sixel_plasma     => "Plasma",
-    sixel_terrain    => "Terrain",
+    sixel_plasma => "Plasma",
+    sixel_terrain => "Terrain",
     sixel_mandelbrot => "Mandelbrot",
-    sixel_rings      => "Interference",
+    sixel_rings => "Interference",
 )
 
 # ── View ────────────────────────────────────────────────────────────
@@ -261,7 +268,7 @@ function view(m::SixelDemoModel, f::Frame)
     buf = f.buffer
 
     rows = split_layout(Layout(Vertical, [Fixed(1), Fill(), Fixed(1)]), f.area)
-    length(rows) < 3 && return
+    length(rows) < 3 && return nothing
     header = rows[1]
     canvas_area = rows[2]
     footer = rows[3]
@@ -271,11 +278,14 @@ function view(m::SixelDemoModel, f::Frame)
     set_char!(buf, header.x, header.y, SPINNER_BRAILLE[si], tstyle(:accent))
     sname = SIXEL_SCENE_NAMES[m.scene]
     dp = decay_params()
-    set_string!(buf, header.x + 2, header.y,
-                "PixelImage Demo", tstyle(:primary, bold=true))
-    set_string!(buf, header.x + 19, header.y,
-                " $(DOT) $(sname) $(DOT) decay=$(round(dp.decay; digits=2)) jitter=$(round(dp.jitter; digits=2)) rot=$(round(dp.rot_prob; digits=2)) noise=$(round(dp.noise_scale; digits=2))",
-                tstyle(:text_dim))
+    set_string!(buf, header.x + 2, header.y, "PixelImage Demo", tstyle(:primary; bold=true))
+    set_string!(
+        buf,
+        header.x + 19,
+        header.y,
+        " $(DOT) $(sname) $(DOT) decay=$(round(dp.decay; digits=2)) jitter=$(round(dp.jitter; digits=2)) rot=$(round(dp.rot_prob; digits=2)) noise=$(round(dp.noise_scale; digits=2))",
+        tstyle(:text_dim),
+    )
 
     # PixelImage widget
     cw = canvas_area.width
@@ -295,14 +305,17 @@ function view(m::SixelDemoModel, f::Frame)
     end
 
     # Footer
-    render(StatusBar(
-        left=[Span("  [1-4]scene [p]ause [Ctrl+S]decay settings ",
-                    tstyle(:text_dim))],
-        right=[Span("[q/Esc]quit ", tstyle(:text_dim))],
-    ), footer, buf)
+    return render(
+        StatusBar(;
+            left=[Span("  [1-4]scene [p]ause [Ctrl+S]decay settings ", tstyle(:text_dim))],
+            right=[Span("[q/Esc]quit ", tstyle(:text_dim))],
+        ),
+        footer,
+        buf,
+    )
 end
 
 function sixel_demo(; theme_name=nothing)
     theme_name !== nothing && set_theme!(theme_name)
-    app(SixelDemoModel(); fps=20)
+    return app(SixelDemoModel(); fps=20)
 end

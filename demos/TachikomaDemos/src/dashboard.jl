@@ -41,13 +41,13 @@ const DASHBOARD_LOGS = [
 ]
 
 const DASHBOARD_PROCS = [
-    ["tachikoma"  , "running", "12.3%", "148 MB"],
-    ["section9"   , "running", " 8.1%", " 96 MB"],
-    ["laughing_man", "idle"  , " 0.2%", " 24 MB"],
-    ["puppet_m"   , "running", " 4.7%", " 67 MB"],
-    ["batou_srv"  , "running", " 3.2%", " 52 MB"],
-    ["togusa_db"  , "idle"   , " 1.1%", " 31 MB"],
-    ["motoko_ai"  , "running", "22.8%", "512 MB"],
+    ["tachikoma", "running", "12.3%", "148 MB"],
+    ["section9", "running", " 8.1%", " 96 MB"],
+    ["laughing_man", "idle", " 0.2%", " 24 MB"],
+    ["puppet_m", "running", " 4.7%", " 67 MB"],
+    ["batou_srv", "running", " 3.2%", " 52 MB"],
+    ["togusa_db", "idle", " 1.1%", " 31 MB"],
+    ["motoko_ai", "running", "22.8%", "512 MB"],
     ["aramaki_ctl", "running", " 0.8%", " 19 MB"],
 ]
 
@@ -57,10 +57,9 @@ function update!(m::DashboardModel, evt::KeyEvent)
     elseif evt.key == :up
         m.log_selected = max(1, m.log_selected - 1)
     elseif evt.key == :down
-        m.log_selected = min(length(DASHBOARD_LOGS),
-                             m.log_selected + 1)
+        m.log_selected = min(length(DASHBOARD_LOGS), m.log_selected + 1)
     end
-    evt.key == :escape && (m.quit = true)
+    return evt.key == :escape && (m.quit = true)
 end
 
 function view(m::DashboardModel, f::Frame)
@@ -70,28 +69,25 @@ function view(m::DashboardModel, f::Frame)
 
     # ── Simulate data ──
     t = m.tick / 30.0
-    m.cpu = clamp(0.35 + 0.25 * sin(t * 0.7) +
-                  0.1 * sin(t * 2.3), 0.05, 0.95)
+    m.cpu = clamp(0.35 + 0.25 * sin(t * 0.7) + 0.1 * sin(t * 2.3), 0.05, 0.95)
     m.mem = clamp(0.60 + 0.08 * sin(t * 0.3), 0.4, 0.85)
-    net_val = clamp(0.4 + 0.35 * sin(t * 1.1) +
-                    0.15 * sin(t * 3.7) +
-                    0.05 * randn(), 0.0, 1.0)
+    net_val = clamp(0.4 + 0.35 * sin(t * 1.1) + 0.15 * sin(t * 3.7) + 0.05 * randn(), 0.0, 1.0)
     push!(m.net_history, net_val)
     length(m.net_history) > 120 && popfirst!(m.net_history)
     push!(m.cpu_history, m.cpu)
     length(m.cpu_history) > 120 && popfirst!(m.cpu_history)
 
     # ── Outer frame ──
-    outer = Block(
+    outer = Block(;
         title="tachikoma dashboard",
         border_style=tstyle(:border),
-        title_style=tstyle(:title, bold=true),
+        title_style=tstyle(:title; bold=true),
     )
     main = render(outer, f.area, buf)
 
     # ── Layout: top row (gauges + sparklines) | bottom row (table + list) ──
     rows = split_layout(Layout(Vertical, [Fixed(1), Fixed(8), Fixed(1), Fill()]), main)
-    length(rows) < 4 && return
+    length(rows) < 4 && return nothing
 
     header_area = rows[1]
     top_area = rows[2]
@@ -100,105 +96,118 @@ function view(m::DashboardModel, f::Frame)
 
     # ── Header ──
     si = mod1(m.tick ÷ 3, length(SPINNER_BRAILLE))
-    set_char!(buf, header_area.x, header_area.y,
-              SPINNER_BRAILLE[si], tstyle(:accent))
-    set_string!(buf, header_area.x + 2, header_area.y,
-                "$(th.name)", tstyle(:primary, bold=true))
-    set_string!(buf, header_area.x + 2 + length(th.name) + 1,
-                header_area.y,
-                "$(DOT) $(f.area.width)×$(f.area.height) $(DOT) tick $(m.tick)",
-                tstyle(:text_dim, dim=true))
+    set_char!(buf, header_area.x, header_area.y, SPINNER_BRAILLE[si], tstyle(:accent))
+    set_string!(buf, header_area.x + 2, header_area.y, "$(th.name)", tstyle(:primary; bold=true))
+    set_string!(
+        buf,
+        header_area.x + 2 + length(th.name) + 1,
+        header_area.y,
+        "$(DOT) $(f.area.width)×$(f.area.height) $(DOT) tick $(m.tick)",
+        tstyle(:text_dim; dim=true),
+    )
 
     # ── Top: gauges left, sparklines right ──
     top_cols = split_layout(Layout(Horizontal, [Percent(40), Fill()]), top_area)
-    length(top_cols) < 2 && return
+    length(top_cols) < 2 && return nothing
 
     # Gauge panel
-    gauge_block = Block(title="system",
-                        border_style=tstyle(:border),
-                        title_style=tstyle(:text_dim))
+    gauge_block = Block(;
+        title="system", border_style=tstyle(:border), title_style=tstyle(:text_dim)
+    )
     gauge_inner = render(gauge_block, top_cols[1], buf)
 
     if gauge_inner.height >= 6 && gauge_inner.width >= 10
         gw = gauge_inner.width
         gy = gauge_inner.y
 
-        set_string!(buf, gauge_inner.x, gy, "CPU", tstyle(:text, bold=true))
+        set_string!(buf, gauge_inner.x, gy, "CPU", tstyle(:text; bold=true))
         gy += 1
-        render(Gauge(m.cpu;
-            filled_style=tstyle(:primary),
-            empty_style=tstyle(:text_dim, dim=true),
-            tick=m.tick),
-            Rect(gauge_inner.x, gy, gw, 1), buf)
+        render(
+            Gauge(
+                m.cpu;
+                filled_style=tstyle(:primary),
+                empty_style=tstyle(:text_dim; dim=true),
+                tick=m.tick,
+            ),
+            Rect(gauge_inner.x, gy, gw, 1),
+            buf,
+        )
 
         gy += 2
-        set_string!(buf, gauge_inner.x, gy, "MEM", tstyle(:text, bold=true))
+        set_string!(buf, gauge_inner.x, gy, "MEM", tstyle(:text; bold=true))
         gy += 1
-        render(Gauge(m.mem;
-            filled_style=tstyle(:secondary),
-            empty_style=tstyle(:text_dim, dim=true),
-            tick=m.tick),
-            Rect(gauge_inner.x, gy, gw, 1), buf)
+        render(
+            Gauge(
+                m.mem;
+                filled_style=tstyle(:secondary),
+                empty_style=tstyle(:text_dim; dim=true),
+                tick=m.tick,
+            ),
+            Rect(gauge_inner.x, gy, gw, 1),
+            buf,
+        )
     end
 
     # Sparkline panel
-    spark_block = Block(title="network",
-                        border_style=tstyle(:border),
-                        title_style=tstyle(:text_dim))
+    spark_block = Block(;
+        title="network", border_style=tstyle(:border), title_style=tstyle(:text_dim)
+    )
     spark_inner = render(spark_block, top_cols[2], buf)
 
     if spark_inner.height >= 2 && spark_inner.width >= 4
         # Split sparkline area into two stacked charts
-        spark_rows = split_layout(Layout(Vertical,
-            [Fixed(1), Fill(), Fixed(1), Fill()]), spark_inner)
+        spark_rows = split_layout(
+            Layout(Vertical, [Fixed(1), Fill(), Fixed(1), Fill()]), spark_inner
+        )
         if length(spark_rows) >= 4
-            set_string!(buf, spark_rows[1].x, spark_rows[1].y,
-                        "throughput", tstyle(:text_dim))
-            render(Sparkline(m.net_history;
-                style=tstyle(:accent)),
-                spark_rows[2], buf)
+            set_string!(buf, spark_rows[1].x, spark_rows[1].y, "throughput", tstyle(:text_dim))
+            render(Sparkline(m.net_history; style=tstyle(:accent)), spark_rows[2], buf)
 
-            set_string!(buf, spark_rows[3].x, spark_rows[3].y,
-                        "cpu load", tstyle(:text_dim))
-            render(Sparkline(m.cpu_history;
-                style=tstyle(:primary)),
-                spark_rows[4], buf)
+            set_string!(buf, spark_rows[3].x, spark_rows[3].y, "cpu load", tstyle(:text_dim))
+            render(Sparkline(m.cpu_history; style=tstyle(:primary)), spark_rows[4], buf)
         end
     end
 
     # ── Separator ──
     for cx in main.x:right(main)
-        set_char!(buf, cx, sep_area.y, SCANLINE,
-                  tstyle(:border, dim=true))
+        set_char!(buf, cx, sep_area.y, SCANLINE, tstyle(:border; dim=true))
     end
 
     # ── Bottom: table left, log list right ──
     bot_cols = split_layout(Layout(Horizontal, [Percent(55), Fill()]), bot_area)
-    length(bot_cols) < 2 && return
+    length(bot_cols) < 2 && return nothing
 
     # Process table
-    render(Table(
-        ["NAME", "STATUS", "CPU", "MEM"],
-        DASHBOARD_PROCS;
-        block=Block(title="processes",
-                    border_style=tstyle(:border),
-                    title_style=tstyle(:text_dim)),
-        header_style=tstyle(:title, bold=true),
-        row_style=tstyle(:text),
-        alt_row_style=tstyle(:text_dim),
-    ), bot_cols[1], buf)
+    render(
+        Table(
+            ["NAME", "STATUS", "CPU", "MEM"],
+            DASHBOARD_PROCS;
+            block=Block(;
+                title="processes", border_style=tstyle(:border), title_style=tstyle(:text_dim)
+            ),
+            header_style=tstyle(:title; bold=true),
+            row_style=tstyle(:text),
+            alt_row_style=tstyle(:text_dim),
+        ),
+        bot_cols[1],
+        buf,
+    )
 
     # Log list
-    render(SelectableList(
-        [ListItem(l, tstyle(:text)) for l in DASHBOARD_LOGS];
-        selected=m.log_selected,
-        offset=m.log_offset,
-        block=Block(title="logs",
-                    border_style=tstyle(:border),
-                    title_style=tstyle(:text_dim)),
-        highlight_style=tstyle(:accent, bold=true),
-        tick=m.tick,
-    ), bot_cols[2], buf)
+    render(
+        SelectableList(
+            [ListItem(l, tstyle(:text)) for l in DASHBOARD_LOGS];
+            selected=m.log_selected,
+            offset=m.log_offset,
+            block=Block(;
+                title="logs", border_style=tstyle(:border), title_style=tstyle(:text_dim)
+            ),
+            highlight_style=tstyle(:accent; bold=true),
+            tick=m.tick,
+        ),
+        bot_cols[2],
+        buf,
+    )
 
     # ── Footer ──
     fy = bottom(f.area)
@@ -208,11 +217,11 @@ function view(m::DashboardModel, f::Frame)
     inst = "[↑↓]scroll [q]quit"
     ix = main.x + 1
     if fy >= main.y
-        set_string!(buf, ix, fy, inst, tstyle(:text_dim, dim=true))
+        set_string!(buf, ix, fy, inst, tstyle(:text_dim; dim=true))
     end
 end
 
 function dashboard(; theme_name=nothing)
     theme_name !== nothing && set_theme!(theme_name)
-    app(DashboardModel(); fps=30)
+    return app(DashboardModel(); fps=30)
 end

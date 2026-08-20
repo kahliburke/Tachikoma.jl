@@ -59,7 +59,7 @@ function _make_ansi_log_line(tick::Int)
     color = ANSI_LOG_COLORS[mod1(tick, length(ANSI_LOG_COLORS))]
     msg = ANSI_LOG_MESSAGES[mod1(tick, length(ANSI_LOG_MESSAGES))]
     ts = lpad(tick, 4, '0')
-    "$(color)[$ts]\e[0m \e[1m$level\e[0m $msg"
+    return "$(color)[$ts]\e[0m \e[1m$level\e[0m $msg"
 end
 
 @kwdef mutable struct AnsiDemoModel <: Model
@@ -74,33 +74,43 @@ end
     bot_hlayout::ResizableLayout = ResizableLayout(Horizontal, [Fill(), Fill()])
 
     # Top-left: Paragraph with ANSI parsed (default)
-    para_on::Paragraph = Paragraph(ANSI_SAMPLE;
+    para_on::Paragraph = Paragraph(
+        ANSI_SAMPLE;
         wrap=char_wrap,
-        block=Block(title="Paragraph (ansi=true)",
-                    border_style=tstyle(:border),
-                    title_style=tstyle(:title)))
+        block=Block(
+            title="Paragraph (ansi=true)", border_style=tstyle(:border), title_style=tstyle(:title)
+        ),
+    )
 
     # Top-right: Paragraph mode toggled by [r] key
-    para_off::Paragraph = Paragraph(ANSI_SAMPLE;
+    para_off::Paragraph = Paragraph(
+        ANSI_SAMPLE;
         raw=true,
         wrap=char_wrap,
-        block=Block(title="Paragraph (raw=true)",
-                    border_style=tstyle(:border),
-                    title_style=tstyle(:title)))
+        block=Block(
+            title="Paragraph (raw=true)", border_style=tstyle(:border), title_style=tstyle(:title)
+        ),
+    )
 
     # Bottom-left: ScrollPane with ANSI (default for String content)
     log_lines::Vector{String} = String[]
-    scroll_on::ScrollPane = ScrollPane(String[];
-        block=Block(title="ScrollPane (ansi=true)",
-                    border_style=tstyle(:border),
-                    title_style=tstyle(:title)))
+    scroll_on::ScrollPane = ScrollPane(
+        String[];
+        block=Block(
+            title="ScrollPane (ansi=true)", border_style=tstyle(:border), title_style=tstyle(:title)
+        ),
+    )
 
     # Bottom-right: ScrollPane with ANSI disabled
-    scroll_off::ScrollPane = ScrollPane(String[];
+    scroll_off::ScrollPane = ScrollPane(
+        String[];
         ansi=false,
-        block=Block(title="ScrollPane (ansi=false)",
-                    border_style=tstyle(:border),
-                    title_style=tstyle(:title)))
+        block=Block(
+            title="ScrollPane (ansi=false)",
+            border_style=tstyle(:border),
+            title_style=tstyle(:title),
+        ),
+    )
 end
 
 should_quit(m::AnsiDemoModel) = m.quit
@@ -113,25 +123,39 @@ function _ansi_pane_for_focus(m::AnsiDemoModel)
 end
 
 function _rebuild_para_off!(m::AnsiDemoModel)
-    m.para_off = if m.raw_mode
-        Paragraph(ANSI_SAMPLE; raw=true, wrap=char_wrap,
-            block=Block(title="Paragraph (raw=true)",
-                        border_style=tstyle(:border), title_style=tstyle(:title)))
+    return m.para_off = if m.raw_mode
+        Paragraph(
+            ANSI_SAMPLE;
+            raw=true,
+            wrap=char_wrap,
+            block=Block(;
+                title="Paragraph (raw=true)",
+                border_style=tstyle(:border),
+                title_style=tstyle(:title),
+            ),
+        )
     else
-        Paragraph(ANSI_SAMPLE; ansi=false, wrap=char_wrap,
-            block=Block(title="Paragraph (ansi=false)",
-                        border_style=tstyle(:border), title_style=tstyle(:title)))
+        Paragraph(
+            ANSI_SAMPLE;
+            ansi=false,
+            wrap=char_wrap,
+            block=Block(;
+                title="Paragraph (ansi=false)",
+                border_style=tstyle(:border),
+                title_style=tstyle(:title),
+            ),
+        )
     end
 end
 
 function update!(m::AnsiDemoModel, evt::KeyEvent)
     if evt.key == :char
-        evt.char == 'q' && (m.quit = true; return)
-        evt.char == 'r' && (m.raw_mode = !m.raw_mode; _rebuild_para_off!(m); return)
+        evt.char == 'q' && (m.quit=true; return nothing)
+        evt.char == 'r' && (m.raw_mode=(!m.raw_mode); _rebuild_para_off!(m); return nothing)
     end
-    evt.key == :escape && (m.quit = true; return)
-    evt.key == :tab && (m.focus = mod1(m.focus + 1, 4); return)
-    evt.key == :backtab && (m.focus = mod1(m.focus - 1, 4); return)
+    evt.key == :escape && (m.quit=true; return nothing)
+    evt.key == :tab && (m.focus=mod1(m.focus + 1, 4); return nothing)
+    evt.key == :backtab && (m.focus=mod1(m.focus - 1, 4); return nothing)
 
     focused = _ansi_pane_for_focus(m)
     if applicable(handle_key!, focused, evt)
@@ -141,15 +165,15 @@ end
 
 function update!(m::AnsiDemoModel, evt::MouseEvent)
     # Resizable pane borders
-    handle_resize!(m.vlayout, evt) && return
-    handle_resize!(m.top_hlayout, evt) && return
-    handle_resize!(m.bot_hlayout, evt) && return
+    handle_resize!(m.vlayout, evt) && return nothing
+    handle_resize!(m.top_hlayout, evt) && return nothing
+    handle_resize!(m.bot_hlayout, evt) && return nothing
     # ScrollPane scrollbar and scroll wheel
     for pane in (m.scroll_on, m.scroll_off)
-        handle_mouse!(pane, evt) && return
+        handle_mouse!(pane, evt) && return nothing
     end
     for pane in (m.para_on, m.para_off)
-        handle_mouse!(pane, evt) && return
+        handle_mouse!(pane, evt) && return nothing
     end
 end
 
@@ -166,27 +190,35 @@ function view(m::AnsiDemoModel, f::Frame)
     # Update block titles with focus indicator
     focus_marker(idx) = m.focus == idx ? "● " : "○ "
     focus_border(idx) = m.focus == idx ? tstyle(:accent) : tstyle(:border)
-    focus_title(idx) = m.focus == idx ? tstyle(:accent, bold=true) : tstyle(:title)
+    focus_title(idx) = m.focus == idx ? tstyle(:accent; bold=true) : tstyle(:title)
 
-    m.para_on.block = Block(
+    m.para_on.block = Block(;
         title="$(focus_marker(1))Paragraph (ansi=true)",
-        border_style=focus_border(1), title_style=focus_title(1))
+        border_style=focus_border(1),
+        title_style=focus_title(1),
+    )
     para_off_label = m.raw_mode ? "raw=true" : "ansi=false"
-    m.para_off.block = Block(
+    m.para_off.block = Block(;
         title="$(focus_marker(2))Paragraph ($para_off_label)",
-        border_style=focus_border(2), title_style=focus_title(2))
-    m.scroll_on.block = Block(
+        border_style=focus_border(2),
+        title_style=focus_title(2),
+    )
+    m.scroll_on.block = Block(;
         title="$(focus_marker(3))ScrollPane (ansi=true)",
-        border_style=focus_border(3), title_style=focus_title(3))
-    m.scroll_off.block = Block(
+        border_style=focus_border(3),
+        title_style=focus_title(3),
+    )
+    m.scroll_off.block = Block(;
         title="$(focus_marker(4))ScrollPane (ansi=false)",
-        border_style=focus_border(4), title_style=focus_title(4))
+        border_style=focus_border(4),
+        title_style=focus_title(4),
+    )
 
     # Layout: 2x2 grid with footer, draggable borders
     footer_rows = split_layout(Layout(Vertical, [Fill(), Fixed(1)]), f.area)
-    length(footer_rows) < 2 && return
+    length(footer_rows) < 2 && return nothing
     rows = split_layout(m.vlayout, footer_rows[1])
-    length(rows) < 2 && return
+    length(rows) < 2 && return nothing
     top_cols = split_layout(m.top_hlayout, rows[1])
     bot_cols = split_layout(m.bot_hlayout, rows[2])
 
@@ -200,10 +232,14 @@ function view(m::AnsiDemoModel, f::Frame)
     render_resize_handles!(buf, m.bot_hlayout)
 
     # Footer
-    render(StatusBar(
-        left=[Span("  [Tab]focus [↑↓/PgUp/PgDn]scroll [r]toggle raw ", tstyle(:text_dim))],
-        right=[Span("$(length(m.log_lines)) lines  [q/Esc]quit ", tstyle(:text_dim))],
-    ), footer_rows[2], buf)
+    return render(
+        StatusBar(;
+            left=[Span("  [Tab]focus [↑↓/PgUp/PgDn]scroll [r]toggle raw ", tstyle(:text_dim))],
+            right=[Span("$(length(m.log_lines)) lines  [q/Esc]quit ", tstyle(:text_dim))],
+        ),
+        footer_rows[2],
+        buf,
+    )
 end
 
 function ansi_demo(; theme_name=nothing)
@@ -218,5 +254,5 @@ function ansi_demo(; theme_name=nothing)
     model.scroll_off.content = model.log_lines
     model.tick = 0
 
-    app(model; fps=30)
+    return app(model; fps=30)
 end

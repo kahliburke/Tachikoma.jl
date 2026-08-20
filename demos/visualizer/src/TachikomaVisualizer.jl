@@ -15,7 +15,7 @@ function render_sixel!(f::Frame, img::AbstractMatrix, area::Rect)
     buf = IOBuffer()
     sixel_encode(buf, img)
     data = take!(buf)
-    Tachikoma.render_sixel!(f, data, area)
+    return Tachikoma.render_sixel!(f, data, area)
 end
 
 include("visualizer.jl")
