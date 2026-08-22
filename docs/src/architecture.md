@@ -146,10 +146,33 @@ Return `nothing` (the default) to copy the full screen.
 
 <!-- tachi:noeval -->
 ```julia
-clipboard_copy!(text::String)
+clipboard_copy!(text::AbstractString; io=stdout, backend=clipboard_backend()) → Symbol
+clipboard_copy!(t::Terminal, text::AbstractString) → Symbol
 ```
 
-Copies text to the system clipboard. Uses `pbcopy` on macOS and `xclip` on Linux.
+Copies text to the system clipboard and returns the backend that took it: `:native`, `:osc52`, or `:none` if nothing worked. It never throws.
+
+There are two backends, because neither covers every environment:
+
+| Backend | How it works | Limits |
+| --- | --- | --- |
+| `:native` | Pipes to a helper program — `pbcopy` on macOS, `wl-copy`/`xclip`/`xsel` on Linux and BSD, PowerShell `Set-Clipboard` on Windows | Needs the helper installed; writes to the clipboard of the machine Julia runs on |
+| `:osc52` | Writes an OSC 52 escape sequence that the terminal emulator handles itself | Needs terminal support, and gives no acknowledgement — a `:osc52` result means "sent", not "landed" |
+
+Candidates are tried until one succeeds, so a helper that is installed but cannot reach a display server — `xclip` in a Wayland-only session, for instance — falls through to the next one. `wl-copy` is tried first when `WAYLAND_DISPLAY` is set.
+
+The default `:auto` uses the native backend first, except when frames are going to another machine's terminal (SSH, or a `tty_path`/`io` sink), where a helper would write to the wrong machine's clipboard and OSC 52 goes first.
+
+To force a backend:
+
+<!-- tachi:noeval -->
+```julia
+set_clipboard_backend!(:osc52)   # or :native, :auto, :none
+```
+
+Or set `TACHIKOMA_CLIPBOARD=osc52` in the environment before startup. Force `:osc52` when no clipboard helper is installed; force `:native` if your terminal mishandles OSC 52.
+
+Under tmux, OSC 52 relies on `set-clipboard` being `on` or `external` (the default). GNU `screen` does not forward OSC 52 at all — use the native backend there.
 
 <!-- tachi:noeval -->
 ```julia

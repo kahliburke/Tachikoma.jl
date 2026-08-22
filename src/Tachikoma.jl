@@ -9,6 +9,7 @@ include("buffer.jl")
 include("layout.jl")
 include("cast_recorder.jl")     # CastRecorder struct (before terminal.jl)
 include("terminal.jl")
+include("clipboard.jl")
 include("pty.jl")
 include("events.jl")
 include("windows_input.jl")   # ReadConsoleInputW backend (mouse+keyboard on Windows)
@@ -46,6 +47,7 @@ function __init__()
     load_bg_config!()
     load_window_opacity!()
     load_export_prefs!()
+    load_clipboard_backend!()
 end
 
 # ── Public API ──
@@ -70,6 +72,7 @@ export # Core types
        tty_path, set_size!,
        prepare_for_exec!,
        clipboard_copy!, buffer_to_text,
+       clipboard_backend, set_clipboard_backend!,
        # Async tasks
        TaskEvent, TaskQueue, CancelToken,
        spawn_task!, spawn_timer!, drain_tasks!,

@@ -145,26 +145,10 @@ AppOverlay() = AppOverlay(false, 1, false, false, 1, "", 0,
                           [true, true], 1, 1, 1,
                           true, false, false, false)
 
-"""
-    clipboard_copy!(text::String)
-
-Copy text to the system clipboard. Uses `pbcopy` on macOS, `xclip` on Linux.
-"""
-function clipboard_copy!(text::String)
-    try
-        if Sys.isapple()
-            open(pipeline(`pbcopy`), "w") do io
-                write(io, text)
-            end
-        elseif Sys.islinux()
-            open(pipeline(`xclip -selection clipboard`), "w") do io
-                write(io, text)
-            end
-        end
-    catch
-        # Silently ignore clipboard errors (e.g., xclip not installed)
-    end
-    nothing
+function _clipboard_notification(result::Symbol)
+    result === :native ? "Copied to clipboard" :
+    result === :osc52  ? "Copied via terminal (OSC 52)" :
+                         "Clipboard unavailable"
 end
 
 function _sync_theme_overlay_idx!(overlay::AppOverlay)
@@ -252,7 +236,10 @@ function handle_default_binding!(t::Terminal, overlay::AppOverlay, model::Model,
         rect = copy_rect(model)
         rect === nothing && (rect = t.size)
         text = buffer_to_text(buf, rect)
-        clipboard_copy!(text)
+        # Report the outcome: a silent no-op is indistinguishable from a copy
+        # that worked, and whether it worked depends on the environment.
+        overlay.notify_text = _clipboard_notification(clipboard_copy!(t, text))
+        overlay.notify_ttl = 90  # ~1.5s at 60fps
         return true
     end
     # Export overlay is open — consume keys

@@ -1,6 +1,7 @@
 using Test
 using Tachikoma
 using Tachikoma.Paged
+using Base64
 using Base64: base64decode
 using Supposition, Supposition.Data
 
@@ -27,6 +28,7 @@ struct _DummyModel <: T.Model end
     include("test_widgets_coverage.jl")
     include("test_scripting.jl")
     include("test_injectable_io.jl")
+    include("test_clipboard.jl")
     include("test_animation.jl")
     include("test_tokenizers.jl")
     include("test_style.jl")
