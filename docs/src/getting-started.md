@@ -399,6 +399,8 @@ app(PigGame())
 | `Ctrl+?` | Help overlay |
 | `Ctrl+Y` | Copy focused pane to clipboard |
 
+Ctrl+Y reports what happened in a toast — see [Clipboard Support](architecture.md#clipboard-support) if it says the clipboard is unavailable.
+
 ## Next Steps
 
 - [Architecture](architecture.md) — Understand the full Elm lifecycle

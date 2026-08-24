@@ -765,7 +765,8 @@ function validate_snippets()
                     gif_extension_loaded, discover_mono_fonts,
                     paragraph_line_count,
                     list_hit, list_scroll,
-                    clipboard_copy!, buffer_to_text
+                    clipboard_copy!, buffer_to_text,
+                    clipboard_backend, set_clipboard_backend!
             """))
             Base.eval(mod, Meta.parse("const T = Tachikoma"))
 
