@@ -196,6 +196,38 @@ export_svg("recording.svg", w, h, cells, ts;
     font_path="/path/to/font.ttf")
 ```
 
+## The `tachi` Command-Line Tool
+
+`tachi` renders `.tach` files without starting a REPL. It lives in `tools/tachi`
+in the repository and installs as a Julia app, which requires **Julia 1.12** or
+later:
+
+```
+pkg> app add https://github.com/kahliburke/Tachikoma.jl:tools/tachi
+```
+
+Or equivalently:
+
+<!-- tachi:noeval -->
+```julia
+using Pkg
+Pkg.Apps.add(url="https://github.com/kahliburke/Tachikoma.jl", subdir="tools/tachi")
+```
+
+This puts a `tachi` shim in `~/.julia/bin`, which needs to be on your `PATH`.
+Update it later with `pkg> app up Tachi` and remove it with `pkg> app rm Tachi`.
+
+```
+tachi render demo.tach -o demo.gif --font "Meslo" --bg black
+tachi demo.tach --start 20 --end 60 --scale 0.7
+tachi info demo.tach     # frame count, dimensions, duration
+tachi fonts              # list monospace fonts tachi can find
+```
+
+`tachi render` writes GIF by default; pass `--format mp4` for MP4 via
+[FFMPEG.jl](https://github.com/JuliaIO/FFMPEG.jl). Run `tachi --help` for the
+full option list.
+
 ## Preferences
 
 Export settings persist in `LocalPreferences.toml`:
