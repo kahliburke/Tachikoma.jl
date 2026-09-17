@@ -47,8 +47,18 @@ function set_raw_mode!(raw::Bool)
     # keyboard still works even where mouse can't. On Unix, RAW (1) is the correct
     # POSIX raw mode; there is no VT-input distinction.
     @static if Sys.iswindows()
-        rc = ccall(:uv_tty_set_mode, Cint, (Ptr{Cvoid}, Cint), stdin.handle, Cint(3))
-        rc == 0 || ccall(:uv_tty_set_mode, Cint, (Ptr{Cvoid}, Cint), stdin.handle, Cint(1))
+        if _win_console_input()
+            # The ReadConsoleInputW backend reads INPUT_RECORDs directly and gets mouse
+            # from them, so it needs VK_* records — not a VT stream. Requesting RAW_VT
+            # here would set ENABLE_VIRTUAL_TERMINAL_INPUT and make the console
+            # synthesise escape sequences instead, breaking arrows, Esc and mouse alike.
+            # `_win_enter_input!` owns the console mode on this path; RAW (1) only clears
+            # line/echo/processed input, which is what it wants underneath.
+            ccall(:uv_tty_set_mode, Cint, (Ptr{Cvoid}, Cint), stdin.handle, Cint(1))
+        else
+            rc = ccall(:uv_tty_set_mode, Cint, (Ptr{Cvoid}, Cint), stdin.handle, Cint(3))
+            rc == 0 || ccall(:uv_tty_set_mode, Cint, (Ptr{Cvoid}, Cint), stdin.handle, Cint(1))
+        end
     else
         ccall(:uv_tty_set_mode, Cint, (Ptr{Cvoid}, Cint), stdin.handle, Cint(1))
     end
