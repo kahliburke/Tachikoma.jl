@@ -94,4 +94,26 @@ end
         @test T._win_translate_key(_mkrec(1; down = 0, vk = 0x41, ch = UInt16('a'))) === nothing  # key-up
         @test T._win_translate_key(_mkrec(1; down = 1, vk = 0x10, ch = 0)) === nothing             # modifier-only
     end
+
+    @testset "console mode: virtual terminal input is always cleared" begin
+        # With ENABLE_VIRTUAL_TERMINAL_INPUT set, the console synthesises VT escape
+        # sequences instead of VK_* records: an arrow arrives as \e, [, A — three
+        # character records with vk == 0 — which decode as Ctrl+{ and two letters,
+        # and mouse reports decay the same way. The mode is derived from the console's
+        # current mode, so the bit must be cleared rather than merely not set.
+        vt = UInt32(T._ENABLE_VIRTUAL_TERMINAL_INPUT)
+        for current in (UInt32(0), vt, typemax(UInt32), vt | UInt32(T._ENABLE_QUICK_EDIT_MODE))
+            @test T._win_input_mode(current) & vt == 0
+        end
+
+        # The record-reading backend needs these on, and line discipline off.
+        m = T._win_input_mode(UInt32(0))
+        @test m & UInt32(T._ENABLE_MOUSE_INPUT)     != 0
+        @test m & UInt32(T._ENABLE_WINDOW_INPUT)    != 0
+        @test m & UInt32(T._ENABLE_EXTENDED_FLAGS)  != 0
+        for off in (T._ENABLE_LINE_INPUT, T._ENABLE_ECHO_INPUT,
+                    T._ENABLE_PROCESSED_INPUT, T._ENABLE_QUICK_EDIT_MODE)
+            @test T._win_input_mode(typemax(UInt32)) & UInt32(off) == 0
+        end
+    end
 end

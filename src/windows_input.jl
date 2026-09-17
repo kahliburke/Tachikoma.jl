@@ -26,6 +26,7 @@ const _ENABLE_WINDOW_INPUT           = 0x0008
 const _ENABLE_MOUSE_INPUT            = 0x0010
 const _ENABLE_QUICK_EDIT_MODE        = 0x0040
 const _ENABLE_EXTENDED_FLAGS         = 0x0080
+const _ENABLE_VIRTUAL_TERMINAL_INPUT = 0x0200
 
 # INPUT_RECORD event types
 const _KEY_EVENT                = 0x0001
@@ -80,6 +81,22 @@ end
 @inline _i16(b, i) = reinterpret(Int16, _u16(b, i))
 @inline _u32(b, i) = UInt32(b[i]) | (UInt32(b[i+1]) << 8) | (UInt32(b[i+2]) << 16) | (UInt32(b[i+3]) << 24)
 
+"""The console input mode this backend needs, derived from the console's `current` mode.
+
+Split out from `_win_enter_input!` so it can be tested without a console.
+
+`ENABLE_VIRTUAL_TERMINAL_INPUT` must be cleared, and clearing it is the whole reason this
+is computed rather than assumed. With that bit set the console stops reporting keys as
+`VK_*` records and instead synthesises the VT escape sequence as separate character
+records with `wVirtualKeyCode == 0`; an arrow press arrives as three records (`\\e`, `[`,
+`A`) which `_win_translate_key` decodes as Ctrl+{ followed by two letters, and mouse
+reports decay into stray characters the same way. Since the mode is derived from the
+console's current state, anything that set the bit earlier would otherwise survive."""
+_win_input_mode(current::UInt32) =
+    (current | _ENABLE_MOUSE_INPUT | _ENABLE_EXTENDED_FLAGS | _ENABLE_WINDOW_INPUT) &
+    ~UInt32(_ENABLE_QUICK_EDIT_MODE | _ENABLE_LINE_INPUT | _ENABLE_ECHO_INPUT |
+            _ENABLE_PROCESSED_INPUT | _ENABLE_VIRTUAL_TERMINAL_INPUT)
+
 """Put the console into raw + mouse mode (no line/echo/quick-edit), saving the old
 mode for restore. Idempotent."""
 function _win_enter_input!()
@@ -88,8 +105,7 @@ function _win_enter_input!()
     mref = Ref{UInt32}(0)
     ccall((:GetConsoleMode, "kernel32"), Cint, (Ptr{Cvoid}, Ptr{UInt32}), h, mref) == 0 && return false
     _WIN_SAVED_MODE[] = mref[]; _WIN_MODE_SAVED[] = true
-    newmode = (mref[] | _ENABLE_MOUSE_INPUT | _ENABLE_EXTENDED_FLAGS | _ENABLE_WINDOW_INPUT) &
-              ~UInt32(_ENABLE_QUICK_EDIT_MODE | _ENABLE_LINE_INPUT | _ENABLE_ECHO_INPUT | _ENABLE_PROCESSED_INPUT)
+    newmode = _win_input_mode(mref[])
     ccall((:SetConsoleMode, "kernel32"), Cint, (Ptr{Cvoid}, UInt32), h, newmode)
     _WIN_MOUSE_BTN[] = 0
     _WIN_INPUT_ENABLED[] = true
