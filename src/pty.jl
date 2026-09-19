@@ -1,8 +1,8 @@
 # ═══════════════════════════════════════════════════════════════════════
 # PTY ── pseudo-terminal management for embedded terminal widgets
 #
-# Platform: Unix only (macOS, Linux, BSD). PTYs are a Unix kernel concept;
-# Windows would require a ConPTY backend behind the same API surface.
+# Platform: unix (macOS, Linux, BSD) here; Windows is served by a pseudo-console
+# behind this same API surface, in conpty.jl.
 #
 # Linux: openpty() + posix_spawnp() (avoids fork() deadlocks in Julia's
 # multithreaded runtime); POSIX_SPAWN_SETSID + opening the slave assigns
@@ -25,7 +25,7 @@ Read subprocess output from `pty.output` (a `Channel{Vector{UInt8}}`).
 Write input via `pty_write(pty, data)`.
 """
 mutable struct PTY
-    master_fd::Cint          # master side fd (parent reads/writes here)
+    master_fd::Cint          # master side fd (parent reads/writes here); -1 on the ConPTY backend
     child_pid::Cint          # child process PID
     rows::Int                # current terminal size
     cols::Int
@@ -33,7 +33,20 @@ mutable struct PTY
     output::Channel{Vector{UInt8}}   # child → parent data
     reader_task::Task                # background reader
     on_data::Union{Function, Nothing}  # called after data push to output
+    # Windows ConPTY handles (see conpty.jl). All NULL on the POSIX pty path.
+    hpcon::Ptr{Cvoid}        # HPCON from CreatePseudoConsole
+    hproc::Ptr{Cvoid}        # child process HANDLE
+    hin::Ptr{Cvoid}          # write end of the console's input pipe (parent → child)
+    hout::Ptr{Cvoid}         # read end of the console's output pipe (child → parent)
 end
+
+# Keep the 8-argument form the POSIX paths construct.
+PTY(master_fd, child_pid, rows, cols, alive, output, reader_task, on_data) =
+    PTY(master_fd, child_pid, rows, cols, alive, output, reader_task, on_data,
+        C_NULL, C_NULL, C_NULL, C_NULL)
+
+"""Whether this PTY is backed by a Windows pseudo-console rather than a POSIX pty."""
+_is_conpty(pty::PTY) = pty.hpcon != C_NULL
 
 # ── TIOCSWINSZ ioctl constant (set terminal size) ────────────────────
 const _TIOCSWINSZ = @static (Sys.isapple() || Sys.isbsd()) ? Culong(0x80087467) : Culong(0x5414)
@@ -240,8 +253,13 @@ A background reader task is started automatically. Read output from
 function pty_spawn(cmd::Vector{String}; rows::Int=24, cols::Int=80,
                    env::Union{Dict{String,String}, Nothing}=nothing,
                    dir::Union{AbstractString, Nothing}=nothing)
-    @static Sys.iswindows() && error("PTY not supported on Windows")
     isempty(cmd) && error("pty_spawn: cmd must not be empty")
+
+    # Everything below is POSIX (openpty/posix_spawn/cfmakeraw/TIOCSWINSZ/poll_fd).
+    # Windows gets a real pseudo-console instead — see conpty.jl.
+    @static if Sys.iswindows()
+        return _pty_spawn_conpty(cmd; rows = rows, cols = cols, env = env, dir = dir)
+    end
 
     # macOS needs forkpty/login_tty to get a controlling terminal (see _pty_spawn_forkpty).
     @static if Sys.isapple()
@@ -350,6 +368,8 @@ Note: Prefer reading from `pty.output` (Channel) instead of calling
 this directly. The background reader task handles reading automatically.
 """
 function pty_read(pty::PTY, buf::Vector{UInt8}, max_bytes::Int)
+    # The ConPTY reader task owns the output handle; read from `pty.output` instead.
+    _is_conpty(pty) && return 0
     n = GC.@preserve buf ccall(:read, Cssize_t,
                 (Cint, Ptr{UInt8}, Csize_t),
                 pty.master_fd, pointer(buf), min(max_bytes, length(buf)))
@@ -368,6 +388,7 @@ Write raw bytes to the PTY master fd (sends input to the subprocess).
 """
 function pty_write(pty::PTY, data::Vector{UInt8})
     isempty(data) && return
+    _is_conpty(pty) && return _conpty_write(pty, data)
     GC.@preserve data ccall(:write, Cssize_t,
                 (Cint, Ptr{UInt8}, Csize_t),
                 pty.master_fd, pointer(data), length(data))
@@ -385,6 +406,10 @@ to the child process group so it can reflow its output.
 function pty_resize!(pty::PTY, rows::Int, cols::Int)
     pty.rows = rows
     pty.cols = cols
+    if _is_conpty(pty)
+        _conpty_resize(pty, rows, cols)
+        return nothing
+    end
     ws = UInt16[rows, cols, 0, 0]
     GC.@preserve ws ccall(:ioctl, Cint,
                 (Cint, Culong, Ptr{Cvoid}...),
@@ -401,6 +426,10 @@ Check if the child process is still running (non-blocking waitpid).
 """
 function pty_alive(pty::PTY)
     pty.alive || return false
+    if _is_conpty(pty)
+        pty.alive = _conpty_alive(pty)
+        return pty.alive
+    end
     # In-process PTYs (child_pid == 0) have no child to wait on;
     # waitpid(0) would reap unrelated process-group children.
     pty.child_pid <= 0 && return pty.alive
@@ -449,6 +478,19 @@ Close the PTY master fd, stop the reader task, send SIGHUP to the child
 (if any), and reap it.
 """
 function pty_close!(pty::PTY)
+    if _is_conpty(pty)
+        # Stop the reader BEFORE closing the handles it polls: Windows reuses handle
+        # values, so closing `hout` under a reader sitting in PeekNamedPipe/ReadFile can
+        # have it read whatever opens next. Closing the channel first unblocks a `put!`
+        # that is waiting on a full channel nobody is draining.
+        pty.alive = false
+        try close(pty.output) catch end
+        if !istaskdone(pty.reader_task)
+            try wait(pty.reader_task) catch end
+        end
+        _conpty_close!(pty)
+        return nothing
+    end
     pty.master_fd == -1 && return
     pty.alive = false
     ccall(:close, Cint, (Cint,), pty.master_fd)

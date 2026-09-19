@@ -11,6 +11,9 @@ include("cast_recorder.jl")     # CastRecorder struct (before terminal.jl)
 include("terminal.jl")
 include("clipboard.jl")
 include("pty.jl")
+# The Windows half of pty.jl. Nothing in it is meaningful elsewhere — every call is
+# a kernel32 ccall — so it is only loaded where it can run.
+@static Sys.iswindows() && include("conpty.jl")
 include("events.jl")
 include("windows_input.jl")   # ReadConsoleInputW backend (mouse+keyboard on Windows)
 include("scripting.jl")
