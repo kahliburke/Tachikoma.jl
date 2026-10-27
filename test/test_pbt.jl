@@ -151,6 +151,46 @@
         end
     end
 
+    @testset "PBT: split_layout flex distribution" begin
+        cs_gen = Data.Vectors(constraint_gen; min_size=1, max_size=6)
+        w_gen = Data.Integers(0, 300)
+        # "Fills remaining space": with a Fill present, every cell is assigned.
+        Supposition.@check function fill_consumes(cs=cs_gen, w=w_gen)
+            any(c -> c isa T.Fill, cs) || return true
+            rects = T.split_layout(T.Layout(T.Horizontal, T.Constraint[c for c in cs]),
+                                   T.Rect(1, 1, w, 1))
+            sum(r.width for r in rects) == w
+        end
+        # Equal Fill weights get sizes within one cell of each other.
+        Supposition.@check function fill_equal(n=Data.Integers(2, 12),
+                                               weight=Data.Integers(1, 5), w=w_gen)
+            rects = T.split_layout(
+                T.Layout(T.Horizontal, T.Constraint[T.Fill(weight) for _ in 1:n]),
+                T.Rect(1, 1, w, 1))
+            ws = [r.width for r in rects]
+            maximum(ws) - minimum(ws) <= 1
+        end
+        # A Max never exceeds its size.
+        Supposition.@check function max_bound(cs=cs_gen, w=w_gen)
+            rects = T.split_layout(T.Layout(T.Horizontal, T.Constraint[c for c in cs]),
+                                   T.Rect(1, 1, w, 1))
+            all(rects[i].width <= c.size for (i, c) in enumerate(cs) if c isa T.Max)
+        end
+    end
+
+    @testset "PBT: split_layout alignment stays inside the area" begin
+        align_gen = Data.SampledFrom(collect(instances(T.LayoutAlign)))
+        Supposition.@check function aligned_inside(n=Data.Integers(1, 40),
+                                                   size=Data.Integers(0, 5),
+                                                   w=Data.Integers(0, 300), align=align_gen)
+            r = T.Rect(1, 1, w, 1)
+            rects = T.split_layout(
+                T.Layout(T.Horizontal, T.Constraint[T.Fixed(size) for _ in 1:n]; align), r)
+            all(x -> x.width == 0 || (x.x >= r.x && T.right(x) <= T.right(r)), rects) &&
+                all(i -> rects[i+1].x >= rects[i].x + rects[i].width, 1:n-1)
+        end
+    end
+
     @testset "PBT: noise always in [0,1]" begin
         float_gen = map(x -> x / 100.0, Data.Integers(-1000, 1000))
         Supposition.@check function noise_range(x=float_gen)

@@ -397,6 +397,35 @@
         @test rects[3].x > rects[2].x + 10
     end
 
+    @testset "Layout space_between stays inside the area" begin
+        # Many items with a leftover that lands on a .5 gap boundary.
+        r = T.Rect(1, 1, 74, 1)
+        rects = T.split_layout(
+            T.Layout(T.Horizontal, fill(T.Fixed(1), 11); align=T.layout_space_between), r)
+        @test rects[1].x == 1
+        @test T.right(rects[end]) == T.right(r)
+    end
+
+    @testset "Layout Fill weights" begin
+        widths(cs, w) = [r.width for r in T.split_layout(
+            T.Layout(T.Horizontal, cs), T.Rect(1, 1, w, 1))]
+        @test widths([T.Fill(), T.Fill(), T.Fill()], 90) == [30, 30, 30]
+        @test widths([T.Fill(), T.Fill(), T.Fill(), T.Fill()], 100) == [25, 25, 25, 25]
+        @test widths([T.Fill(2), T.Fill(1), T.Fill(1)], 100) == [50, 25, 25]
+        # A capped Max gives what it does not take to the Fills.
+        @test widths([T.Fill(), T.Max(5)], 100) == [95, 5]
+        @test widths([T.Max(5), T.Fill()], 100) == [5, 95]
+        @test widths([T.Fill(), T.Max(5), T.Fill()], 100) == [47, 5, 48]
+        # A Max under its cap shares like weight 1.
+        @test widths([T.Fill(3), T.Max(40)], 100) == [75, 25]
+        # Max alone leaves the rest unassigned.
+        @test widths([T.Max(5), T.Max(5)], 100) == [5, 5]
+        # Zero weights: a zero Fill yields to others, all-zero splits equally.
+        @test widths([T.Fill(0), T.Fill(2)], 10) == [0, 10]
+        @test widths([T.Fill(0), T.Fill(0)], 10) == [5, 5]
+        @test_throws ArgumentError T.Fill(-1)
+    end
+
     @testset "Layout default is layout_start" begin
         r = T.Rect(1, 1, 100, 24)
         rects = T.split_layout(

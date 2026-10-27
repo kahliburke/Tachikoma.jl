@@ -16,7 +16,13 @@ struct Max     <: Constraint; size::Int; end
 struct Percent <: Constraint; pct::Int;  end
 
 """Fills remaining space. `weight` controls relative proportion when multiple Fills exist."""
-struct Fill    <: Constraint; weight::Int; end
+struct Fill <: Constraint
+    weight::Int
+    function Fill(weight::Integer)
+        weight >= 0 || throw(ArgumentError("Fill weight must be non-negative, got $weight"))
+        new(weight)
+    end
+end
 
 Fill() = Fill(1)
 
@@ -90,20 +96,7 @@ function split_layout(layout::Layout, rect::Rect)
     # Pass 2: distribute remaining to flex items
     flex_idx = findall(is_flex)
     if !isempty(flex_idx) && remaining > 0
-        total_w = sum(
-            layout.constraints[i] isa Fill ?
-                layout.constraints[i].weight : 1
-            for i in flex_idx
-        )
-        for (j, i) in enumerate(flex_idx)
-            c = layout.constraints[i]
-            w = c isa Fill ? c.weight : 1
-            share = j == length(flex_idx) ? remaining :
-                    div(remaining * w, total_w)
-            c isa Max && (share = min(share, c.size))
-            sizes[i] += share
-            remaining -= share
-        end
+        _distribute_flex!(sizes, layout.constraints, flex_idx, remaining)
     end
 
     # Compute leftover after all sizes allocated
@@ -112,51 +105,76 @@ function split_layout(layout::Layout, rect::Rect)
 
     # Build rects with alignment
     rects = Vector{Rect}(undef, n)
-    pos = layout.direction == Horizontal ? rect.x : rect.y
-    align = layout.align
-
-    # Pre-offset for alignment
-    if align == layout_center
-        pos += leftover ÷ 2
-    elseif align == layout_end
-        pos += leftover
-    elseif align == layout_space_around && n > 0 && leftover > 0
-        pos += round(Int, leftover / (2n))
-    elseif align == layout_space_evenly && n > 0 && leftover > 0
-        pos += round(Int, leftover / (n + 1))
-    end
-
-    # Between-item alignment gap
-    align_gap = 0.0
-    is_gap_align = align in (layout_space_between, layout_space_around, layout_space_evenly)
-    if is_gap_align && n > 1 && leftover > 0
-        if align == layout_space_between
-            align_gap = leftover / (n - 1)
-        elseif align == layout_space_around
-            align_gap = leftover / n
-        elseif align == layout_space_evenly
-            align_gap = leftover / (n + 1)
-        end
-    end
-
-    gap_accum = 0.0
+    start = layout.direction == Horizontal ? rect.x : rect.y
+    pos = start
     for i in 1:n
+        at = pos + _align_offset(layout.align, i, n, leftover)
         rects[i] = if layout.direction == Horizontal
-            Rect(pos, rect.y, sizes[i], rect.height)
+            Rect(at, rect.y, sizes[i], rect.height)
         else
-            Rect(rect.x, pos, rect.width, sizes[i])
+            Rect(rect.x, at, rect.width, sizes[i])
         end
-        pos += sizes[i]
-        if i < n
-            pos += layout.spacing  # structural gap (can be negative for overlap)
-            if is_gap_align && leftover > 0
-                gap_accum += align_gap
-                int_gap = round(Int, gap_accum) - round(Int, gap_accum - align_gap)
-                pos += int_gap
-            end
-        end
+        pos += sizes[i] + layout.spacing  # structural gap (can be negative for overlap)
     end
     rects
+end
+
+# Share `remaining` among the flex items in proportion to their weights (a Fill's weight,
+# 1 for Min and Max). Shares come from cumulative weight, so they sum to `remaining` exactly
+# and equal weights differ by at most one cell. A Max whose share exceeds its cap is held at
+# the cap and the rest is shared again among the others; capping only raises the others'
+# shares, so this settles within one round per Max.
+function _distribute_flex!(sizes::Vector{Int}, cs::Vector{Constraint},
+                           flex_idx::Vector{Int}, remaining::Int)
+    active = copy(flex_idx)
+    while !isempty(active) && remaining > 0
+        weights = [cs[i] isa Fill ? cs[i].weight : 1 for i in active]
+        total_w = sum(weights)
+        if total_w == 0               # all zero-weight Fills: split equally
+            weights .= 1
+            total_w = length(active)
+        end
+        shares = similar(weights)
+        cum = 0
+        prev = 0
+        for (j, w) in enumerate(weights)
+            cum += w
+            next = Int(div(widemul(remaining, cum), total_w))
+            shares[j] = next - prev
+            prev = next
+        end
+        capped = [j for (j, i) in enumerate(active)
+                  if cs[i] isa Max && shares[j] > max(0, cs[i].size)]
+        if isempty(capped)
+            for (j, i) in enumerate(active)
+                sizes[i] += shares[j]
+            end
+            return sizes
+        end
+        for j in capped
+            i = active[j]
+            cap = max(0, cs[i].size)
+            sizes[i] += cap
+            remaining -= cap
+        end
+        deleteat!(active, capped)
+    end
+    sizes
+end
+
+# Offset of item `i` of `n` from its packed position, placing `leftover` cells per `align`.
+# Each offset is computed directly rather than accumulated, so the last item never passes
+# the end of the area.
+function _align_offset(align::LayoutAlign, i::Int, n::Int, leftover::Int)
+    leftover > 0 || return 0
+    align == layout_center && return leftover ÷ 2
+    align == layout_end && return leftover
+    align == layout_space_between && return n > 1 ? round(Int, (i - 1) * leftover / (n - 1)) : 0
+    align == layout_space_around &&
+        return round(Int, leftover / (2n)) + round(Int, (i - 1) * leftover / n)
+    align == layout_space_evenly &&
+        return round(Int, leftover / (n + 1)) + round(Int, (i - 1) * leftover / (n + 1))
+    return 0
 end
 
 # Backward compat alias
