@@ -145,44 +145,52 @@ function render(ws::WidgetScroll, rect::Rect, buf::Buffer)
     ws.offset_y = clamp(ws.offset_y, 0, max_oy)
     ws.offset_x = clamp(ws.offset_x, 0, max_ox)
 
-    # Copy visible portion to real buffer (row-wise bulk copy)
-    src_content = virt_buf.content
-    dst_content = buf.content
-    dst_w = buf.area.width
-    for dy in 0:(content_h - 1)
-        src_y = ws.offset_y + dy + 1
-        src_y > vh && break
-        dst_y = inner.y + dy
-        src_row_start = (src_y - 1) * vw + ws.offset_x
-        dst_row_start = (dst_y - buf.area.y) * dst_w + (inner.x - buf.area.x)
-        n = min(content_w, vw - ws.offset_x)
-        @inbounds copyto!(dst_content, dst_row_start + 1, src_content, src_row_start + 1, n)
-    end
+    _blit_cells!(buf, inner.x, inner.y, virt_buf, 1 + ws.offset_x, 1 + ws.offset_y,
+                 min(content_w, vw - ws.offset_x), min(content_h, vh - ws.offset_y))
 
-    # Vertical scrollbar (rightmost column, content rows only)
     if need_v && inner.width >= 2
-        sb_x = right(inner)
-        visible_ratio = content_h / vh
-        bar_h = max(1, round(Int, visible_ratio * content_h))
-        bar_pos = round(Int, (ws.offset_y / max(1, max_oy)) * (content_h - bar_h))
-        for dy in 0:(content_h - 1)
-            y = inner.y + dy
-            in_thumb = dy >= bar_pos && dy < bar_pos + bar_h
-            st = in_thumb ? tstyle(:border) : tstyle(:border, dim=true)
-            set_char!(buf, sb_x, y, '█', st)
-        end
+        _scrollbar_v!(buf, right(inner), inner.y, content_h, vh, ws.offset_y, max_oy)
     end
-
-    # Horizontal scrollbar (last row, content columns only)
     if need_h && inner.height >= 2
-        sb_y = inner.y + inner.height - 1
-        bar_w = max(1, round(Int, (content_w / vw) * content_w))
-        bar_pos = round(Int, (ws.offset_x / max(1, max_ox)) * (content_w - bar_w))
-        for dx in 0:(content_w - 1)
-            x = inner.x + dx
-            in_thumb = dx >= bar_pos && dx < bar_pos + bar_w
-            st = in_thumb ? tstyle(:border) : tstyle(:border, dim=true)
-            set_char!(buf, x, sb_y, '🬋', st)
-        end
+        _scrollbar_h!(buf, inner.x, inner.y + inner.height - 1, content_w, vw, ws.offset_x, max_ox)
+    end
+end
+
+# ── Viewport helpers (shared with other widgets that draw onto their own canvas) ──
+
+# Copy a `w`×`h` block of cells whose top-left is (`sx`, `sy`) in `src` to
+# (`dx`, `dy`) in `dst`, one row at a time. Clipped to both buffers.
+function _blit_cells!(dst::Buffer, dx::Int, dy::Int, src::Buffer, sx::Int, sy::Int,
+                      w::Int, h::Int)
+    sa, da = src.area, dst.area
+    scol, dcol = sx - sa.x, dx - da.x
+    (scol < 0 || dcol < 0) && return
+    n = min(w, sa.width - scol, da.width - dcol)
+    n <= 0 && return
+    for r in 0:h-1
+        srow, drow = sy + r - sa.y, dy + r - da.y
+        (0 <= srow < sa.height && 0 <= drow < da.height) || continue
+        @inbounds copyto!(dst.content, drow * da.width + dcol + 1,
+                          src.content, srow * sa.width + scol + 1, n)
+    end
+end
+
+# Vertical scrollbar of height `h` at column `x`, for `total` rows scrolled to `offset`.
+function _scrollbar_v!(buf::Buffer, x::Int, y::Int, h::Int, total::Int, offset::Int, max_off::Int)
+    bar_h = max(1, round(Int, h / max(1, total) * h))
+    bar_pos = round(Int, (offset / max(1, max_off)) * (h - bar_h))
+    for dy in 0:h-1
+        in_thumb = bar_pos <= dy < bar_pos + bar_h
+        set_char!(buf, x, y + dy, '█', in_thumb ? tstyle(:border) : tstyle(:border, dim=true))
+    end
+end
+
+# Horizontal scrollbar of width `w` at row `y`, for `total` columns scrolled to `offset`.
+function _scrollbar_h!(buf::Buffer, x::Int, y::Int, w::Int, total::Int, offset::Int, max_off::Int)
+    bar_w = max(1, round(Int, w / max(1, total) * w))
+    bar_pos = round(Int, (offset / max(1, max_off)) * (w - bar_w))
+    for dx in 0:w-1
+        in_thumb = bar_pos <= dx < bar_pos + bar_w
+        set_char!(buf, x + dx, y, '🬋', in_thumb ? tstyle(:border) : tstyle(:border, dim=true))
     end
 end

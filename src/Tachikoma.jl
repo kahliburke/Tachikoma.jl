@@ -156,6 +156,7 @@ export # Core types
        Form, FormField,
        ProgressList, ProgressItem, TaskStatus,
        task_pending, task_running, task_done, task_error, task_skipped,
+       DAGView, DAGNode, node_at, hovered_node, zoom!,
        # Floating windows
        FloatingWindow, WindowManager,
        window_rect, focused_window, bring_to_front!,

@@ -47,6 +47,7 @@ include("unicode_demo.jl")
 include("scroll_demo.jl")
 include("launcher.jl")
 include("simple_tree_demo.jl")
+include("dag_demo.jl")
 
 export demo, rain, dashboard, life, snake, clock, waves, chaos,
        sysmon, anim_demo, mouse_demo, dotwave,
@@ -56,6 +57,6 @@ export demo, rain, dashboard, life, snake, clock, waves, chaos,
        fps_demo, phylo_demo, clado_demo, sixel_demo, sixel_gallery,
        async_demo, markdown_demo, windows_demo, terminal_demo, repl_demo,
        ansi_demo, tabbar_demo, widget_styles_demo, colortypes_demo,
-       unicode_demo, scroll_demo, launcher, simple_tree_demo
+       unicode_demo, scroll_demo, launcher, simple_tree_demo, dag_demo
 
 end

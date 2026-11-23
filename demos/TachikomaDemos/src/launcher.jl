@@ -170,6 +170,9 @@ const DEMO_ENTRIES = DemoEntry[
     DemoEntry("Tree View", :widget,
         "Hierarchical TreeView with keyboard/mouse navigation. Live debug panel shows value(), selected_node(), and per-node user data via TreeNode.content.",
         () -> simple_tree_demo()),
+    DemoEntry("Pipeline Graph", :widget,
+        "DAGView: a live CI run, a workflow with icons and dashed links, and a large generated graph. Hover for details, arrows follow edges, +/- or Ctrl+wheel zoom, drag to pan.",
+        () -> dag_demo()),
 
     # ── Data ──
     DemoEntry("DataTable", :data,
