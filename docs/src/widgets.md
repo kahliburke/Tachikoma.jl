@@ -456,6 +456,43 @@ root = TreeNode("Root", [
     TreeNode("Child 1", [TreeNode("Leaf A"; content="Leaf A content")]; content=("Child 1 content", 1e-4, true))])
 ```
 
+### DAGView / DAGNode
+
+Directed acyclic graph of steps, such as a CI pipeline or a data workflow. Nodes are placed in columns by dependency depth and joined by box-drawing connectors; `deps` lists the nodes a step waits on:
+
+<!-- tachi:widget dagview_basic w=96 h=12 -->
+```julia
+dv = DAGView([
+    DAGNode(:checkout, "checkout"; status=task_done, subtitle="4s"),
+    DAGNode(:build, "build"; deps=[:checkout], status=task_done, subtitle="2m 40s"),
+    DAGNode(:lint, "lint"; deps=[:checkout], status=task_error),
+    DAGNode(:test, "test"; deps=[:build], status=task_running,
+            detail="412/980 passed"),
+    DAGNode(:deploy, "deploy"; deps=[:test, :lint]),
+]; selected=:build)
+render(dv, area, buf)
+```
+
+`status` takes the same `TaskStatus` values as `ProgressList` and sets the node's glyph and border color. `detail` (a `String` or `Vector{Span}`) is shown in a tooltip while the mouse hovers the node. `links` draws a dashed connection to a node that is used rather than waited on, such as a shared model or credential, and `icon` shows a kind glyph in place of the status glyph:
+
+<!-- tachi:noeval -->
+```julia
+DAGNode(:summarize, "Summarize"; deps=[:fetch], links=[:model], icon='∞')
+```
+
+<!-- tachi:noeval -->
+```julia
+handle_key!(dv, evt)     # ↑↓ within a column, ←→ along edges, +/- zoom
+handle_mouse!(dv, evt)   # hover tooltip, click select, drag pan, wheel scroll, Ctrl+wheel zoom
+value(dv)                # selected node id
+selected_node(dv)        # selected DAGNode
+hovered_node(dv)         # DAGNode under the mouse
+dv[:test].status = task_done   # nodes are mutable; the next frame shows the change
+zoom!(dv, -1)            # 3 full boxes, 2 compact boxes, 1 one line per node
+```
+
+Graphs larger than the area scroll, with scrollbars, and the selected node is kept in view. Hovering or selecting a node highlights the edges upstream and downstream of it (`highlight_lineage=false` turns this off). Hover needs `mouse_move` events, which `app` enables.
+
 ### TabBar
 
 Tab switching:
