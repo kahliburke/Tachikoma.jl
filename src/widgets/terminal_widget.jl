@@ -38,9 +38,10 @@ mutable struct TermScreen
     saved_main_cursor_col::Int
     saved_main_style::Style
     saved_scrollback::Union{Vector{Vector{Cell}}, Nothing}
-    # Mouse reporting modes (DECSET 1000/1002/1006)
+    # Mouse reporting modes (DECSET 1000/1002/1003/1006)
     mouse_reporting::Bool
     mouse_sgr::Bool
+    mouse_tracking::Int       # active tracking mode: 0 (off), 1000, 1002, or 1003
 end
 
 function TermScreen(rows::Int, cols::Int; scrollback_limit::Int=1000, onlcr::Bool=false)
@@ -53,7 +54,7 @@ function TermScreen(rows::Int, cols::Int; scrollback_limit::Int=1000, onlcr::Boo
                # alternate screen buffer
                false, nothing, 1, 1, RESET, nothing,
                # mouse reporting
-               false, false)
+               false, false, 0)
 end
 
 # ── Screen Buffer Operations ────────────────────────────────────────
@@ -451,8 +452,11 @@ function _dispatch_csi!(s::TermScreen, param_buf::Vector{UInt8}, final::UInt8, t
                 if p == 1049 || p == 47 || p == 1047
                     _enter_alt_screen!(s, p == 1049)
                 end
-                # Mouse reporting
-                (p == 1000 || p == 1002) && (s.mouse_reporting = true)
+                # Mouse reporting: the most recently enabled tracking mode wins
+                if p == 1000 || p == 1002 || p == 1003
+                    s.mouse_tracking = p
+                    s.mouse_reporting = true
+                end
                 p == 1006 && (s.mouse_sgr = true)
             end
         elseif final == UInt8('l')   # reset
@@ -464,8 +468,11 @@ function _dispatch_csi!(s::TermScreen, param_buf::Vector{UInt8}, final::UInt8, t
                 if p == 1049 || p == 47 || p == 1047
                     _leave_alt_screen!(s, p == 1049)
                 end
-                # Mouse reporting
-                (p == 1000 || p == 1002) && (s.mouse_reporting = false)
+                # Mouse reporting: resetting any tracking mode turns tracking off
+                if p == 1000 || p == 1002 || p == 1003
+                    s.mouse_tracking = 0
+                    s.mouse_reporting = false
+                end
                 p == 1006 && (s.mouse_sgr = false)
             end
         end
@@ -797,6 +804,14 @@ function _encode_key(evt::KeyEvent; enter_as_lf::Bool=false)::Vector{UInt8}
 end
 
 # ── SGR Mouse Encoding ──────────────────────────────────────────────
+
+# Whether the child's tracking mode asks for this event: drags need 1002 or 1003,
+# buttonless motion needs 1003. Presses, releases and wheel go to any mode.
+function _mouse_wanted(s::TermScreen, evt::MouseEvent)
+    evt.action == mouse_move && return s.mouse_tracking == 1003
+    evt.action == mouse_drag && return s.mouse_tracking >= 1002
+    true
+end
 
 function _encode_mouse_sgr(evt::MouseEvent, cx::Int, cy::Int)::Vector{UInt8}
     # SGR encoding: \e[<Cb;Cx;CyM (press/drag) or \e[<Cb;Cx;Cym (release)
@@ -1139,7 +1154,8 @@ function handle_mouse!(tw::TerminalWidget, evt::MouseEvent)::Bool
         # Translate to content-relative coordinates (1-based)
         cx = evt.x - tw.last_area.x + 1
         cy = evt.y - tw.last_area.y + 1
-        if cx >= 1 && cx <= text_width && cy >= 1 && cy <= tw.last_area.height
+        if cx >= 1 && cx <= text_width && cy >= 1 && cy <= tw.last_area.height &&
+           _mouse_wanted(tw.screen, evt)
             seq = _encode_mouse_sgr(evt, cx, cy)
             if !isempty(seq)
                 pty_write(tw.pty, seq)

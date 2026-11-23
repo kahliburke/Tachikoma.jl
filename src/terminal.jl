@@ -10,8 +10,10 @@ const CLEAR_SCREEN   = "\e[2J"
 const CLEAR_SCROLLBACK = "\e[2J\e[3J"  # clear screen + scrollback (frees iTerm2 sixel memory)
 const SYNC_START     = "\e[?2026h"     # begin synchronized update (terminal buffers output)
 const SYNC_END       = "\e[?2026l"     # end synchronized update (terminal renders atomically)
-const MOUSE_ON       = "\e[?1000h\e[?1002h\e[?1006h"   # basic + button-event + SGR
-const MOUSE_OFF      = "\e[?1000l\e[?1002l\e[?1006l"
+# 1003 (any-event tracking) reports pointer motion with no button held, which is what
+# delivers `mouse_move` events for hover. 1000/1002 come first for terminals without 1003.
+const MOUSE_ON       = "\e[?1000h\e[?1002h\e[?1003h\e[?1006h"   # basic + button + any-motion + SGR
+const MOUSE_OFF      = "\e[?1003l\e[?1002l\e[?1000l\e[?1006l"
 
 # Kitty keyboard protocol: push mode with flags
 # Bit 0 (1):  Disambiguate escape codes

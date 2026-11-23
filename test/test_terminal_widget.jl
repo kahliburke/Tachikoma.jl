@@ -19,6 +19,17 @@ end
 
     # ── TermScreen basics ────────────────────────────────────────────
 
+    @testset "VT parser: mouse tracking modes" begin
+        s = T.TermScreen(24, 80)
+        tw = _make_test_tw(s)
+        T._vt_feed!(tw, Vector{UInt8}("\e[?1000h\e[?1002h\e[?1006h"))
+        @test s.mouse_tracking == 1002 && s.mouse_reporting && s.mouse_sgr
+        T._vt_feed!(tw, Vector{UInt8}("\e[?1003h"))
+        @test s.mouse_tracking == 1003
+        T._vt_feed!(tw, Vector{UInt8}("\e[?1003l"))
+        @test s.mouse_tracking == 0 && !s.mouse_reporting
+    end
+
     @testset "TermScreen construction" begin
         s = T.TermScreen(24, 80)
         @test s.rows == 24
