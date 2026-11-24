@@ -10,9 +10,9 @@
 # needs an explicit TIOCSCTTY), so we use forkpty()/login_tty() there,
 # execing immediately in the child so the fork is safe.
 #
-# PTY output is read by a background task using FileWatching.poll_fd
-# and delivered via a Channel{Vector{UInt8}}. This decouples PTY I/O
-# from the rendering loop and avoids blocking the main thread.
+# PTY output is read by a background task waiting on one FDWatcher for the
+# master fd, and delivered via a Channel{Vector{UInt8}}. This decouples PTY
+# I/O from the rendering loop and avoids blocking the main thread.
 # ═══════════════════════════════════════════════════════════════════════
 
 """
@@ -41,6 +41,13 @@ mutable struct PTY
     # The child's exit status has been collected (POSIX). After that its pid may belong to another
     # process, so it is never waited on or signalled again.
     reaped::Bool
+    # The reader's watcher on `master_fd` (POSIX). Closed before the fd: FileWatching shares one
+    # watcher per fd number, so a watcher left open on a closed fd is handed to the next file
+    # that gets the number.
+    watcher::Union{FDWatcher, Nothing}
+    # Why the reader stopped, when it was not end of output or `pty_close!`. Nothing reads the
+    # child's output after that, so a child that keeps writing blocks once the pty buffer is full.
+    reader_error::Union{Exception, Nothing}
 end
 
 # Keep the 8-argument form the POSIX paths construct, and the 12-argument form conpty.jl constructs.
@@ -49,7 +56,7 @@ PTY(master_fd, child_pid, rows, cols, alive, output, reader_task, on_data) =
         C_NULL, C_NULL, C_NULL, C_NULL)
 PTY(master_fd, child_pid, rows, cols, alive, output, reader_task, on_data, hpcon, hproc, hin, hout) =
     PTY(master_fd, child_pid, rows, cols, alive, output, reader_task, on_data,
-        hpcon, hproc, hin, hout, false)
+        hpcon, hproc, hin, hout, false, nothing, nothing)
 
 """Whether this PTY is backed by a Windows pseudo-console rather than a POSIX pty."""
 _is_conpty(pty::PTY) = pty.hpcon != C_NULL
@@ -107,19 +114,23 @@ const _SPAWN_ATTR_SIZE = @static Sys.isapple() ? 8 : 336
 """
     _start_pty_reader(pty::PTY) → Task
 
-Spawn an @async task that uses `FileWatching.poll_fd` to efficiently
-wait for data on the PTY master fd, then reads it and pushes chunks
-to `pty.output`. This integrates with Julia's event loop via libuv
-so it never blocks the main thread.
+Spawn an @async task that waits on an `FDWatcher` for the PTY master fd,
+reads what is available and pushes chunks to `pty.output`. This integrates
+with Julia's event loop via libuv so it never blocks the main thread.
+
+The watcher lives as long as the reader. `pty_close!` closes it to stop the
+reader, which ends the wait at once, and closes the fd only after the reader
+has finished.
 """
 function _start_pty_reader(pty::PTY)
+    watcher = FDWatcher(RawFD(pty.master_fd), true, false)
+    pty.watcher = watcher
     @async begin
         buf = Vector{UInt8}(undef, 8192)
-        fd = RawFD(pty.master_fd)
         try
             while pty.alive
                 # Wait for the fd to become readable (yields to event loop)
-                result = poll_fd(fd, 1.0; readable=true, writable=false)
+                result = wait(watcher)
                 result.readable || continue
                 # Drain all available data
                 while true
@@ -142,10 +153,17 @@ function _start_pty_reader(pty::PTY)
                 end
             end
         catch e
-            # Channel closed, fd closed, or other shutdown — normal
-            e isa InvalidStateException || e isa Base.IOError || (pty.alive && @debug "PTY reader error" exception=(e, catch_backtrace()))
+            # pty_close! ends the reader by closing the watcher (EOFError) and the channel
+            # (InvalidStateException). Anything else, or either of those while the PTY is open,
+            # means the child's output is no longer read.
+            if pty.alive || !(e isa EOFError || e isa InvalidStateException)
+                pty.reader_error = e
+                @warn "PTY reader stopped" child_pid = pty.child_pid exception = (e, catch_backtrace())
+            end
+        finally
+            pty.alive = false
+            close(watcher)
         end
-        pty.alive = false
     end
 end
 
@@ -516,12 +534,17 @@ function pty_close!(pty::PTY; grace::Real = 2.0)
         return nothing
     end
     pty.master_fd == -1 && return
+    # Stop the reader before closing the fd it watches. A closed fd's number goes to the next file
+    # opened, and a reader still waiting or reading on it would take that file's data, or leave its
+    # watcher for that file's reader to inherit. Closing the watcher ends the reader's wait; closing
+    # the channel unblocks a `put!` into a full channel nobody is draining.
     pty.alive = false
-    ccall(:close, Cint, (Cint,), pty.master_fd)
-    try close(pty.output) catch end  # unblock reader if waiting on put!
+    pty.watcher === nothing || close(pty.watcher)
+    try close(pty.output) catch end
     if !istaskdone(pty.reader_task)
         try wait(pty.reader_task) catch end
     end
+    ccall(:close, Cint, (Cint,), pty.master_fd)
     if pty.child_pid > 0 && !_reap!(pty)
         ccall(:kill, Cint, (Cint, Cint), pty.child_pid, Cint(1))  # SIGHUP
         if !_await_reap!(pty, grace)

@@ -603,6 +603,50 @@ end
             @test pty.reaped
             @test !_exists(pid)
         end
+
+        _fd_watched(fd) = ccall(:jl_uv_unix_fd_is_watched, Int32, (RawFD, Ptr{Cvoid}, Ptr{Cvoid}),
+                                RawFD(fd), C_NULL, Base.eventloop()) == 1
+
+        @testset "pty_close! stops the reader at once and leaves its fd unwatched" begin
+            pty = T.pty_spawn(["sleep", "30"])   # silent: the reader is waiting when we close
+            fd = pty.master_fd
+            sleep(0.2)
+            @test _fd_watched(fd)
+            t = time()
+            T.pty_close!(pty; grace = 0.5)
+            @test time() - t < 0.5   # no wait for a poll timeout
+            @test istaskdone(pty.reader_task)
+            @test !isopen(pty.watcher)
+            @test !_fd_watched(fd)
+            @test pty.reader_error === nothing
+        end
+
+        @testset "a PTY that reuses a just-closed PTY's fd number gets its own output" begin
+            for _ in 1:10
+                a = T.pty_spawn(["sleep", "30"])
+                closer = Threads.@spawn T.pty_close!(a; grace = 0.5)
+                b = T.pty_spawn(["sh", "-c", "sleep 0.1; echo reused-fd-marker"])
+                out = String(_drain(b))
+                wait(closer)
+                T.pty_close!(b)
+                @test occursin("reused-fd-marker", out)
+                @test b.reader_error === nothing
+            end
+        end
+
+        @testset "a reader that stops while the PTY is open records why" begin
+            pty = Base.CoreLogging.with_logger(Base.CoreLogging.NullLogger()) do
+                T.pty_spawn(["sh", "-c", "sleep 0.2; echo after-close; sleep 5"])
+            end
+            close(pty.output)   # the reader's next put! fails while the PTY is still open
+            deadline = time() + 3.0
+            while pty.alive && time() < deadline
+                sleep(0.01)
+            end
+            @test !pty.alive
+            @test pty.reader_error isa InvalidStateException
+            T.pty_close!(pty; grace = 0.5)
+        end
     end
 
     # ── with_terminal host stream guard ──────────────────────────────

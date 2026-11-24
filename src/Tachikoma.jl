@@ -2,7 +2,7 @@ module Tachikoma
 
 using PrecompileTools
 using Preferences
-using FileWatching: poll_fd
+using FileWatching: poll_fd, FDWatcher
 
 include("style.jl")
 include("buffer.jl")
