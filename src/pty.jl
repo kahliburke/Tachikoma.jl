@@ -194,23 +194,28 @@ function _pty_spawn_forkpty(cmd::Vector{String}; rows::Int, cols::Int, env,
     envp = Cstring[Base.unsafe_convert(Cstring, c) for c in env_c]
     push!(envp, C_NULL)
     prog_c = Base.cconvert(Cstring, prog)
-    # Optional working directory for the child, chdir'd after fork, before exec. The Cstring is
-    # built here (pre-fork) so the child only does the allocation-free ccall.
-    dir_c = dir === nothing ? nothing : Base.cconvert(Cstring, String(dir))
+    # Optional working directory for the child, chdir'd after fork, before exec.
+    dir_c = Base.cconvert(Cstring, dir === nothing ? "" : String(dir))
+    # The forked child has only the forking thread, and any lock another thread held at the fork
+    # stays held. So everything the child calls is resolved here: its strings converted to
+    # pointers, and chdir/execve/_exit looked up by address. A ccall by name in a precompiled
+    # package can resolve its symbol on first use, which would happen in the child.
+    chdir_f, execve_f, exit_f = cglobal(:chdir), cglobal(:execve), cglobal(:_exit)
     pid = GC.@preserve c_strs argv env_c envp prog_c dir_c ws begin
+        prog_p = Base.unsafe_convert(Cstring, prog_c)
+        dir_p = dir === nothing ? Ptr{UInt8}(C_NULL) : pointer(Base.unsafe_convert(Cstring, dir_c))
+        argv_p, envp_p = pointer(argv), pointer(envp)
         p = ccall(:forkpty, Cint, (Ptr{Cint}, Ptr{Cvoid}, Ptr{Cvoid}, Ptr{UInt16}),
                   master, C_NULL, C_NULL, pointer(ws))
         if p == 0
-            # CHILD — login_tty already done by forkpty; chdir (if asked) then exec (no allocation).
+            # CHILD — login_tty already done by forkpty; chdir (if asked) then exec.
             # Fail loudly on a bad dir: exec'ing in the inherited cwd would silently run the child
             # in the wrong place. Matches the posix_spawn path, where addchdir_np fails the spawn.
-            if dir_c !== nothing &&
-               ccall(:chdir, Cint, (Cstring,), Base.unsafe_convert(Cstring, dir_c)) != 0
-                ccall(:_exit, Cvoid, (Cint,), Cint(127))
+            if dir_p != C_NULL && ccall(chdir_f, Cint, (Ptr{UInt8},), dir_p) != 0
+                ccall(exit_f, Cvoid, (Cint,), Cint(127))
             end
-            ccall(:execve, Cint, (Cstring, Ptr{Cstring}, Ptr{Cstring}),
-                  Base.unsafe_convert(Cstring, prog_c), pointer(argv), pointer(envp))
-            ccall(:_exit, Cvoid, (Cint,), Cint(127))
+            ccall(execve_f, Cint, (Cstring, Ptr{Cstring}, Ptr{Cstring}), prog_p, argv_p, envp_p)
+            ccall(exit_f, Cvoid, (Cint,), Cint(127))
         end
         p
     end
