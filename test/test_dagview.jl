@@ -198,6 +198,173 @@ _press(x, y) = MouseEvent(x, y, mouse_left, mouse_press, false, false, false)
         @test haskey(dv, :e) && !haskey(dv, :zz)
         @test_throws KeyError dv[:zz]
     end
+
+    @testset "dragged nodes extend the content extent" begin
+        dv = DAGView(_dag_pipeline())
+        tb = _dag_render(dv, 200, 40)
+        lay = dv._layout
+        # Baseline: nothing dragged → the extent is exactly the layout bbox.
+        @test _T._dag_extent(dv, lay) == (0, 0, lay.width, lay.height)
+
+        # Drag the right-most node (e) 30 cells right. The target stays inside
+        # the (200×40) view, so the drag registers.
+        x, y = _dag_cell(dv, :e)
+        @test handle_mouse!(dv, _press(x, y))
+        @test handle_mouse!(dv, MouseEvent(x + 30, y, mouse_left, mouse_drag, false, false, false))
+        @test handle_mouse!(dv, MouseEvent(x + 30, y, mouse_left, mouse_release, false, false, false))
+        # The extent grows past the layout bbox (the old invisible frame).
+        minx, miny, ew, eh = _T._dag_extent(dv, lay)
+        @test minx == 0 && miny == 0
+        @test ew > lay.width
+        # The node re-renders fully with proper box corners at its dragged spot.
+        # It is selected (press selects), so its box is the HEAVY set (┏┓┗┛).
+        tb = _dag_render(dv, 200, 40)
+        i = lay.index[:e]
+        off = dv.node_offsets[:e]
+        sx = dv._origin[1] + lay.x[i] + off[1]
+        sy = dv._origin[2] + lay.y[i] + off[2]
+        @test char_at(tb, sx, sy) == '┏'
+        @test char_at(tb, sx + lay.node_w - 1, sy) == '┓'
+        @test char_at(tb, sx, sy + lay.node_h - 1) == '┗'
+        @test char_at(tb, sx + lay.node_w - 1, sy + lay.node_h - 1) == '┛'
+        @test node_at(dv, sx + 2, sy + 1) == :e
+
+        # Drag node (a) 25 left and 3 up — its column is centered at lay.y[a]=2,
+        # so it needs three rows of lift to push the extent miny below 0.
+        x, y = _dag_cell(dv, :a)
+        @test handle_mouse!(dv, _press(x, y))
+        @test handle_mouse!(dv, MouseEvent(x - 25, y - 3, mouse_left, mouse_drag, false, false, false))
+        @test handle_mouse!(dv, MouseEvent(x - 25, y - 3, mouse_left, mouse_release, false, false, false))
+        minx, miny, ew, eh = _T._dag_extent(dv, lay)
+        @test minx < 0 && miny < 0
+        @test ew > lay.width
+        tb = _dag_render(dv, 200, 40)
+        i = lay.index[:a]
+        off = dv.node_offsets[:a]
+        # Screen pos of the node's box top-left: origin is the extent's top-left,
+        # so add the (negative) minx/miny back to the raw content coords.
+        sx = dv._origin[1] + lay.x[i] + off[1] - minx
+        sy = dv._origin[2] + lay.y[i] + off[2] - miny
+        @test sx == dv._origin[1] && sy == dv._origin[2]
+        @test char_at(tb, sx, sy) == '┏'
+        @test char_at(tb, sx, sy + lay.node_h - 1) == '┗'
+        @test node_at(dv, sx + 2, sy + 1) == :a
+        # The extent (not the static layout) drives the scrollbars: ew > 100
+        # even though lay.width < 100, so a horizontal scrollbar must appear.
+        tb = _dag_render(dv, 100, 40)
+        @test dv._layout === lay                     # no relayout from drags
+        @test occursin('🬋', row_text(tb, 40))
+    end
+
+    @testset "re-routed edges keep proper junction glyphs" begin
+        # A dragged node re-routes its edges live (they bypass the precomputed
+        # cells). Bends must still render as ╭╰╮╯ corners, crossings and T-joins
+        # as ├┤┬┴┼ junctions — never as raw ─ / │ strokes.
+        corners = Set("╭╰╮╯")
+        function screen_cell(dv, tb, cx, cy)
+            minx, miny, _, _ = _T._dag_extent(dv, dv._layout)
+            char_at(tb, dv._origin[1] + cx - minx, dv._origin[2] + cy - miny)
+        end
+        function reroute(dv, lay, u, v)
+            ou = get(dv.node_offsets, u, (0, 0)); ov = get(dv.node_offsets, v, (0, 0))
+            iu, iv = lay.index[u], lay.index[v]
+            sx = lay.x[iu] + lay.node_w + ou[1]; sy = lay.port[iu] + ou[2]
+            ex = lay.x[iv] + ov[1] - 1;           ey = lay.port[iv] + ov[2]
+            lhs = ex < sx
+            if lhs
+                sx = lay.x[iu] + ou[1] - 1
+                ex = lay.x[iv] + lay.node_w + ov[1]
+            end
+            mx = (sx + ex) ÷ 2
+            (sx, sy, ex, ey, mx, lhs)
+        end
+
+        # ── Bends: an isolated a → b edge re-routed by dragging a down turns
+        # upward from the dragged port, bending at (mx, sy) and (mx, ey); both
+        # bends must be true corners.
+        nodes = [DAGNode(:a, "a"), DAGNode(:b, "b"; deps=[:a])]
+        dv = DAGView(nodes)
+        _dag_render(dv, 160, 40)
+        lay = dv._layout
+        dv.node_offsets[:a] = (0, 10)
+        tb = _dag_render(dv, 160, 40)
+        sx, sy, ex, ey, mx, lhs = reroute(dv, lay, :a, :b)
+        @test sy > ey
+        @test screen_cell(dv, tb, mx, sy) in corners
+        @test screen_cell(dv, tb, mx, ey) in corners
+
+        # ── Shared column: two children of one dragged node route through the
+        # same mx, so their vertical runs merge into ONE vline. The source-side
+        # bends are still corners, but the lower child's bend where its hline
+        # T's into the shared vline becomes a ├-style junction — never a raw ─.
+        nodes3 = [DAGNode(:a, "a"), DAGNode(:b, "b"; deps=[:a]), DAGNode(:c, "c"; deps=[:a])]
+        dv3 = DAGView(nodes3)
+        _dag_render(dv3, 160, 40)
+        lay3 = dv3._layout
+        dv3.node_offsets[:a] = (0, 10)
+        tb3 = _dag_render(dv3, 160, 40)
+        jx = Set("├┤┬┴┼")
+        s1 = reroute(dv3, lay3, :a, :b)
+        s2 = reroute(dv3, lay3, :a, :c)
+        @test s1[5] == s2[5]                       # both edges share the column
+        @test screen_cell(dv3, tb3, s1[5], s1[2]) in corners   # source bends
+        @test screen_cell(dv3, tb3, s2[5], s2[2]) in corners
+        tb_side = s1[4] < s2[4] ? (s1, s2) : (s2, s1)
+        @test screen_cell(dv3, tb3, tb_side[1][5], tb_side[1][4]) in corners  # upper child
+        g3 = screen_cell(dv3, tb3, tb_side[2][5], tb_side[2][4])              # lower child
+        @test g3 in corners || g3 in jx            # corner or T-join, never ─ │
+
+        # ── Crossing: x → y re-routes over the static p → q lane. The expected
+        # glyph is the exact bit-union of both edges' cells; a cell shared by a
+        # vertical and a horizontal run must merge into a ┼ (interior N|S +
+        # E|W), never an overwrite by raw strokes. The drag magnitude is swept
+        # so the check works for any layout rows.
+        nodes2 = [DAGNode(:x, "x"), DAGNode(:y, "y"; deps=[:x]),
+                  DAGNode(:p, "p"), DAGNode(:q, "q"; deps=[:p])]
+        dv2 = DAGView(nodes2)
+        _dag_render(dv2, 160, 40)
+        lay2 = dv2._layout
+        ei_pq = findfirst(((u, v),) -> u == lay2.index[:p] && v == lay2.index[:q], lay2.edges)
+        @test ei_pq !== nothing
+        static_cells = lay2.edge_cells[ei_pq]
+        crossed = false
+        saw_pipe = false
+        junction_chars = Set("├┤┬┴┼")
+        for dy in 2:24
+            dv2.node_offsets[:x] = (0, dy)
+            tb2 = _dag_render(dv2, 160, 40)
+            sx, sy, ex, ey, mx, lhs = reroute(dv2, lay2, :x, :y)
+            uc = _T._DagCells()
+            _T._dag_add_hline!(uc, sy, sx, mx)
+            _T._dag_add_vline!(uc, mx, sy, ey)
+            _T._dag_add_hline!(uc, ey, mx, ex)
+            _T._dag_or!(uc, sx, sy, lhs ? _T._DAG_E : _T._DAG_W)
+            _T._dag_or!(uc, ex, ey, lhs ? _T._DAG_W : _T._DAG_E)
+            # Re-routed vertical interior meeting the static horizontal lane:
+            # the shared cell must merge into a junction (├┤┬┴┼), never a raw ─.
+            hits = [p for p in keys(uc)
+                    if (uc[p] & (_T._DAG_N | _T._DAG_S)) != 0x00 &&
+                       (get(static_cells, p, 0x00) & (_T._DAG_E | _T._DAG_W)) != 0x00]
+            isempty(hits) && continue
+            crossed = true
+            for p in hits
+                bits = static_cells[p] | uc[p]
+                @test count_ones(bits) >= 3
+                @test screen_cell(dv2, tb2, p[1], p[2]) == _T._DAG_GLYPHS[Int(bits) + 1]
+                @test screen_cell(dv2, tb2, p[1], p[2]) in junction_chars
+                screen_cell(dv2, tb2, p[1], p[2]) == '┼' && (saw_pipe = true)
+            end
+            for p in keys(uc)                      # every re-routed cell matches
+                p == (ex, ey) && continue          # the arrowhead overwrites its cell
+                bits = get(static_cells, p, 0x00) | uc[p]
+                @test screen_cell(dv2, tb2, p[1], p[2]) == _T._DAG_GLYPHS[Int(bits) + 1]
+            end
+            @test screen_cell(dv2, tb2, ex, ey) == '▶'
+            saw_pipe && break
+        end
+        @test crossed
+        @test saw_pipe
+    end
 end
 
 @testset "Mouse motion tracking" begin
