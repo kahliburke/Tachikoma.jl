@@ -18,6 +18,10 @@ depends on; an edge is drawn from each of them to this node.
   credentials, a config source). Laid out like `deps` but drawn dashed.
 - `status` — a [`TaskStatus`](@ref) (`task_pending`, `task_running`,
   `task_done`, `task_error`, `task_skipped`), shown as a glyph and border color.
+- `color` — an optional per-node color override (an `AbstractColor`). When set,
+  the node's status glyph and border use exactly this color, replacing the
+  status-derived style — so callers can color nodes to match any external
+  status vocabulary (e.g. each target's own status color).
 - `icon` — a `Char` naming the node's kind (`'⚡'`, `'✉'`…). Shown before the
   label in place of the status glyph, which then moves onto the top border.
 - `subtitle` — optional second line under the label (a duration, a host…).
@@ -38,14 +42,15 @@ mutable struct DAGNode
     subtitle::String
     detail::Any
     content::Any
+    color::Union{Nothing,AbstractColor}
 end
 
 function DAGNode(id, label=string(id); deps=Symbol[], links=Symbol[],
                  status::TaskStatus=task_pending, icon=nothing,
-                 subtitle="", detail=nothing, content=nothing)
+                 subtitle="", detail=nothing, content=nothing, color=nothing)
     DAGNode(Symbol(id), String(label), Symbol[Symbol(d) for d in deps],
             Symbol[Symbol(d) for d in links], status, icon, String(subtitle),
-            detail, content)
+            detail, content, color)
 end
 
 # ── Layout ───────────────────────────────────────────────────────────
@@ -460,6 +465,8 @@ mutable struct DAGView
     _layout_key::UInt
     _origin::Tuple{Int,Int}
     _drag::Union{Nothing,NTuple{4,Int}}
+    node_offsets::Dict{Symbol,Tuple{Int,Int}}  # dragged nodes: id -> pixel offset from the auto layout
+    _drag_node::Union{Nothing,Tuple{Symbol,Int,Int,Int,Int}}  # node being dragged: (id, press x, press y, base offset)
     _reveal::Bool
     _anchor::Union{Nothing,Tuple{Symbol,Int,Int}}
     _virt::Union{Buffer,Nothing}
@@ -480,7 +487,8 @@ scrollbars when it overflows.
 - **Keyboard** (`handle_key!`): Up/Down move within a column, Left/Right follow
   edges upstream/downstream, Home selects the first node, `+`/`-` zoom.
 - **Mouse** (`handle_mouse!`): hover shows the node's `detail` in a tooltip,
-  click selects, drag on empty space pans, wheel scrolls (Shift+wheel
+  click selects, dragging a node repositions it (the offset persists until the
+  layout rebuilds), drag on empty space pans, wheel scrolls (Shift+wheel
   horizontally), Ctrl+wheel zooms.
 - `zoom` — level of detail: `3` full boxes with subtitles, `2` compact boxes,
   `1` one line per node for an overview of a large graph.
@@ -515,7 +523,8 @@ function DAGView(nodes::Vector{DAGNode};
             focused, block, node_width, h_gap, v_gap, clamp(zoom, 1, 3),
             show_tooltip, tooltip_width, highlight_lineage, show_scrollbars,
             edge_style, highlight_style, tick,
-            0, 0, Rect(), nothing, UInt(0), (0, 0), nothing, selected !== nothing,
+            0, 0, Rect(), nothing, UInt(0), (0, 0), nothing,
+            Dict{Symbol,Tuple{Int,Int}}(), nothing, selected !== nothing,
             nothing, nothing, nothing)
 end
 
@@ -577,15 +586,41 @@ function _dag_layout!(dv::DAGView)
     dv._layout::_DagLayout
 end
 
-function _dag_clamp_offsets!(dv::DAGView, lay::_DagLayout, area::Rect)
-    dv.offset_x = clamp(dv.offset_x, 0, max(0, lay.width - area.width))
-    dv.offset_y = clamp(dv.offset_y, 0, max(0, lay.height - area.height))
+# Content extent: the union of the auto-layout bounding box and every dragged
+# (offset) node, so moved nodes extend the usable canvas instead of being
+# clipped by an invisible frame sized to the static layout.
+function _dag_extent(dv::DAGView, lay::_DagLayout)
+    minx, miny = 0, 0
+    maxx, maxy = lay.width, lay.height
+    offs = dv.node_offsets
+    nw, nh = lay.node_w, lay.node_h
+    for (i, nd) in enumerate(dv.nodes)
+        i > length(lay.x) && break
+        off = get(offs, nd.id, (0, 0))
+        bx = lay.x[i] + off[1]
+        by = lay.y[i] + off[2]
+        minx = min(minx, bx)
+        miny = min(miny, by)
+        maxx = max(maxx, bx + nw)
+        maxy = max(maxy, by + nh)
+    end
+    (minx, miny, maxx - minx, maxy - miny)
 end
 
-# Screen position of graph coordinate (0, 0). A graph smaller than the area is centered.
+function _dag_clamp_offsets!(dv::DAGView, lay::_DagLayout, area::Rect)
+    _, _, ew, eh = _dag_extent(dv, lay)
+    dv.offset_x = clamp(dv.offset_x, 0, max(0, ew - area.width))
+    dv.offset_y = clamp(dv.offset_y, 0, max(0, eh - area.height))
+end
+
+# Screen position of the content EXTENT box's top-left corner (the auto-layout
+# bbox minus any dragged-node extent). A graph smaller than the area is
+# centered over its effective content box. Consumers that need the screen
+# position of a node add `lay.pos + offset - min` on top of this.
 function _dag_origin(dv::DAGView, lay::_DagLayout, area::Rect)
-    ox = lay.width <= area.width ? area.x + (area.width - lay.width) ÷ 2 : area.x - dv.offset_x
-    oy = lay.height <= area.height ? area.y + (area.height - lay.height) ÷ 2 : area.y - dv.offset_y
+    _, _, ew, eh = _dag_extent(dv, lay)
+    ox = ew <= area.width ? area.x + (area.width - ew) ÷ 2 : area.x - dv.offset_x
+    oy = eh <= area.height ? area.y + (area.height - eh) ÷ 2 : area.y - dv.offset_y
     (ox, oy)
 end
 
@@ -593,12 +628,19 @@ end
 function _dag_reveal!(dv::DAGView, lay::_DagLayout, area::Rect)
     i = dv.selected === nothing ? 0 : get(lay.index, dv.selected, 0)
     i == 0 && return
-    x0, y0 = lay.x[i], lay.y[i]
+    minx, miny, ew, eh = _dag_extent(dv, lay)
+    off = get(dv.node_offsets, dv.selected, (0, 0))
+    x0 = lay.x[i] + off[1] - minx
+    y0 = lay.y[i] + off[2] - miny
     x1, y1 = x0 + lay.node_w - 1, y0 + lay.node_h - 1
-    x1 > dv.offset_x + area.width - 1 && (dv.offset_x = x1 - area.width + 1)
-    x0 < dv.offset_x && (dv.offset_x = x0)
-    y1 > dv.offset_y + area.height - 1 && (dv.offset_y = y1 - area.height + 1)
-    y0 < dv.offset_y && (dv.offset_y = y0)
+    if ew > area.width
+        x1 > dv.offset_x + area.width - 1 && (dv.offset_x = x1 - area.width + 1)
+        x0 < dv.offset_x && (dv.offset_x = x0)
+    end
+    if eh > area.height
+        y1 > dv.offset_y + area.height - 1 && (dv.offset_y = y1 - area.height + 1)
+        y0 < dv.offset_y && (dv.offset_y = y0)
+    end
 end
 
 """
@@ -610,10 +652,16 @@ function node_at(dv::DAGView, x::Int, y::Int)::Union{Symbol,Nothing}
     lay = dv._layout
     lay === nothing && return nothing
     contains(dv.last_area, x, y) || return nothing
-    gx, gy = x - dv._origin[1], y - dv._origin[2]
+    # _origin is the extent's top-left; node boxes are laid out in content
+    # coords that can start below the extent origin when nodes were dragged
+    # up/left, so translate hit-testing into the same content space.
+    minx, miny, _, _ = _dag_extent(dv, lay)
+    gx, gy = x - dv._origin[1] + minx, y - dv._origin[2] + miny
     for (i, nd) in enumerate(dv.nodes)
         i > length(lay.x) && break
-        if lay.x[i] <= gx < lay.x[i] + lay.node_w && lay.y[i] <= gy < lay.y[i] + lay.node_h
+        off = get(dv.node_offsets, nd.id, (0, 0))
+        x0, y0 = lay.x[i] + off[1], lay.y[i] + off[2]
+        if x0 <= gx < x0 + lay.node_w && y0 <= gy < y0 + lay.node_h
             return nd.id
         end
     end
@@ -633,7 +681,10 @@ function zoom!(dv::DAGView, delta::Int)
     lay = dv._layout
     if id !== nothing && lay !== nothing && haskey(lay.index, id)
         i = lay.index[id]
-        dv._anchor = (id, dv._origin[1] + lay.x[i], dv._origin[2] + lay.port[i])
+        off = get(dv.node_offsets, id, (0, 0))
+        minx, miny, _, _ = _dag_extent(dv, lay)
+        dv._anchor = (id, dv._origin[1] + lay.x[i] + off[1] - minx,
+                          dv._origin[2] + lay.port[i] + off[2] - miny)
     end
     dv.zoom = z
     true
@@ -646,8 +697,12 @@ function _dag_apply_anchor!(dv::DAGView, lay::_DagLayout, area::Rect)
     dv._anchor = nothing
     i = get(lay.index, a[1], 0)
     i == 0 && return
-    dv.offset_x = lay.x[i] - (a[2] - area.x)
-    dv.offset_y = lay.port[i] - (a[3] - area.y)
+    minx, miny, _, _ = _dag_extent(dv, lay)
+    off = get(dv.node_offsets, a[1], (0, 0))
+    bx = lay.x[i] + off[1] - minx
+    byp = lay.port[i] + off[2] - miny
+    dv.offset_x = bx - (a[2] - area.x)
+    dv.offset_y = byp - (a[3] - area.y)
 end
 
 # ── Rendering ────────────────────────────────────────────────────────
@@ -663,7 +718,9 @@ function _dag_status_glyph(s::TaskStatus, tick)
     elseif s == task_skipped
         ('⊘', tstyle(:text_dim))
     else
-        ('○', tstyle(:text_dim))
+        # pending (outdated) — theme warning yellow, matching the status color
+        # tables (PipelineTachikoma's Properties pane shows outdated in yellow)
+        ('○', tstyle(:warning))
     end
 end
 
@@ -671,6 +728,7 @@ function _dag_status_border(s::TaskStatus)
     s == task_done    ? tstyle(:success) :
     s == task_error   ? tstyle(:error) :
     s == task_running ? tstyle(:primary) :
+    s == task_pending ? tstyle(:warning) :
                         tstyle(:border, dim=true)
 end
 
@@ -719,11 +777,15 @@ function render(dv::DAGView, rect::Rect, buf::Buffer)
     (area.width < 2 || area.height < 2) && return
     lay = _dag_layout!(dv)
 
+    # Content extent = auto layout ∪ every dragged (offset) node, so moved
+    # nodes are never clipped by an invisible frame sized to the layout.
+    minx, miny, ew, eh = _dag_extent(dv, lay)
+
     # Scrollbars take a column / row only in the direction the graph overflows.
     sb = dv.show_scrollbars
-    need_h = sb && lay.width > area.width
-    need_v = sb && lay.height > area.height - need_h
-    need_h = sb && lay.width > area.width - need_v
+    need_h = sb && ew > area.width
+    need_v = sb && eh > area.height - need_h
+    need_h = sb && ew > area.width - need_v
     view = Rect(area.x, area.y, area.width - need_v, area.height - need_h)
     dv.last_area = view
 
@@ -738,7 +800,7 @@ function render(dv::DAGView, rect::Rect, buf::Buffer)
     isempty(dv.nodes) && return
 
     # Draw the whole graph on its own canvas, then copy the visible window.
-    vr = Rect(1, 1, lay.width, lay.height)
+    vr = Rect(1, 1, ew, eh)
     virt = dv._virt
     if virt === nothing || virt.area != vr
         virt = Buffer(vr)
@@ -746,17 +808,17 @@ function render(dv::DAGView, rect::Rect, buf::Buffer)
     else
         reset!(virt)
     end
-    _dag_draw!(dv, lay, virt)
+    _dag_draw!(dv, lay, virt; shift=(-minx, -miny))
     sx, sy = max(0, view.x - ox), max(0, view.y - oy)
     dx, dy = max(view.x, ox), max(view.y, oy)
-    w = min(lay.width - sx, right(view) - dx + 1)
-    h = min(lay.height - sy, bottom(view) - dy + 1)
+    w = min(ew - sx, right(view) - dx + 1)
+    h = min(eh - sy, bottom(view) - dy + 1)
     w > 0 && h > 0 && _blit_cells!(buf, dx, dy, virt, 1 + sx, 1 + sy, w, h)
 
     need_v && _scrollbar_v!(buf, right(area), view.y, view.height,
-                            lay.height, dv.offset_y, lay.height - view.height)
+                            eh, dv.offset_y, eh - view.height)
     need_h && _scrollbar_h!(buf, view.x, bottom(area), view.width,
-                            lay.width, dv.offset_x, lay.width - view.width)
+                            ew, dv.offset_x, ew - view.width)
 
     # The tooltip is drawn in screen space so it isn't clipped at the graph's edge.
     hn = hovered_node(dv)
@@ -767,9 +829,12 @@ function render(dv::DAGView, rect::Rect, buf::Buffer)
 end
 
 # Draw edges and nodes onto `canvas`, whose area is the graph's own extent.
-function _dag_draw!(dv::DAGView, lay::_DagLayout, canvas::Buffer)
+function _dag_draw!(dv::DAGView, lay::_DagLayout, canvas::Buffer;
+                    shift::Tuple{Int,Int}=(0, 0))
     area = canvas.area
-    ox, oy = area.x, area.y
+    # `shift` maps the content extent (which can start below (1, 1) when a node
+    # was dragged up/left) onto the canvas: content coord c lands at c - min + 1.
+    ox, oy = area.x + shift[1], area.y + shift[2]
     buf = canvas
 
     # Lineage of the hovered (else selected) node.
@@ -789,7 +854,15 @@ function _dag_draw!(dv::DAGView, lay::_DagLayout, canvas::Buffer)
     bits = _DagCells()
     cell_st = Dict{Tuple{Int,Int},Int}()          # 0 normal, 1 running, 2 highlighted
     solid = Set{Tuple{Int,Int}}()                 # cells some dependency edge passes through
+    # Edges with a dragged endpoint are re-routed live below instead of using
+    # the precomputed cells (which no longer match the on-screen boxes).
+    moved_edge = falses(length(lay.edges))
     for (ei, (u, v)) in enumerate(lay.edges)
+        moved_edge[ei] = haskey(dv.node_offsets, dv.nodes[u].id) ||
+                         haskey(dv.node_offsets, dv.nodes[v].id)
+    end
+    for (ei, (u, v)) in enumerate(lay.edges)
+        moved_edge[ei] && continue
         rank = on_path(u, v) ? 2 : dv.nodes[v].status == task_running ? 1 : 0
         for (p, b) in lay.edge_cells[ei]
             bits[p] = get(bits, p, 0x00) | b
@@ -807,19 +880,67 @@ function _dag_draw!(dv::DAGView, lay::_DagLayout, canvas::Buffer)
         _dag_put!(buf, area, ox + p[1], oy + p[2], ch, cst(p))
     end
     for ei in eachindex(lay.edges)
+        moved_edge[ei] && continue
         p = lay.arrows[ei]
         haskey(bits, p) || continue
         _dag_put!(buf, area, ox + p[1], oy + p[2], p in solid ? '▶' : '▷', cst(p))
+    end
+    # ── Edges with a dragged endpoint: re-route orthogonally between the ──
+    # offset boxes, leaving the source on the side facing the destination.
+    # Their cells join the same direction-bit maps (bits/cell_st/solid) as the
+    # static edges, so bends keep └┘┐┌ corners and crossings merge to a ┼
+    # instead of raw ─ │ strokes.
+    for (ei, (u, v)) in enumerate(lay.edges)
+        moved_edge[ei] || continue
+        ou = get(dv.node_offsets, dv.nodes[u].id, (0, 0))
+        ov = get(dv.node_offsets, dv.nodes[v].id, (0, 0))
+        rank = on_path(u, v) ? 2 : dv.nodes[v].status == task_running ? 1 : 0
+        est = rank == 2 ? hl_st : rank == 1 ? run_st : edge_st
+        lhs = false
+        sx = lay.x[u] + lay.node_w + ou[1]; sy = lay.port[u] + ou[2]
+        ex = lay.x[v] + ov[1] - 1;           ey = lay.port[v] + ov[2]
+        if ex < sx
+            lhs = true
+            sx = lay.x[u] + ou[1] - 1
+            ex = lay.x[v] + lay.node_w + ov[1]
+        end
+        mx = (sx + ex) ÷ 2
+        uc = _DagCells()
+        _dag_add_hline!(uc, sy, sx, mx)
+        _dag_add_vline!(uc, mx, sy, ey)
+        _dag_add_hline!(uc, ey, mx, ex)
+        _dag_or!(uc, sx, sy, lhs ? _DAG_E : _DAG_W)
+        _dag_or!(uc, ex, ey, lhs ? _DAG_W : _DAG_E)
+        for (p, b) in uc
+            bits[p] = get(bits, p, 0x00) | b
+            cell_st[p] = max(get(cell_st, p, 0), rank)
+            lay.dashed[ei] || push!(solid, p)
+        end
+        for p in keys(uc)
+            ch = _DAG_GLYPHS[bits[p]+1]
+            if !(p in solid)
+                ch == '─' && (ch = _DAG_DASH_H)
+                ch == '│' && (ch = _DAG_DASH_V)
+            end
+            _dag_put!(buf, area, ox + p[1], oy + p[2], ch, cst(p))
+        end
+        ach = lhs ? (lay.dashed[ei] ? '◁' : '◀') : (lay.dashed[ei] ? '▷' : '▶')
+        _dag_put!(buf, area, ox + ex, oy + ey, ach, est)
     end
 
     # ── Nodes ──
     nw, nh = lay.node_w, lay.node_h
     for (i, nd) in enumerate(dv.nodes)
         bx, by = ox + lay.x[i], oy + lay.y[i]
+        off = get(dv.node_offsets, nd.id, (0, 0))
+        bx += off[1]
+        by += off[2]
         sel = nd.id == dv.selected
         hov = nd.id == dv.hovered
         faded = lineage && i != fi && !(i in up) && !(i in down)
         sg, sgst = _dag_status_glyph(nd.status, dv.tick)
+        # Per-node color override: when set, wins over the status-derived style.
+        nd.color === nothing || (sgst = Style(fg=nd.color, bold=true))
         lst = sel ? tstyle(:text_bright, bold=true) :
               hov ? tstyle(:text_bright) :
               faded ? tstyle(:text_dim) : tstyle(:text)
@@ -832,8 +953,10 @@ function _dag_draw!(dv::DAGView, lay::_DagLayout, canvas::Buffer)
             dv.focused ? tstyle(:accent, bold=true) : tstyle(:border_focus, bold=true)
         elseif hov
             tstyle(:text_bright, bold=true)
-        else
+        elseif nd.color === nothing
             _dag_status_border(nd.status)
+        else
+            Style(fg=nd.color)
         end
         rx, ry = bx + nw - 1, by + nh - 1
         _dag_put!(buf, area, bx, by, box.tl, bst)
@@ -850,7 +973,7 @@ function _dag_draw!(dv::DAGView, lay::_DagLayout, canvas::Buffer)
         end
         # Outgoing port joins the border
         if !isempty(lay.succs[i])
-            _dag_put!(buf, area, rx, oy + lay.port[i], sel ? '┠' : '├', bst)
+            _dag_put!(buf, area, rx, by + (lay.port[i] - lay.y[i]), sel ? '┠' : '├', bst)
         end
         # Icon (or status glyph) + label. A node with its own icon shows its
         # status glyph on the top border instead.
@@ -907,7 +1030,9 @@ function _dag_tooltip!(dv::DAGView, lay::_DagLayout, nd::DAGNode, area::Rect, bu
 
     i = lay.index[nd.id]
     ox, oy = dv._origin
-    nx, ny = ox + lay.x[i], oy + lay.y[i]
+    off = get(dv.node_offsets, nd.id, (0, 0))
+    minx, miny, _, _ = _dag_extent(dv, lay)
+    nx, ny = ox + lay.x[i] + off[1] - minx, oy + lay.y[i] + off[2] - miny
     # Prefer right of the node, then left, then below, then above.
     x, y = nx + lay.node_w + 1, ny
     if x + w - 1 > right(area)
@@ -926,6 +1051,7 @@ function _dag_tooltip!(dv::DAGView, lay::_DagLayout, nd::DAGNode, area::Rect, bu
         set_char!(buf, xx, yy, ' ', RESET)
     end
     _, sst = _dag_status_glyph(nd.status, dv.tick)
+    nd.color === nothing || (sst = Style(fg=nd.color, bold=true))
     blk = Block(title=nd.label, title_right=_dag_status_label(nd.status),
                 title_right_style=sst, border_style=tstyle(:border_focus))
     inner = render(blk, r, buf)
@@ -1004,6 +1130,21 @@ function handle_mouse!(dv::DAGView, evt::MouseEvent)::Bool
         return inside
     end
 
+    # Dragging a node repositions it; the pixel offset stays after the release
+    # so the node keeps the spot it was dropped on.
+    if dv._drag_node !== nothing
+        id, mx0, my0, off0x, off0y = dv._drag_node
+        if evt.action == mouse_drag
+            if inside
+                dv.node_offsets[id] = (off0x + evt.x - mx0, off0y + evt.y - my0)
+            end
+            return true
+        elseif evt.action == mouse_release
+            dv._drag_node = nothing
+            return true
+        end
+    end
+
     # Background drag pans the view.
     if dv._drag !== nothing
         if evt.action == mouse_drag
@@ -1037,6 +1178,8 @@ function handle_mouse!(dv::DAGView, evt::MouseEvent)::Bool
             dv.selected = hit
             dv.hovered = hit
             dv._came_from = nothing
+            off0 = get(dv.node_offsets, hit, (0, 0))
+            dv._drag_node = (hit, evt.x, evt.y, off0[1], off0[2])
         else
             dv._drag = (evt.x, evt.y, dv.offset_x, dv.offset_y)
         end
